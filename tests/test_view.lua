@@ -38,14 +38,16 @@ return {
 		local r = v.fog_range({ 20, 120 }, 2.5)
 		eq(r[1], 50) eq(r[2], 300)
 		eq(v.fog_range(nil, 2), nil)
-		eq(v.sky_name("desert", "day"), "desert")
-		eq(v.sky_name(4, "dusk"), "lava", "index in the API's order")
-		eq(v.sky_name("snow", "night"), "night")
-		eq(v.sky_name(nil, nil), "desert", "a known sky when unsure")
-		near(v.sky_intensity("desert", { 0.31, 0.30, 0.275 }), 0.5, "fog half as bright as drawn: half", 1e-3)
-		eq(v.sky_intensity("desert", { 2, 2, 2 }), 1, "never above Photo Mode's 1")
-		eq(v.sky_intensity("night", { 0, 0, 0 }), v.SKY_DIMMEST, "a black fog: the dimmest")
-		eq(v.sky_intensity("desert", nil), 1, "unknown fog: as drawn")
+		for _, t in ipairs({ "dawn", "day", "dusk", "night" }) do eq(v.sky_name(t), t, t) end
+		eq(v.sky_name("ghost_town"), "day", "another time: day")
+		eq(v.sky_name(nil), "day", "unknown: day")
+		eq(v.SKY_INTENSITY, 1, "Photo Mode's brightness")
+		-- The time comes from the game state's level, the camera manager's after.
+		local api = { game = { state = function() return { generated_level = { time_of_day = "night" } } end } }
+		eq(v.mission_time(api), "night", "the game state's level")
+		CameraManager = { generated_level = { shading_environment_setting = "dusk" } }
+		eq(v.mission_time({ game = { state = function() return {} end } }), "dusk", "the camera manager's copy")
+		CameraManager = nil
 	end },
 
 	{ "the long view pushes the far range and the detail out, and gives them back", function()
@@ -78,7 +80,7 @@ return {
 		local name = nil
 		World.spawn_unit = function(_, n) name = n spawned = spawned + 1 return "dome" end
 		frame(e, env, E.player(e, "me"))
-		eq(spawned, 1) eq(name, "itp/sky/desert")
+		eq(spawned, 1) eq(name, "photomode/sky/day", "the day sky when the time is unknown")
 		frame(e, env, E.player(e, "me"))
 		eq(spawned, 1, "one dome, moved with the camera")
 		E.remove()

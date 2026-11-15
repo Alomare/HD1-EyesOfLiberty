@@ -2,6 +2,11 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 0.8.2
+
+- Fixed: the sky was the day sky in every mission. It now follows the time of the mission: dawn, day, dusk or night.
+- Changed: the skies are the dawn, day, dusk and night skies of Photo Mode, with clouds and stars, in place of the plain skies in the colour of the planet fog.
+
 ## 0.8.1
 
 - Fixed: Focus on the Helldiver showed almost no blur: the sharp zone was so deep that only things far past the Helldiver blurred, and barely. It is now 2 m deep around the Helldiver, at full blur outside it. In first person it is around the crosshair point.

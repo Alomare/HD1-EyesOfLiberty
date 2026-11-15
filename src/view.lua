@@ -3,10 +3,10 @@
 --
 --   far_view    the camera's far range and distant models keeping their detail (API detail, the
 --               lod_object_multiplier setting); the fog is pushed out in src/look.lua
---   fix_sky     a dome around the camera in the colour of the planet's fog: units the mod adds when
---               the option is on at launch (res/sky_*, tools/build_sky.py), with the render config
---               that clears the picture past the level (the same bytes as Photo Mode's)
-local rig = obsidian.module("src/rig")
+--   fix_sky     a sky around the camera for the time of the mission: Photo Mode's dawn, day, dusk and
+--               night skies (res/sky_*, the same bytes under the same names, so the two mods never
+--               clash), added when the option is on at launch, with the render config that clears
+--               the picture past the level (also Photo Mode's bytes)
 
 local M = {}
 
@@ -17,16 +17,12 @@ M.FOG_SCALE = 2.5     -- the planet's fog range times this
 M.DETAIL = 2          -- distant models keep detail this many times further
 M.SKY_RADIUS = 1800   -- metres
 M.SKY_MADE = 500      -- the dome's own radius
--- The skies tools/build_sky.py draws, by planet type, and the fog colour each was drawn for.
-M.SKIES = {
-	desert = { 0.62, 0.60, 0.55 },
-	forest = { 0.46, 0.58, 0.66 },
-	snow = { 0.66, 0.72, 0.80 },
-	lava = { 0.70, 0.34, 0.20 },
-	city = { 0.52, 0.55, 0.58 },
-	night = { 0.10, 0.13, 0.22 },
-}
-M.ENVIRONMENTS = { "desert", "forest", "snow", "lava", "city" } -- Obsidian API's order
+-- The skies, by the time of the mission (generated_level.time_of_day: dawn, day, dusk or night).
+M.TIMES = { dawn = true, day = true, dusk = true, night = true }
+M.SKY_UNIT = "photomode/sky/"
+-- Photo Mode draws its skies at intensity 1, as made. Before 0.8.0 the planet-coloured domes of this
+-- mod went to 2 and more, and every sky glowed.
+M.SKY_INTENSITY = 1
 
 -- The fog range pushed out: { start, end } times scale.
 function M.fog_range(planet, scale)
@@ -34,29 +30,11 @@ function M.fog_range(planet, scale)
 	return { planet[1] * scale, planet[2] * scale }
 end
 
--- The sky for a mission: night at night, else the planet type's. environment is a name or an index
--- in ENVIRONMENTS.
-function M.sky_name(environment, time)
-	if time == "night" or time == 4 then return "night" end
-	if type(environment) == "number" then environment = M.ENVIRONMENTS[environment] end
-	if type(environment) == "string" then
-		for name in pairs(M.SKIES) do
-			if environment:lower():find(name, 1, true) then return name end
-		end
-	end
-	return "desert"
-end
-
--- The dome's brightness. Photo Mode draws its skies at intensity 1, as made; above that every sky
--- glowed, the night one too. The dome is drawn in the colour of the planet's fog, so 1 is the most,
--- and a planet whose fog is darker than the colour the sky was drawn in dims it to match, down to
--- SKY_DIMMEST.
-M.SKY_BRIGHTEST, M.SKY_DIMMEST = 1, 0.25
-function M.sky_intensity(name, fog)
-	local drawn = M.SKIES[name] or M.SKIES.desert
-	local function lum(c) return 0.2126 * c[1] + 0.7152 * c[2] + 0.0722 * c[3] end
-	if type(fog) ~= "table" or type(fog[1]) ~= "number" then return M.SKY_BRIGHTEST end
-	return rig.clamp(lum(fog) / math.max(0.02, lum(drawn)), M.SKY_DIMMEST, M.SKY_BRIGHTEST)
+-- The sky for a mission's time of day, day when unknown. The proving grounds keep their own times,
+-- which fall back to day.
+function M.sky_name(time)
+	if type(time) == "string" and M.TIMES[time] then return time end
+	return "day"
 end
 
 -- Far view ------------------------------------------------------------------------------------------
@@ -131,20 +109,22 @@ local function sky_brightness(unit, value)
 	end)
 end
 
--- The planet type (obsidian.ui.data.mission) and the time of day (the generated level's, as the game's
--- own flashlight code reads it).
-local function mission_look()
-	local environment, time = nil, nil
-	local data = obsidian.ui and obsidian.ui.data
-	local ok, m = pcall(function() return data and data.mission and data.mission() end)
-	if ok and type(m) == "table" then environment = m.environment end
+-- The time of day of the mission: the generated level of the game state, as Photo Mode reads it
+-- (generated_level.lua 34: time_of_day, the same as shading_environment_setting), then the camera
+-- manager's copy. Before 0.8.2 only the camera manager's was read, and every mission got the day sky.
+function M.mission_time(api)
+	local levels = {}
+	local ok, st = pcall(function() return api and api.game and api.game.state and api.game.state() end)
+	if ok and type(st) == "table" then levels[#levels + 1] = st.generated_level end
 	local cm = g("CameraManager")
-	local level = type(cm) == "table" and cm.generated_level
-	if type(level) == "table" then
-		environment = environment or level.environment
-		time = level.time_of_day
+	if type(cm) == "table" then levels[#levels + 1] = cm.generated_level end
+	for _, level in ipairs(levels) do
+		if type(level) == "table" then
+			local t = level.time_of_day or level.shading_environment_setting
+			if type(t) == "string" then return t end
+		end
 	end
-	return environment, time
+	return nil
 end
 
 local function sky_update(env, view)
@@ -153,14 +133,12 @@ local function sky_update(env, view)
 		sky_remove()
 		local api = env.api
 		if not (api and api.game and api.game.in_mission and api.game.in_mission()) then return end
-		local environment, time = mission_look()
-		local name = M.sky_name(environment, time)
-		local ok, unit = pcall(g("World").spawn_unit, view.world, "itp/sky/" .. name, V3(view.position.x, view.position.y, 0))
+		local name = M.sky_name(M.mission_time(api))
+		local ok, unit = pcall(g("World").spawn_unit, view.world, M.SKY_UNIT .. name, V3(view.position.x, view.position.y, 0))
 		if not ok or not unit then return end
 		sky.unit, sky.world, sky.name = unit, view.world, name
 		pcall(U.set_local_scale, unit, 0, V3(M.SKY_RADIUS / M.SKY_MADE, M.SKY_RADIUS / M.SKY_MADE, M.SKY_RADIUS / M.SKY_MADE))
-		local fog = api.world and api.world.planet_shading and api.world.planet_shading("fog_color")
-		sky_brightness(unit, M.sky_intensity(name, fog))
+		sky_brightness(unit, M.SKY_INTENSITY)
 	end
 	pcall(U.teleport_local_position, sky.unit, 0, V3(view.position.x, view.position.y, 0))
 	pcall(g("World").update_unit, sky.world, sky.unit)
