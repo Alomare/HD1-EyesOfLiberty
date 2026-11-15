@@ -83,7 +83,7 @@ end
 if type(obsidian.after_startup) == "function" then obsidian.after_startup(old_one) else old_one() end
 
 -- What other mods get from obsidian.import("alomare.eyesofliberty").
-local export = { version = "1.0.1" }
+local export = { version = "1.0.2" }
 
 -- Where shots go on screen while third person steers the view: { x, y, aiming, firing, vehicle }, in
 -- pixels from the bottom left (the coordinates of obsidian.ui.canvas). aiming: the aim button is held;
