@@ -2,6 +2,10 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 1.0.2
+
+- New: an icon in Obsidian.
+
 ## 1.0.1
 
 - Changed: on a gamepad in third person, holding the left trigger aims, and the right stick only turns the camera. While aiming, the reload button throws grenades instead of reloading.

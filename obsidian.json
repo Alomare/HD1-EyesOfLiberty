@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.eyesofliberty",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "name": {
     "en": "Eyes of Liberty"
   },
@@ -12,6 +12,7 @@
     "Alomare",
     "yukiorsrs"
   ],
+  "image": "icon.jpg",
   "source": "https://github.com/Alomare/HD1-EyesOfLiberty",
   "scope": "session",
   "parts": [
