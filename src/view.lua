@@ -1,8 +1,8 @@
 -- What the shoulder camera sees that the top-down one never did: the distance and a sky. Each applies
 -- only while third person steers the view, and goes back with it.
 --
---   far_view    the camera's far range, the planet's fog pushed out (Obsidian API's shading), and
---               distant models keeping their detail (API detail, the lod_object_multiplier setting)
+--   far_view    the camera's far range and distant models keeping their detail (API detail, the
+--               lod_object_multiplier setting); the fog is pushed out in src/look.lua
 --   fix_sky     a dome around the camera in the colour of the planet's fog: units the mod adds when
 --               the option is on at launch (res/sky_*, tools/build_sky.py), with the render config
 --               that clears the picture past the level (the same bytes as Photo Mode's)
@@ -58,17 +58,14 @@ end
 -- Far view ------------------------------------------------------------------------------------------
 
 -- range: the camera's far range is held at FAR (the long view, and the sky, which sits 1800 m out).
--- look: the fog and the detail of distant models, for the long view only.
-local far = { range = false, saved = nil, look = false, fog = false }
+-- look: the detail of distant models, for the long view only.
+local far = { range = false, saved = nil, look = false }
 
 local function look_apply(env)
 	if far.look then return end
 	far.look = true
 	local api = env.api
 	if not (api and api.world) then return end
-	local planet = api.world.planet_shading and api.world.planet_shading("fog_depth_range")
-	local range = M.fog_range(planet, M.FOG_SCALE)
-	if range and api.world.shading then far.fog = api.world.shading("fog_depth_range", "vector2", range) == true end
 	if api.world.detail then pcall(api.world.detail, M.DETAIL) end
 end
 
@@ -77,10 +74,8 @@ local function look_release(env)
 	far.look = false
 	local api = env.api
 	if api and api.world then
-		if far.fog and api.world.shading then pcall(api.world.shading, "fog_depth_range", "vector2") end
 		if api.world.detail then pcall(api.world.detail, nil) end
 	end
-	far.fog = false
 end
 
 local function range_apply(view)

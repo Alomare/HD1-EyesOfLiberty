@@ -62,6 +62,22 @@ function M.top_down(cm)
 	return M.camera_from({ x = p.x, y = p.y, z = p.z }, { x = f.x, y = f.y, z = f.z }, cm.fov or math.rad(60))
 end
 
+-- Whether a name card is the one of the Helldiver the shoulder view follows.
+function M.own_card(env, unit, remote)
+	local view = env.view
+	return env.state.active and not remote and view ~= nil and unit ~= nil and unit == view.avatar
+end
+
+-- Removes the text of a name card the game made already.
+function M.drop_card(hud, info)
+	local texts = type(info) == "table" and type(info.gui_objects) == "table" and info.gui_objects.texts
+	local text = type(texts) == "table" and texts.in_world_name
+	if text then
+		hud.hd_gui:destroy_text(text)
+		texts.in_world_name = nil
+	end
+end
+
 function M.install(env)
 	local state = env.state
 	local asking = 0      -- inside the game's frustum functions, for the game's rules
@@ -103,6 +119,18 @@ function M.install(env)
 	obsidian.hook("Hud", "pre_update_and_draw_hud", function(original, ...)
 		if not state.active or env.config.get("names_above") == false then return original(...) end
 		return scoped.around(name_on, name_off, original, ...)
+	end, env.VIEW)
+
+	-- The player's own name card stays off in the shoulder view, where the Helldiver fills the middle of
+	-- the screen; the cards of others stay. Hud.draw_player_name_in_world(dt, info, player, unit, health,
+	-- shield, character, name, remote, colour) keeps the name as a text that lives on until destroyed.
+	obsidian.hook("Hud", "draw_player_name_in_world", function(original, self, dt, info, player, unit, health, shield,
+		character, name, remote, ...)
+		if M.own_card(env, unit, remote) then
+			pcall(M.drop_card, self, info)
+			return
+		end
+		return original(self, dt, info, player, unit, health, shield, character, name, remote, ...)
 	end, env.VIEW)
 
 	obsidian.hook("ViewportProxy", "world_to_viewport", function(original, self, p, ...)

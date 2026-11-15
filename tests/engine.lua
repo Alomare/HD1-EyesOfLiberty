@@ -121,12 +121,23 @@ function E.env(api)
 end
 
 -- The hook a test registered on target.method, or nil.
+-- Every hook on target.method chained as the loader chains them, the last one outermost: call it as
+-- fn(original, ...).
 function E.hook(target, method)
-	for i = #HOOKS, 1, -1 do
-		local h = HOOKS[i]
-		if h.target == target and h.method == method then return h.fn end
+	local list = {}
+	for _, h in ipairs(HOOKS) do
+		if h.target == target and h.method == method then list[#list + 1] = h.fn end
 	end
-	return nil
+	if #list == 0 then return nil end
+	if #list == 1 then return list[1] end
+	return function(original, ...)
+		local call = original
+		for _, fn in ipairs(list) do
+			local inner = call
+			call = function(...) return fn(inner, ...) end
+		end
+		return call(...)
+	end
 end
 
 -- A player on keyboard and mouse: the master context InputComponent.update_masters gets.

@@ -12,7 +12,7 @@ Third Person Camera replaces 28 game scripts, so mods that change the same parts
 
 ## Playing with others
 
-The camera and everything on screen work in any lobby. Three options change the game for the whole lobby: Max weapon range, Far enemy detection and Free movement. They run only when every player runs Obsidian with the same mods, and switch off when anyone else joins. With all three off, the mod counts as a client mod.
+The camera and everything on screen work in any lobby. Four options change the game for the whole lobby: Max weapon range, Far enemy detection, Free movement and Increased throw range. They run only when every player runs Obsidian with the same mods, and switch off when anyone else joins. With all four off, the mod counts as a client mod.
 
 ## Known issues
 

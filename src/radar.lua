@@ -16,7 +16,7 @@ local M = {}
 
 M.RING = 0.11        -- ring radius, as a share of the screen height
 M.GAP = 14           -- degrees between two segments
-M.THIN, M.THICK = 2, 4 -- segment thickness in pixels at 1080 lines: an enemy in range, and within half of it
+M.THIN, M.THICK = 4, 8 -- segment thickness in pixels at 1080 lines: an enemy in range, and within half of it
 M.ALPHA_FAR, M.ALPHA_NEAR = 0.3, 0.6
 M.INNER = 0.7        -- strength at the inner edge, as a share of the outer edge
 M.BANDS = 3          -- rings each segment is drawn in, from the inner to the outer edge

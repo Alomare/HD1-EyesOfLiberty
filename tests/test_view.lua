@@ -46,18 +46,17 @@ return {
 		eq(v.sky_intensity("desert", nil), 2, "the dome's own")
 	end },
 
-	{ "the long view pushes the fog and the far range out, and gives them back", function()
+	{ "the long view pushes the far range and the detail out, and gives them back", function()
 		OPTIONS.far_view = true
 		local calls = {}
 		local e, env = started(api(calls, true))
 		local masters = E.player(e, "me")
 		frame(e, env, masters)
-		eq(calls[1][1], "fog_depth_range") eq(calls[1][3][2], 300)
+		eq(#calls, 0, "the fog is src/look.lua's")
 		eq(calls.detail, view().DETAIL)
 		eq(e.calls.set_far_range[2], view().FAR)
 		KEYS.toggle_view.fn()
 		frame(e, env, masters)
-		eq(calls[2][1], "fog_depth_range") eq(calls[2][3], nil, "the planet's fog back")
 		eq(calls.detail, nil, "the game's detail back")
 		E.remove()
 	end },

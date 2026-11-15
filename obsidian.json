@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.integratedthirdperson",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "name": {
     "en": "Integrated Third Person"
   },
@@ -41,6 +41,13 @@
       "option": "free_movement",
       "name": { "en": "Free movement" },
       "description": { "en": "In third person, the Helldiver can leave the shared top-down screen. Off in lobbies with players who don't run it." }
+    },
+    {
+      "id": "throw_range",
+      "scope": "session",
+      "option": "throw_range",
+      "name": { "en": "Increased throw range" },
+      "description": { "en": "Grenades and stratagem balls fly twice as far. Off in lobbies with players who don't run it." }
     }
   ],
   "entry": "main.lua",
@@ -58,6 +65,7 @@
     "src/radar.lua",
     "src/hits.lua",
     "src/footsteps.lua",
+    "src/look.lua",
     "src/session.lua"
   ],
   "requires": [
@@ -69,11 +77,12 @@
     { "id": "vehicles", "label": { "en": "Camera in vehicles" } },
     { "id": "indicators", "label": { "en": "Indicators and names" } },
     { "id": "world", "label": { "en": "View distance and sky" } },
+    { "id": "picture", "label": { "en": "Picture" } },
     { "id": "sound", "label": { "en": "Sound" } },
     { "id": "lobby", "label": { "en": "Lobby-wide changes" } }
   ],
   "options": [
-    { "id": "foot_distance", "type": "number", "default": 5, "min": 1, "max": 10, "step": 0.5,
+    { "id": "foot_distance", "type": "number", "default": 6, "min": 1, "max": 10, "step": 0.5,
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "On-foot camera distance (m)" },
       "description": { "en": "Meters between the camera and the Helldiver on foot in a mission." } },
@@ -101,7 +110,11 @@
     { "id": "dive_camera", "type": "toggle", "default": true,
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "Dive camera" },
-      "description": { "en": "Brings the camera in close and down during a dive, quickly but smoothly, and eases it back out once the dive ends." } },
+      "description": { "en": "Brings the camera down during a dive, quickly but smoothly, and eases it back up once the dive ends." } },
+    { "id": "downed_camera", "type": "toggle", "default": true,
+      "group": "camera", "part": "view", "scope": "client",
+      "label": { "en": "Downed camera" },
+      "description": { "en": "While the Helldiver is down and crawling, the camera sits low, near the ground, and 1 m farther back." } },
     { "id": "hellpod_camera", "type": "toggle", "default": true,
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "Hellpod camera" },
@@ -143,6 +156,19 @@
       "group": "world", "part": "view", "scope": "client",
       "label": { "en": "Sky" },
       "description": { "en": "Draws a sky over the level in the color of the planet fog, instead of the smears the game leaves past the level. Needs a deploy." } },
+    { "id": "no_fog", "type": "toggle", "default": true,
+      "group": "picture", "part": "view", "scope": "client",
+      "label": { "en": "Remove fog" },
+      "description": { "en": "Removes the fog of the level, in third person and in the top-down view. Photo Mode shows the fog while it is open." } },
+    { "id": "no_bloom", "type": "toggle", "default": true,
+      "group": "picture", "part": "view", "scope": "client",
+      "label": { "en": "Disable bloom" },
+      "description": { "en": "Removes the glow around bright lights and surfaces. Photo Mode shows the bloom while it is open." } },
+    { "id": "depth_of_field", "type": "choice", "default": "off",
+      "choices": [ { "id": "game", "label": { "en": "Game default" } }, { "id": "helldiver", "label": { "en": "Focus on the Helldiver" } }, { "id": "off", "label": { "en": "Off" } } ],
+      "group": "picture", "part": "view", "scope": "client",
+      "label": { "en": "Depth of field" },
+      "description": { "en": "Game default keeps the blur of the planet. Focus on the Helldiver keeps the Helldiver sharp and blurs what is much nearer or farther. Off keeps the whole picture sharp. Photo Mode sets the depth of field while open." } },
     { "id": "footsteps", "type": "choice", "default": "loudest",
       "choices": [ { "id": "normal", "label": { "en": "Normal" } }, { "id": "louder", "label": { "en": "Louder" } }, { "id": "loudest", "label": { "en": "Loudest" } } ],
       "group": "sound", "part": "view", "scope": "client",
@@ -159,7 +185,11 @@
     { "id": "free_movement", "type": "toggle", "default": true,
       "group": "lobby", "part": "free_movement",
       "label": { "en": "Free movement" },
-      "description": { "en": "In third person, the Helldiver is no longer held on the shared top-down screen with the squad. Changes the shared game: off in lobbies with players who don't run it." } }
+      "description": { "en": "In third person, the Helldiver is no longer held on the shared top-down screen with the squad. Changes the shared game: off in lobbies with players who don't run it." } },
+    { "id": "throw_range", "type": "toggle", "default": true,
+      "group": "lobby", "part": "throw_range",
+      "label": { "en": "Increased throw range" },
+      "description": { "en": "Grenades and stratagem balls fly twice as far, on top of the Strong Arm perk. Changes the shared game: off in lobbies with players who don't run it." } }
   ],
   "keybinds": [
     { "id": "toggle_view", "default": "f8", "label": { "en": "Switch between third person and the top-down camera" } },

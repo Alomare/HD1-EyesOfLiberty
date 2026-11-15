@@ -2,6 +2,21 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 0.5.0
+
+- New: Remove fog option, on by default. Photo Mode shows the fog while it is open.
+- New: Disable bloom option, on by default. Photo Mode shows the bloom while it is open.
+- New: Depth of field option: Game default, Focus on the Helldiver, or Off (the default). Photo Mode sets the depth of field while open.
+- New: downed camera. While the Helldiver is down, the camera sits near the ground and 1 m farther back.
+- New: Increased throw range, a lobby-wide option, on by default. Grenades and stratagem balls fly twice as far, on top of the Strong Arm perk.
+- Changed: the game's own crosshair shows in third person instead of a crosshair of the mod, and Custom Crosshair replaces it when installed.
+- Changed: the own name card is hidden in third person. The cards of other players stay.
+- Changed: the camera on foot in a mission is 1 m farther away by default.
+- Changed: the dive camera only comes down and no longer moves closer.
+- Changed: the segments of the enemy indicator ring are twice as thick.
+- Fixed: the game's hardware cursor showed in third person, away from the crosshair.
+- Fixed: marks over the crew and the terminals on the Super Destroyer trailed behind the camera.
+
 ## 0.4.2
 
 - Changed: the crosshair handed to other mods also says when fire or a throw is held, so Custom Crosshair shows the aiming look while firing.

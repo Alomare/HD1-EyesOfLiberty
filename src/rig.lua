@@ -19,8 +19,10 @@ M.AIM_FOV = 1              -- share of the field of view kept while aiming: aimi
 M.MOUSE_RATE = 0.12        -- degrees per count of the mouse, at look speed 1
 M.STICK_YAW, M.STICK_PITCH = 160, 110 -- degrees a second at full stick, at look speed 1
 M.STICK_DEADZONE = 0.15
-M.DIVE_DISTANCE = 0.55     -- share of the distance kept during a dive
-M.DIVE_IN, M.DIVE_OUT = 14, 5 -- how fast the camera closes in for a dive and backs out after (ease rates)
+M.DIVE_IN, M.DIVE_OUT = 14, 5 -- how fast the camera comes down for a dive and goes back up after (ease rates)
+M.DOWN_HEIGHT = 0.4       -- the pivot's height above the ground while down and crawling
+M.DOWN_BACK = 1           -- metres the camera backs away while down
+M.DOWN_RATE = 5           -- how fast the camera goes down and comes back up (ease rate)
 M.SWAP_RATE = 9            -- how fast the camera crosses to the other shoulder (ease rate)
 M.MARGIN = 0.25            -- metres kept between the camera and a wall
 M.MIN_LENGTH = 0.35        -- the closest the camera comes to the pivot
@@ -176,12 +178,13 @@ end
 
 -- The camera's distance, field of view and side offset for this frame. opts: distance, fov (degrees),
 -- side (1 right, -1 left, anything between while the shoulder swaps), aim (0 to 1, how far into the aim
--- zoom), dive (0 to 1, how far into the dive close-up), vehicle (the vehicle kind, nil on foot: in a
+-- zoom), dive (0 to 1, how far into a dive: the dive only lowers the pivot, see height), down (0 to 1,
+-- how far into the downed camera), vehicle (the vehicle kind, nil on foot: in a
 -- vehicle, side is -1 left, 0 middle, 1 right, or between while it moves).
 function M.lens(opts)
 	local aim = clamp(opts.aim or 0, 0, 1)
-	local dive = clamp(opts.dive or 0, 0, 1)
-	local distance = opts.distance * (1 + (M.AIM_DISTANCE - 1) * aim) * (1 + (M.DIVE_DISTANCE - 1) * dive)
+	local down = clamp(opts.down or 0, 0, 1)
+	local distance = opts.distance * (1 + (M.AIM_DISTANCE - 1) * aim) + M.DOWN_BACK * down
 	local fov = opts.fov * (1 + (M.AIM_FOV - 1) * aim)
 	local side
 	if opts.vehicle then
@@ -201,8 +204,12 @@ end
 
 -- The pivot's height above the unit it follows. side: in a vehicle, how far the camera sits to the side
 -- (0 middle, 1 fully to a side), which brings it down a little. dive: 0 to 1, how far into a dive.
-function M.height(kind, side, dive)
-	if not kind then return M.FOOT_HEIGHT - M.DIVE_DROP * clamp(dive or 0, 0, 1) end
+-- down: 0 to 1, how far into the downed camera, which takes the pivot near the ground.
+function M.height(kind, side, dive, down)
+	if not kind then
+		local h = M.FOOT_HEIGHT - M.DIVE_DROP * clamp(dive or 0, 0, 1)
+		return h + (M.DOWN_HEIGHT - h) * clamp(down or 0, 0, 1)
+	end
 	local h = M.VEHICLE_HEIGHT[kind] or M.VEHICLE_HEIGHT_DEFAULT
 	return h - M.VEHICLE_SIDE_DROP * clamp(math.abs(side or 0), 0, 1)
 end

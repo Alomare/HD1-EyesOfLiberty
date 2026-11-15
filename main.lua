@@ -2,9 +2,12 @@
 -- Based on Third Person Camera (HD2 Style) by yukiorsrs, used with permission.
 --
 -- The mod is split into parts (obsidian.json "parts"):
---   view             client: camera, aim, crosshair, view distance, sky, ship walls, enemy indicators
+--   view             client: camera, aim, crosshair, view distance, sky, fog, bloom, depth of field,
+--                    enemy indicators
 --   weapon_range     session: every weapon reaches as far as the farthest one
 --   enemy_detection  session: enemies notice the squad from farther away
+--   free_movement    session: the Helldiver can leave the shared top-down screen
+--   throw_range      session: grenades and stratagem balls fly twice as far
 -- Every hook, frame function and key is registered with the options of the part it belongs to ({ part = "..." }),
 -- so a lobby that isn't cleared switches only the session parts off. A loader without parts ignores
 -- the extra argument and gates everything, the safe fallback.
@@ -44,7 +47,7 @@ local env = {
 config.start(env)
 
 local started = {}
-for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/footsteps", "src/session" }) do
+for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/footsteps", "src/look", "src/session" }) do
 	local ok, err = pcall(function()
 		local m = obsidian.module(name)
 		if m and m.start then m.start(env) end
@@ -54,7 +57,7 @@ for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "s
 end
 
 -- What other mods get from obsidian.import("alomare.integratedthirdperson").
-local export = { version = "0.4.2" }
+local export = { version = "0.5.0" }
 
 -- Where shots go on screen while third person steers the view: { x, y, aiming, firing, vehicle }, in
 -- pixels from the bottom left (the coordinates of obsidian.ui.canvas). aiming: the aim button is held;
@@ -67,7 +70,7 @@ function export.crosshair()
 end
 
 -- Another mod draws the crosshair from now on (Custom Crosshair does this). Integrated Third Person
--- stops drawing the built-in one. Answers true.
+-- stops drawing the game's crosshair at the middle of the view. Answers true.
 function export.claim_crosshair(mod_id)
 	state.claimed_by = mod_id or obsidian.caller and obsidian.caller() or "unknown"
 	return true

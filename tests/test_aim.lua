@@ -173,19 +173,64 @@ return {
 		E.remove()
 	end },
 
-	{ "the crosshair hides when claimed, for a picture, or on the map", function()
+	{ "the game's crosshair shows in a vehicle, while aiming or firing, or always by the game option", function()
 		local cross = obsidian.module("src/crosshair")
 		local busy = false
-		local env = { state = { active = true, crosshair = { x = 1, y = 1 } },
+		local env = { state = { active = true, crosshair = { x = 1, y = 1 } }, camera = { input = { look = true } },
 			api = { capture = { busy = function() return busy end }, map = { is_open = function() return false end } } }
-		eq(cross.visible(env), true)
+		eq(cross.visible(env), false, "on foot between shots")
+		eq(cross.visible(env, true), true, "the game option keeps it up")
+		env.state.firing = true
+		eq(cross.visible(env), true, "firing")
+		env.state.firing, env.state.vehicle = false, true
+		eq(cross.visible(env), true, "in a vehicle")
 		busy = true
 		eq(cross.visible(env), false, "picture")
 		busy = false
+		env.camera.input.look = false
+		eq(cross.visible(env), false, "a menu has the mouse")
+		env.camera.input.look = true
 		env.state.claimed_by = "alomare.customcrosshair"
 		eq(cross.visible(env), false, "claimed")
 		env.state.claimed_by, env.state.active = nil, false
 		eq(cross.visible(env), false, "top-down")
-		eq(#cross.shape(100, 100, false), 5)
+		local x, y, s = cross.rect(960, 540)
+		eq(x, 944) eq(y, 524) eq(s, 32)
+	end },
+
+	{ "the game's crosshair image goes on the cursor gui after the input update", function()
+		local e = E.install()
+		local env = E.env()
+		env.state.active, env.state.crosshair, env.state.aiming = true, { x = 960, y = 540 }, true
+		env.camera = { input = { look = true } }
+		local drawn = nil
+		rawset(_G, "Gui", { bitmap_uv = function(gui, material, _, _, pos, size) drawn = { gui, material, pos.x, pos.y, size.x } end })
+		rawset(_G, "Vector2", function(x, y) return { x = x, y = y } end)
+		rawset(_G, "Color", function(...) return { ... } end)
+		obsidian.module("src/crosshair").start(env)
+		local ran = false
+		E.hook("InputComponent", "update_masters")(function() ran = true return "done" end, { cursor_gui = "cg" }, {}, 0.016)
+		eq(ran, true)
+		eq(drawn[1], "cg") eq(drawn[2], "cursor_game") eq(drawn[3], 944) eq(drawn[4], 524) eq(drawn[5], 32)
+		drawn = nil
+		env.state.claimed_by = "alomare.customcrosshair"
+		E.hook("InputComponent", "update_masters")(function() end, { cursor_gui = "cg" }, {}, 0.016)
+		eq(drawn, nil, "claimed: Custom Crosshair draws it")
+		E.remove()
+	end },
+
+	{ "the hardware cursor of the game stays out under the shoulder camera", function()
+		local cam = obsidian.module("src/camera")
+		local hidden = 0
+		local cursors = { shown = true, current_cursor = "hud/cursors/game", next_cursor = "hud/cursors/game_inactive",
+			cursor_transition_timer = 0.035, cursor_transition_index = 1,
+			set_show_cursor = function(self, on) if not on then hidden = hidden + 1 self.shown = false end end }
+		cam.hide_game_cursor(cursors)
+		eq(cursors.next_cursor, nil, "no transition steps left")
+		eq(cursors.current_cursor, "hud/cursors/game_inactive")
+		eq(hidden, 1)
+		cursors.shown, cursors.current_cursor = true, "hud/cursors/menu"
+		cam.hide_game_cursor(cursors)
+		eq(hidden, 1, "a menu cursor stays")
 	end },
 }

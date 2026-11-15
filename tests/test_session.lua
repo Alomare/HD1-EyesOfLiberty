@@ -169,4 +169,31 @@ return {
 		hook.fn(function(_, m) during.me = m.me.state.keep_inside_screen end, {}, masters, 0.016)
 		eq(during.me, true, "top-down view: the leash stays")
 	end },
+
+	{ "a throw flies twice as far while the game launches it, Strong Arm included, and only then", function()
+		local s = obsidian.module("src/session")
+		local info = { throw_distance_min = 2, throw_distance_max = 12, actor_name = "a" }
+		local settings = { throwable_info = info, other = 1 }
+		local context = { settings = settings }
+		local seen = nil
+		local function game(_, _, ctx, message, data)
+			local i = ctx.settings.throwable_info
+			seen = { min = i.throw_distance_min, max = i.throw_distance_max, actor = i.actor_name, other = ctx.settings.other,
+				power = data.power }
+			return "launched"
+		end
+		local env = env_with({ throw_range = true })
+		s.start(env)
+		local hook
+		for _, h in ipairs(HOOKS) do if h.target == "ThrowableComponent" then hook = h end end
+		eq(hook.opts.part, "throw_range")
+		eq(hook.fn(game, {}, "grenade", context, "thrown", { power = 1.5 }), "launched")
+		eq(seen.min, 4) eq(seen.max, 24) eq(seen.actor, "a") eq(seen.other, 1)
+		eq(seen.power, 1.5, "the Strong Arm multiplier stays in the power")
+		eq(context.settings, settings, "given back")
+		eq(info.throw_distance_max, 12, "the game's settings untouched")
+		seen = nil
+		hook.fn(function(_, _, ctx) seen = ctx.settings.throwable_info.throw_distance_max end, {}, "grenade", context, "other", {})
+		eq(seen, 12, "only the launch")
+	end },
 }

@@ -209,6 +209,8 @@ return {
 		eq(sv, 0, "middle")
 		assert(r.height("apc", 1) < r.height("apc", 0), "beside a vehicle the camera comes down")
 		assert(r.height(nil, nil, 1) < r.height(), "a dive brings the pivot down")
+		near(r.height(nil, nil, 0, 1), r.DOWN_HEIGHT, "down: near the ground")
+		near(r.lens({ distance = 4, fov = 70, side = 1, down = 1 }), 4 + r.DOWN_BACK, "down: farther")
 	end },
 
 	{ "in a vehicle the swap key goes left, middle, right", function()
@@ -427,7 +429,7 @@ return {
 		E.remove()
 	end },
 
-	{ "a dive brings the camera in fast, and eases it back out after", function()
+	{ "a dive brings the camera down fast, never closer, and eases it back up after", function()
 		local e, env = started()
 		local masters = E.player(e, "me")
 		e.units.me.health = { is_dodging = false }
@@ -437,24 +439,47 @@ return {
 		end
 		for _ = 1, 30 do frame(e, env, masters, 0.05) end
 		local before = back()
-		near(before, 5, "the on-foot distance", 1e-3)
+		near(before, 6, "the on-foot distance", 1e-3)
 		local high = env.view.pivot.z
 		e.units.me.health.is_dodging = true
 		frame(e, env, masters, 0.05)
-		local first = back()
-		assert(first < before and first > before * rig().DIVE_DISTANCE + 0.1, "on the way in, not there at once: " .. first)
+		local first = env.view.pivot.z
+		assert(first < high and first > high - rig().DIVE_DROP + 0.05, "on the way down, not there at once: " .. first)
 		for _ = 1, 20 do frame(e, env, masters, 0.05) end
-		near(back(), before * rig().DIVE_DISTANCE, "close in", 1e-2)
+		near(back(), before, "no closer", 1e-2)
 		near(env.view.pivot.z, high - rig().DIVE_DROP, "down toward the Helldiver", 1e-2)
 		e.units.me.health.is_dodging = false
-		frame(e, env, masters, 0.05)
-		assert(back() < before * 0.8, "backs out more slowly than it came in: " .. back())
 		for _ = 1, 80 do frame(e, env, masters, 0.05) end
-		near(back(), before, "all the way out", 1e-2)
+		near(env.view.pivot.z, high, "all the way up", 1e-2)
 		OPTIONS.dive_camera = false
 		e.units.me.health.is_dodging = true
 		for _ = 1, 5 do frame(e, env, masters, 0.05) end
-		near(back(), before, "option off: no close-up", 1e-2)
+		near(env.view.pivot.z, high, "option off: stays up", 1e-2)
+		E.remove()
+	end },
+
+	{ "down and crawling, the camera goes near the ground and backs away a metre", function()
+		local e, env = started()
+		local masters = E.player(e, "me")
+		e.units.me.health = { is_downed = false }
+		local function back()
+			local v = env.view
+			return rig().dot(rig().sub(v.pivot, v.position), v.forward)
+		end
+		for _ = 1, 30 do frame(e, env, masters, 0.05) end
+		local before, high = back(), env.view.pivot.z
+		local ground = high - rig().FOOT_HEIGHT
+		e.units.me.health.is_downed = true
+		for _ = 1, 80 do frame(e, env, masters, 0.05) end
+		near(env.view.pivot.z, ground + rig().DOWN_HEIGHT, "near the ground", 1e-2)
+		near(back(), before + rig().DOWN_BACK, "a metre farther", 1e-2)
+		e.units.me.health.is_downed = false
+		for _ = 1, 80 do frame(e, env, masters, 0.05) end
+		near(env.view.pivot.z, high, "back up", 1e-2)
+		OPTIONS.downed_camera = false
+		e.units.me.health.is_downed = true
+		for _ = 1, 5 do frame(e, env, masters, 0.05) end
+		near(env.view.pivot.z, high, "option off: stays up", 1e-2)
 		E.remove()
 	end },
 
@@ -577,6 +602,45 @@ return {
 		local seen = nil
 		E.hook("VehicleComponent", "update_masters")(function() seen = CameraManager.follow_spin end, {}, { mech = {} })
 		near(seen, math.rad(obsidian.module("src/camera").view.yaw), "vehicle steering follows the view")
+		E.remove()
+	end },
+
+	{ "the own name card goes in the shoulder view, the cards of others stay", function()
+		local e, env = started()
+		local masters = E.player(e, "me")
+		frame(e, env, masters)
+		local destroyed = nil
+		local hud = { hd_gui = { destroy_text = function(_, t) destroyed = t end } }
+		local info = { gui_objects = { texts = { in_world_name = "card" } } }
+		local drew = 0
+		local draw = E.hook("Hud", "draw_player_name_in_world")
+		local function game() drew = drew + 1 end
+		draw(game, hud, 0.016, info, {}, "me", {}, {}, {}, "Me", false, 1)
+		eq(drew, 0, "own card skipped") eq(destroyed, "card") eq(info.gui_objects.texts.in_world_name, nil)
+		draw(game, hud, 0.016, info, {}, "friend", {}, {}, {}, "Friend", true, 2)
+		eq(drew, 1, "a friend's card stays")
+		KEYS.toggle_view.fn()
+		frame(e, env, masters)
+		draw(game, hud, 0.016, info, {}, "me", {}, {}, {}, "Me", false, 1)
+		eq(drew, 2, "top-down: the own card is back")
+		E.remove()
+	end },
+
+	{ "on the ship the HUD is drawn after the camera update", function()
+		local e, env = started()
+		local masters = E.player(e, "me")
+		CameraManager.state = "follow_menu"
+		frame(e, env, masters)
+		local order = {}
+		local hud = { update = function(self, dt, players) E.hook("Hud", "update")(function() order[#order + 1] = "hud" end, self, dt, players) end }
+		E.hook("Hud", "update")(function() order[#order + 1] = "hud early" end, hud, 0.016, {})
+		eq(#order, 0, "held back")
+		E.hook("CameraManager", "update")(function() order[#order + 1] = "camera" end, CameraManager, 0.016)
+		eq(order[1], "camera") eq(order[2], "hud", "drawn once, after")
+		CameraManager.state = "follow"
+		order = {}
+		E.hook("Hud", "update")(function() order[#order + 1] = "hud" end, hud, 0.016, {})
+		eq(order[1], "hud", "in a mission the game's order stays")
 		E.remove()
 	end },
 }

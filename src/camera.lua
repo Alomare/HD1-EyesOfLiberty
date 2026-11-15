@@ -52,7 +52,7 @@ M.last_why = nil      -- why the view stayed top-down last frame, nil while the 
 M.SHARED_TEXT = "Third person is off: players on one computer share the screen, so the top-down camera stays. It comes back when one player is left."
 M.BACK_TEXT = "One player on this computer: third person is back."
 
-local smooth = { pivot = nil, length = nil, aim = 0, target = nil, side = nil, dive = 0 }
+local smooth = { pivot = nil, length = nil, aim = 0, target = nil, side = nil, dive = 0, down = 0 }
 local saved_near = nil
 
 -- The local player's master of InputComponent: the avatar, the context of that master, and whether another local
@@ -196,7 +196,26 @@ function M.diving(avatar)
 	return ok and type(hs) == "table" and hs.is_dodging == true
 end
 
-local function vec(v) return { x = v.x, y = v.y, z = v.z } end
+-- Whether the Helldiver is down and crawling.
+function M.downed(avatar)
+	local EA = g("EntityAux")
+	local ok, hs = pcall(EA.state, avatar, "health")
+	return ok and type(hs) == "table" and hs.is_downed == true
+end
+
+-- The cursors of the game's aim, which the shoulder view keeps out of the window.
+M.GAME_CURSORS = { ["hud/cursors/game"] = true, ["hud/cursors/game_inactive"] = true }
+
+-- Stops a step from the aiming cursor to the idle one and hides a game cursor still up.
+function M.hide_game_cursor(cursors)
+	if cursors.next_cursor ~= nil and M.GAME_CURSORS[cursors.next_cursor] then
+		cursors.current_cursor = cursors.next_cursor
+		cursors.next_cursor, cursors.cursor_transition_timer, cursors.cursor_transition_index = nil, nil, nil
+	end
+	if cursors.shown and M.GAME_CURSORS[cursors.current_cursor] and cursors.set_show_cursor then
+		cursors:set_show_cursor(false)
+	end
+end
 
 -- The shortest free length along a line, from three rays: the line and two beside it, so the camera
 -- doesn't slip through a gap narrower than the picture. Only static geometry stops it.
@@ -266,6 +285,7 @@ function M.release(env, cm)
 	state.active, state.vehicle, state.aiming, state.firing, state.crosshair = false, false, false, false, nil
 	env.view = nil
 	smooth.pivot, smooth.length, smooth.aim, smooth.target, smooth.side, smooth.dive = nil, nil, 0, nil, nil, 0
+	smooth.down = 0
 	state.dropping = false
 	shake.clear()
 	M.view.yaw = nil
@@ -370,19 +390,22 @@ function M.drive(env, cm, dt)
 	smooth.side = smooth.side and rig.ease(smooth.side, wanted_side, rig.SWAP_RATE, dt) or wanted_side
 	local diving = not kind and config.get("dive_camera") ~= false and M.diving(avatar)
 	smooth.dive = rig.ease(smooth.dive, diving and 1 or 0, diving and rig.DIVE_IN or rig.DIVE_OUT, dt)
+	-- Down and crawling: the camera comes low, near the ground, and backs away.
+	local down = not kind and config.get("downed_camera") ~= false and M.downed(avatar)
+	smooth.down = rig.ease(smooth.down, down and 1 or 0, rig.DOWN_RATE, dt)
 
 	-- Pivot and lens. The ship has a distance of its own: the bridge is small.
 	local p = U.world_position(target, 0)
-	local want = { x = p.x, y = p.y, z = p.z + rig.height(kind, smooth.side, smooth.dive) }
+	local want = { x = p.x, y = p.y, z = p.z + rig.height(kind, smooth.side, smooth.dive, smooth.down) }
 	smooth.pivot = rig.follow_pivot(smooth.pivot, want, dt)
 	local distance
 	if kind then distance = config.get("vehicle_distance") or 7
 	elseif cm.state == "follow_menu" then distance = config.get("ship_distance") or 2
-	else distance = config.get("foot_distance") or 5 end
+	else distance = config.get("foot_distance") or 6 end
 	local distance, fov, side = rig.lens({
 		distance = distance,
 		fov = kind and (config.get("vehicle_fov") or 70) or (config.get("foot_fov") or 70),
-		side = smooth.side, aim = smooth.aim, dive = smooth.dive, vehicle = kind })
+		side = smooth.side, aim = smooth.aim, dive = smooth.dive, down = smooth.down, vehicle = kind })
 	local at, dir, full = rig.place(smooth.pivot, view.yaw, view.pitch, distance, side)
 
 	-- Walls and rocks pull the camera in.
@@ -578,6 +601,45 @@ function M.start(env)
 		if inside and state.active and M.input and M.input.look then return end
 		return original(self, ...)
 	end, env.VIEW)
+	-- set_cursor hands the game cursor to the window and counts it as shown, and the steps from the
+	-- aiming cursor to the idle one go on in CursorManager.update even while the cursor is hidden: either
+	-- way the hardware cursor came back at the mouse, which the view keeps near the middle. The game
+	-- cursors stay out while the shoulder camera takes the mouse; src/crosshair.lua draws the crosshair.
+	obsidian.hook("CursorManager", "set_cursor", function(original, self, path, ...)
+		if inside and state.active and M.input and M.input.look and M.GAME_CURSORS[path] then return end
+		return original(self, path, ...)
+	end, env.VIEW)
+	obsidian.hook("CursorManager", "update", function(original, self, ...)
+		if state.active and M.input and M.input.look and type(self) == "table" then
+			pcall(M.hide_game_cursor, self)
+		end
+		return original(self, ...)
+	end, env.VIEW)
+
+	-- On the ship the game draws the HUD before the camera update (StateMenu.update), so the marks over
+	-- the crew and the terminals were placed for the view of the frame before. While the shoulder view
+	-- is on there, the HUD of the frame is drawn right after the camera update instead.
+	local hud_late, hud_flushing = nil, false
+	obsidian.hook("Hud", "update", function(original, self, ...)
+		local cm = g("CameraManager")
+		if not hud_flushing and state.active and type(cm) == "table" and cm.state == "follow_menu" then
+			hud_late = { self = self, args = scoped.pack(...) }
+			return
+		end
+		return original(self, ...)
+	end, env.VIEW)
+	M.flush_hud = function()
+		local late = hud_late
+		if not late then return end
+		hud_late = nil
+		hud_flushing = true
+		local ok, err = pcall(function() late.self:update(unpack(late.args, 1, late.args.n)) end)
+		hud_flushing = false
+		if not ok and not M.warned.hud then
+			M.warned.hud = true
+			env.log("Integrated Third Person: ship HUD: " .. tostring(err))
+		end
+	end
 
 	-- A Helldiver dropping in: the game's drop cutscene of this player's avatar starts the Hellpod ride.
 	obsidian.hook("CharacterStateCutscene", "on_enter", function(original, unit, context, previous, params, ...)
@@ -642,6 +704,7 @@ function M.start(env)
 			pcall(M.release, env, self)
 		end
 		if still and not (ok and drove) then pcall(M.game_pose, self) end
+		if M.flush_hud then M.flush_hud() end
 		return unpack(r, 1, r.n)
 	end, env.VIEW)
 

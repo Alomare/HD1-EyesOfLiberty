@@ -1,4 +1,4 @@
--- The session parts: max weapon range, far enemy detection and free movement.
+-- The session parts: max weapon range, far enemy detection, free movement and throw range.
 --
 -- Both change the shared game, so each hook is registered with the options of the part. In a lobby
 -- that isn't cleared the loader calls only the original, which is why every change here is made
@@ -196,7 +196,56 @@ local function start_free_movement(env)
 	end, env.part("free_movement"))
 end
 
+-- Throw range (part throw_range) -------------------------------------------------------------------
+
+-- ThrowableComponent.command_master "thrown" launches a grenade or a stratagem ball toward a spot
+-- throw_distance_min + power * (throw_distance_max - throw_distance_min) metres away (speed
+-- sqrt(distance * 18) at 45 degrees, under the game's gravity of 18). power is the charge times the
+-- thrower's throw_range_multiplier, 1.5 with the Strong Arm perk. While "thrown" runs, the throwable
+-- sees both distances times THROW_SCALE, so every throw lands that many times as far, Strong Arm
+-- included.
+M.THROW_SCALE = 2
+
+local throw_shadows = setmetatable({}, { __mode = "k" })
+
+-- Settings that answer the throw distances scaled and read everything else from `settings`.
+function M.throw_shadow(settings)
+	if type(settings) ~= "table" then return settings end
+	local info = settings.throwable_info
+	if type(info) ~= "table" or type(info.throw_distance_min) ~= "number" or type(info.throw_distance_max) ~= "number" then
+		return settings
+	end
+	local s = throw_shadows[settings]
+	if not s then
+		local shadow_info = setmetatable({ throw_distance_min = info.throw_distance_min * M.THROW_SCALE,
+			throw_distance_max = info.throw_distance_max * M.THROW_SCALE }, { __index = info })
+		s = setmetatable({ throwable_info = shadow_info }, { __index = settings })
+		throw_shadows[settings] = s
+	end
+	return s
+end
+
+function M.with_throw(context, fn, ...)
+	if type(context) ~= "table" then return fn(...) end
+	local settings = context.settings
+	local s = M.throw_shadow(settings)
+	if s == settings then return fn(...) end
+	context.settings = s
+	local results = { pcall(fn, ...) }
+	context.settings = settings
+	if not results[1] then error(results[2], 0) end
+	return unpack(results, 2, table.maxn(results))
+end
+
+local function start_throw_range(env)
+	obsidian.hook("ThrowableComponent", "command_master", function(original, self, unit, context, message, ...)
+		if message ~= "thrown" then return original(self, unit, context, message, ...) end
+		return M.with_throw(context, original, self, unit, context, message, ...)
+	end, env.part("throw_range"))
+end
+
 function M.start(env)
+	if env.config.get("throw_range") ~= false then start_throw_range(env) end
 	if env.config.get("max_weapon_range") ~= false then start_weapon_range(env) end
 	if env.config.get("far_detection") ~= false then start_enemy_detection(env) end
 	if env.config.get("free_movement") ~= false then start_free_movement(env) end

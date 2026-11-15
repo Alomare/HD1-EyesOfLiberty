@@ -3,6 +3,7 @@
 local E = dofile("tests/engine.lua")
 
 local function setup(active)
+	HOOKS = {}
 	E.install()
 	local env = E.env()
 	env.config.start(env)
