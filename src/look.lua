@@ -1,13 +1,12 @@
--- The look of a mission: fog, bloom and depth of field, through Obsidian API's shading (unguarded,
+-- The look of a mission: fog and depth of field, through Obsidian API's shading (unguarded,
 -- this player's picture alone).
 --
 --   no_fog          the planet's fog pushed out of sight (fog_depth_range), in either view
 --   far_view        without no_fog, the fog pushed out by FOG_SCALE while third person steers the view
---   no_bloom        the bloom threshold raised past anything on screen (bloom_threshold_offset)
 --   depth_of_field  "game" leaves the planet's, "off" takes it away, "helldiver" keeps the Helldiver
 --                   sharp and blurs what is nearer or farther, as Photo Mode's focus on the player does
 --
--- While another mod holds the camera (Photo Mode does), nothing is sent: the fog and the bloom go
+-- While another mod holds the camera (Photo Mode does), nothing is sent: the fog goes
 -- back to the planet's, the depth of field is left to that mod, and everything is sent again once
 -- the camera is free.
 local rig = obsidian.module("src/rig")
@@ -16,22 +15,23 @@ local M = {}
 
 M.NO_FOG = { 5000, 5001 }     -- fog that starts past anything the camera draws, as Photo Mode's None
 M.FOG_SCALE = 2.5             -- the long view: the planet's fog range times this
-M.NO_BLOOM = 100              -- a bloom threshold no surface reaches
-M.BLOOM_Y = 0.385             -- the second bloom value when the planet's can't be read
-M.DOF_BLUR = 0.7              -- Photo Mode's blur
-M.DOF_DEPTH = 6               -- metres around the Helldiver kept sharp
+-- Photo Mode keeps 6 m sharp around a player about 12 m off; with the shoulder camera 3 m off, that
+-- left nothing nearer than 9 m blurred, and the option looked like it did nothing.
+M.DOF_BLUR = 1                -- the strongest blur Photo Mode offers
+M.DOF_DEPTH = 2               -- metres around the focus kept sharp
+M.DOF_RAMP = 1.5              -- metres from sharp to the full blur
+M.FP_FOCUS_MIN, M.FP_FOCUS_MAX = 1, 60 -- first person: the focus on the crosshair point, in metres
 M.CHEST = 1.2                 -- metres above the feet the focus sits
 
 M.FOG = { "fog_depth_range" }
-M.BLOOM = { "bloom_threshold_offset" }
 M.DOF = { "dof_amount", "dof_near_setting", "dof_far_setting" }
-M.KIND = { fog_depth_range = "vector2", bloom_threshold_offset = "vector2", dof_amount = "scalar",
+M.KIND = { fog_depth_range = "vector2", dof_amount = "scalar",
 	dof_near_setting = "vector2", dof_far_setting = "vector2" }
 
 local function g(name) return rawget(_G, name) end
 
 -- What the options ask of the shading now, by name: a value, or false for the planet's own.
--- o: no_fog, far (the long view with third person on), planet_fog, no_bloom, planet_bloom,
+-- o: no_fog, far (the long view with third person on), planet_fog,
 -- dof ("game", "off" or "helldiver"), focus (metres to the Helldiver, nil when unknown).
 function M.wanted(o)
 	local out = {}
@@ -42,16 +42,10 @@ function M.wanted(o)
 	else
 		out.fog_depth_range = false
 	end
-	if o.no_bloom then
-		local y = type(o.planet_bloom) == "table" and tonumber(o.planet_bloom[2]) or M.BLOOM_Y
-		out.bloom_threshold_offset = { M.NO_BLOOM, y }
-	else
-		out.bloom_threshold_offset = false
-	end
 	if o.dof == "off" then
 		out.dof_amount, out.dof_near_setting, out.dof_far_setting = 0, false, false
 	elseif o.dof == "helldiver" and type(o.focus) == "number" then
-		local ramp = math.max(1, M.DOF_DEPTH * 0.6)
+		local ramp = M.DOF_RAMP
 		out.dof_amount = M.DOF_BLUR
 		out.dof_near_setting = { math.max(0, o.focus - M.DOF_DEPTH / 2), ramp }
 		out.dof_far_setting = { o.focus + M.DOF_DEPTH / 2, ramp }
@@ -93,10 +87,10 @@ function M.apply(shading, want)
 	end
 end
 
--- Another mod holds the camera: the fog and the bloom go back to the planet's, and the depth of field
+-- Another mod holds the camera: the fog goes back to the planet's, and the depth of field
 -- is forgotten without a call, as that mod sets its own.
 function M.step_aside(shading)
-	for _, list in ipairs({ M.FOG, M.BLOOM }) do
+	for _, list in ipairs({ M.FOG }) do
 		for _, name in ipairs(list) do
 			if M.applied[name] ~= nil then
 				pcall(shading, name, M.KIND[name])
@@ -107,8 +101,14 @@ function M.step_aside(shading)
 	for _, name in ipairs(M.DOF) do M.applied[name] = nil end
 end
 
--- Metres from the drawn camera to the chest of this player's Helldiver, or nil.
+-- Metres from the drawn camera to the chest of this player's Helldiver, or nil. In first person the
+-- chest is at the camera, so the focus goes to the crosshair point instead.
 function M.focus(env, api)
+	local view, state = env.view, env.state
+	if view and view.first and state and state.aim_point and view.position then
+		local d = rig.length(rig.sub(state.aim_point, view.position))
+		return math.max(M.FP_FOCUS_MIN, math.min(M.FP_FOCUS_MAX, d))
+	end
 	local unit = nil
 	if env.view and env.view.avatar then unit = env.view.avatar
 	elseif api.game and api.game.my_unit then unit = api.game.my_unit() end
@@ -130,7 +130,7 @@ function M.focus(env, api)
 	return ok and d or nil
 end
 
-local planet = { fog = nil, bloom = nil, read = false }
+local planet = { fog = nil, read = false }
 
 function M.frame(env)
 	if env.off then return end
@@ -155,8 +155,6 @@ function M.frame(env)
 		planet.read = true
 		local ok, fog = pcall(world.planet_shading, "fog_depth_range")
 		planet.fog = ok and fog or nil
-		local got, bloom = pcall(world.planet_shading, "bloom_threshold_offset")
-		planet.bloom = got and bloom or nil
 	end
 	local config = env.config
 	local dof = config.get("depth_of_field") or "off"
@@ -164,8 +162,6 @@ function M.frame(env)
 		no_fog = config.get("no_fog") ~= false,
 		far = config.get("far_view") ~= false and env.state.active,
 		planet_fog = planet.fog,
-		no_bloom = config.get("no_bloom") ~= false,
-		planet_bloom = planet.bloom,
 		dof = dof,
 		focus = dof == "helldiver" and M.focus(env, api) or nil,
 	}))

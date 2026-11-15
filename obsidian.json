@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.unleashedcamera",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "name": {
     "en": "Unleashed Camera"
   },
@@ -176,15 +176,11 @@
       "group": "picture", "part": "view", "scope": "client",
       "label": { "en": "Remove fog" },
       "description": { "en": "Removes the fog of the level, in third person and in the top-down view. Photo Mode shows the fog while it is open." } },
-    { "id": "no_bloom", "type": "toggle", "default": true,
-      "group": "picture", "part": "view", "scope": "client",
-      "label": { "en": "Disable bloom" },
-      "description": { "en": "Removes the glow around bright lights and surfaces. Photo Mode shows the bloom while it is open." } },
     { "id": "depth_of_field", "type": "choice", "default": "off",
       "choices": [ { "id": "game", "label": { "en": "Game default" } }, { "id": "helldiver", "label": { "en": "Focus on the Helldiver" } }, { "id": "off", "label": { "en": "Off" } } ],
       "group": "picture", "part": "view", "scope": "client",
       "label": { "en": "Depth of field" },
-      "description": { "en": "Game default keeps the blur of the planet. Focus on the Helldiver keeps the Helldiver sharp and blurs what is much nearer or farther. Off keeps the whole picture sharp. Photo Mode sets the depth of field while open." } },
+      "description": { "en": "Game default keeps the blur of the planet. Focus on the Helldiver keeps the Helldiver sharp and blurs what lies a metre or more nearer or farther; in first person the sharp part is where the crosshair points. Off keeps the whole picture sharp. Photo Mode sets the depth of field while open." } },
     { "id": "far_view", "type": "toggle", "default": true,
       "group": "picture", "part": "view", "scope": "client",
       "label": { "en": "Long view distance" },

@@ -6,7 +6,7 @@
 --
 -- The mod is split into parts (obsidian.json "parts"):
 --   view             client: third and first person cameras, aim, crosshair, view distance, sky, fog,
---                    bloom, depth of field, enemy indicators
+--                    depth of field, enemy indicators
 --   weapon_range     session: every weapon reaches as far as the farthest one
 --   enemy_detection  session: enemies notice the squad from farther away
 --   free_movement    session: the Helldiver can leave the shared top-down screen
@@ -75,7 +75,7 @@ local function old_one()
 end
 if type(obsidian.after_startup) == "function" then obsidian.after_startup(old_one) else old_one() end
 
-local export = { version = "0.8.0" }
+local export = { version = "0.8.1" }
 
 -- Where shots go on screen while third person steers the view: { x, y, aiming, firing, vehicle }, in
 -- pixels from the bottom left (the coordinates of obsidian.ui.canvas). aiming: the aim button is held;

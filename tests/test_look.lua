@@ -1,4 +1,4 @@
--- Look: fog, bloom and depth of field, and Photo Mode taking over while it holds the camera.
+-- Look: fog and depth of field, and Photo Mode taking over while it holds the camera.
 local E = dofile("tests/engine.lua")
 
 local function look() return obsidian.module("src/look") end
@@ -44,26 +44,30 @@ end
 return {
 	{ "what each option asks of the shading", function()
 		local l = look()
-		local w = l.wanted({ no_fog = true, no_bloom = true, planet_bloom = { 0.3, 0.4 }, dof = "off" })
+		local w = l.wanted({ no_fog = true, dof = "off" })
 		eq(w.fog_depth_range[1], l.NO_FOG[1])
-		eq(w.bloom_threshold_offset[1], l.NO_BLOOM) eq(w.bloom_threshold_offset[2], 0.4, "the planet's second value")
+		eq(w.bloom_threshold_offset, nil, "bloom left to the game")
 		eq(w.dof_amount, 0) eq(w.dof_near_setting, false)
 		w = l.wanted({ far = true, planet_fog = { 20, 120 }, dof = "game" })
 		eq(w.fog_depth_range[2], 300, "the long view")
-		eq(w.bloom_threshold_offset, false, "the planet's bloom")
 		eq(w.dof_amount, false, "the planet's depth of field")
-		w = l.wanted({ dof = "helldiver", focus = 6 })
+		w = l.wanted({ dof = "helldiver", focus = 3 })
 		eq(w.dof_amount, l.DOF_BLUR)
-		eq(w.dof_near_setting[1], 3) eq(w.dof_far_setting[1], 9)
+		eq(w.dof_near_setting[1], 2) eq(w.dof_far_setting[1], 4, "blurred from 4 m on, past the Helldiver 3 m off")
+		eq(w.dof_far_setting[2], l.DOF_RAMP)
+		near(l.focus({ view = { first = true, position = { x = 0, y = 0, z = 0 } }, state = { aim_point = { x = 0, y = 20, z = 0 } } }, {}),
+			20, "first person: the crosshair point")
+		eq(l.focus({ view = { first = true, position = { x = 0, y = 0, z = 0 } }, state = { aim_point = { x = 0, y = 0.2, z = 0 } } }, {}),
+			l.FP_FOCUS_MIN, "never closer than a metre")
 		eq(l.wanted({}).fog_depth_range, false, "the planet's fog")
 	end },
 
-	{ "by default the fog, the bloom and the depth of field go, once each", function()
+	{ "by default the fog and the depth of field go, once each, and the bloom stays", function()
 		local calls = {}
 		started(calls, {})
 		frame()
 		eq(last(calls, "fog_depth_range")[3][1], look().NO_FOG[1])
-		eq(last(calls, "bloom_threshold_offset")[3][1], look().NO_BLOOM)
+		eq(count(calls, "bloom_threshold_offset"), 0, "bloom untouched")
 		eq(last(calls, "dof_amount")[3], 0)
 		local n = #calls
 		frame()
@@ -71,7 +75,7 @@ return {
 		E.remove()
 	end },
 
-	{ "Photo Mode holding the camera gets the planet's fog and bloom, and the values come back after", function()
+	{ "Photo Mode holding the camera gets the planet's fog, and the values come back after", function()
 		local calls = {}
 		local opts = {}
 		started(calls, opts)
@@ -80,7 +84,6 @@ return {
 		frame()
 		local fog = last(calls, "fog_depth_range")
 		eq(fog[3], nil, "the planet's fog") eq(fog[2], "vector2")
-		eq(last(calls, "bloom_threshold_offset")[3], nil, "the planet's bloom")
 		eq(count(calls, "dof_amount"), 1, "the depth of field is Photo Mode's to set")
 		frame()
 		eq(count(calls, "fog_depth_range"), 2, "nothing more while it holds the camera")
@@ -92,7 +95,7 @@ return {
 	end },
 
 	{ "options off leave the planet's look, and nothing is sent off a mission", function()
-		OPTIONS.no_fog, OPTIONS.no_bloom, OPTIONS.depth_of_field, OPTIONS.far_view = false, false, "game", false
+		OPTIONS.no_fog, OPTIONS.depth_of_field, OPTIONS.far_view = false, "game", false
 		local calls = {}
 		started(calls, {})
 		frame()
