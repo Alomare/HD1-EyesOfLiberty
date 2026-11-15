@@ -1,4 +1,6 @@
--- Integrated Third Person: an over-the-shoulder camera built on Obsidian hooks.
+-- Unleashed Camera: third and first person cameras built on Obsidian hooks. Formerly Integrated Third
+-- Person; the id stays alomare.integratedthirdperson so installs update in place (Obsidian refuses an
+-- update with another id) and mods that import it keep working.
 -- Based on Third Person Camera (HD2 Style) by yukiorsrs, used with permission.
 --
 -- The mod is split into parts (obsidian.json "parts"):
@@ -54,11 +56,11 @@ for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "s
 		if m and m.start then m.start(env) end
 		started[name] = m
 	end)
-	if not ok then obsidian.log("Integrated Third Person: " .. name .. " did not start: " .. tostring(err)) end
+	if not ok then obsidian.log("Unleashed Camera: " .. name .. " did not start: " .. tostring(err)) end
 end
 
 -- What other mods get from obsidian.import("alomare.integratedthirdperson").
-local export = { version = "0.6.0" }
+local export = { version = "0.7.0" }
 
 -- Where shots go on screen while third person steers the view: { x, y, aiming, firing, vehicle }, in
 -- pixels from the bottom left (the coordinates of obsidian.ui.canvas). aiming: the aim button is held;
@@ -71,7 +73,7 @@ function export.crosshair()
 		vehicle = state.vehicle, fade = state.sprint_fade or 1 }
 end
 
--- Another mod draws the crosshair from now on (Custom Crosshair does this). Integrated Third Person
+-- Another mod draws the crosshair from now on (Custom Crosshair does this). Unleashed Camera
 -- stops drawing the game's crosshair at the middle of the view. Answers true.
 function export.claim_crosshair(mod_id)
 	state.claimed_by = mod_id or obsidian.caller and obsidian.caller() or "unknown"

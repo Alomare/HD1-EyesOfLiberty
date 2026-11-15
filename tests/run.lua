@@ -1,4 +1,4 @@
--- Offline tests for the parts of Integrated Third Person that don't need the game. From the
+-- Offline tests for the parts of Unleashed Camera that don't need the game. From the
 -- repository root:
 --   luajit tests/run.lua
 -- Every tests/test_*.lua file returns a list of { name, fn }. Each test starts with a fresh fake

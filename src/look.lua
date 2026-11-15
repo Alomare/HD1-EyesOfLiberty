@@ -173,7 +173,7 @@ function M.start(env)
 		local ok, err = pcall(M.frame, env)
 		if not ok then
 			failed = true
-			env.log("Integrated Third Person: look stopped: " .. tostring(err))
+			env.log("Unleashed Camera: look stopped: " .. tostring(err))
 		end
 	end, env.VIEW)
 end

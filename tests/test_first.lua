@@ -61,7 +61,7 @@ return {
 		E.remove()
 	end },
 
-	{ "first person sits at the head a hair in front of the face, hides the helmet and gives it back", function()
+	{ "first person sits above the head node and in front of the face, hides the helmet and gives it back", function()
 		OPTIONS.camera_mode, OPTIONS.first_person_fov = "first", 85
 		local e, env = started(helmet_api())
 		e.meshes.helmet = { true, false, true }
@@ -70,10 +70,11 @@ return {
 		frame(e, env, masters)
 		local v = env.view
 		eq(v.first, true)
-		near(v.pivot.z, 1.6, "head height") near(v.pivot.x, 1)
+		near(v.pivot.z, 1.6, "the head node") near(v.pivot.x, 1)
+		near(v.position.z, 1.6 + rig().FP_UP, "above the node")
 		local d = rig().sub(v.position, v.pivot)
-		near(rig().length(d), rig().FP_BUMP, "the bump", 1e-6)
-		assert(rig().dot(d, v.forward) > 0, "in front")
+		local ahead = rig().dot(d, rig().flat_forward(v.yaw))
+		assert(ahead >= rig().FP_BUMP - 1e-6, "in front of the face: " .. ahead)
 		near(v.fov, 85)
 		eq(e.meshes.helmet[1], false) eq(e.meshes.helmet[3], false)
 		KEYS.toggle_view.fn() -- top-down
@@ -95,17 +96,65 @@ return {
 		eq(turning, false, "the turn ends") near(body, 70, "at the view", r.FP_TURN_STOP)
 	end },
 
-	{ "first person feeds the body's way to the aim input while not aiming", function()
+	{ "looking down moves the eye forward, out of the chest", function()
+		local r = rig()
+		local head = { x = 0, y = 0, z = 1.6 }
+		local level = r.fp_eye(head, 0, 0)
+		local down = r.fp_eye(head, 0, -80)
+		near(level.y, r.FP_BUMP, "level: the bump ahead")
+		assert(down.y > level.y + 0.2, "down: farther ahead " .. down.y)
+		near(down.z, level.z, "no lower")
+	end },
+
+	{ "first person turns the body through the game's facing while standing or walking, never the aim input", function()
+		local e, env = started()
+		local cam = obsidian.module("src/camera")
+		CharacterStateWalk, CharacterStateIdle, CharacterStateAim = { n = "walk" }, { n = "idle" }, { n = "aim" }
+		KEYS.toggle_view.fn() -- first person
+		local masters = E.player(e, "me")
+		frame(e, env, masters)
+		cam.view.yaw = 120
+		local st = { current_state = CharacterStateWalk, rotation_angle = cam.angle_of(0), input = { aim = { x = 0, y = 0 } } }
+		for _ = 1, 40 do cam.turn_body({ me = { state = st } }) end
+		near(cam.yaw_of_angle(st.rotation_angle), 120, "walking: the body follows the view", 1)
+		near(cam.yaw_of_angle(cam.angle_of(-90)), -90, "angle and yaw agree", 1e-9)
+		-- Standing, a small turn of the view leaves the body.
+		st.current_state = CharacterStateIdle
+		cam.view.yaw = 150
+		cam.turn_body({ me = { state = st } })
+		near(cam.yaw_of_angle(st.rotation_angle), 120, "standing: stays", 1)
+		-- Aiming: the game's facing stands and the body picks up from it.
+		st.current_state, st.rotation_angle = CharacterStateAim, cam.angle_of(10)
+		cam.turn_body({ me = { state = st } })
+		near(cam.yaw_of_angle(st.rotation_angle), 10, "aiming: the game's")
+		near(cam.body.yaw, 10, "picked up")
 		local aim = obsidian.module("src/aim")
 		local data = { aim = { x = 0, y = 0, z = 0 } }
-		local input = { look = true, kbm = true }
-		eq(aim.steer(data, input, {}, nil, { x = 1, y = 0, z = 0 }), true)
-		eq(data.aim.x, 1, "the body's way")
-		data.aim = { x = 0, y = 0, z = 0 }
-		input.aiming = true
-		aim.steer(data, input, { pivot = { x = 0, y = 0, z = 0 } }, { x = 0, y = 10, z = 0 }, { x = 1, y = 0, z = 0 })
-		near(data.aim.y, 1, "aiming: the crosshair wins")
-		eq(aim.moving({ movement = { x = 0, y = 0.5 } }), true) eq(aim.moving({ movement = { x = 0, y = 0 } }), false)
+		aim.steer(data, { look = true, kbm = true }, {}, nil)
+		eq(data.aim.x, 0, "the aim input stays as the game set it")
+		CharacterStateWalk, CharacterStateIdle, CharacterStateAim = nil, nil, nil
+		E.remove()
+	end },
+
+	{ "a flamethrower of this player firing cuts the camera shake to a fifth", function()
+		local shake = obsidian.module("src/shake")
+		shake.clear()
+		shake.add(0.1, 3, 10)
+		local x0, y0 = shake.offset(0.001, 1)
+		local plain = math.sqrt(x0 * x0 + y0 * y0)
+		local aim = obsidian.module("src/aim")
+		E.install()
+		local view = { avatar = "me" }
+		eq(aim.note_flames({ flamer = { state = { firing_auto = true } } }, view), false, "another player's flamer")
+		EntityAux.has_component = function(u, name) return u == "flamer" and name == "equipment" end
+		EntityAux.state = function(u, name) return { wielder = "me" } end
+		eq(aim.note_flames({ flamer = { state = { firing_auto = true } } }, view), true, "this player's")
+		for _ = 1, 30 do shake.flamed() shake.offset(0.02, 1) end
+		local x, y = shake.offset(0.0001, 1)
+		local cut = math.sqrt(x * x + y * y)
+		assert(cut < plain * 0.3, "about a fifth: " .. cut .. " of " .. plain)
+		shake.clear()
+		E.remove()
 	end },
 
 	{ "the overall height lifts the third-person camera", function()

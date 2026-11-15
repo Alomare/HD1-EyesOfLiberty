@@ -19,8 +19,20 @@ M.GAME_MOST = 0.12
 M.game = { x = 0, y = 0 } -- the game's offset this frame, in metres right and up of the view
 -- A slow, uneven sway while sprinting: metres and swings a second. level (0 to 1) is set each frame
 -- by src/camera.lua, eased in and out.
-M.SPRINT = { amp = 0.028, freq = 1.4 }
+M.SPRINT = { amp = 0.036, freq = 1.4 }
 M.sprint = { level = 0, phase = 0 }
+-- While a flamethrower of this player fires (on foot, or the Lumberer's), every shake is cut to FLAME
+-- of its strength: the game shakes the camera on each puff of flame. Seconds the cut holds after the
+-- last frame of fire, and how fast it eases in and out.
+M.FLAME = 0.2
+M.FLAME_HOLD = 0.2
+M.FLAME_RATE = 12
+M.flame = { left = 0, mix = 0 }
+
+-- A flamethrower of this player fires this frame.
+function M.flamed()
+	M.flame.left = M.FLAME_HOLD
+end
 
 function M.factor(level)
 	return M.LEVEL[level] or M.LEVEL.medium
@@ -80,7 +92,12 @@ function M.offset(dt, factor)
 			y = y + a * math.cos(w)
 		end
 	end
-	return x * factor, y * factor
+	local fl = M.flame
+	local want = fl.left > 0 and 1 or 0
+	fl.left = math.max(0, fl.left - dt)
+	fl.mix = fl.mix + (want - fl.mix) * (1 - math.exp(-M.FLAME_RATE * dt))
+	local cut = 1 - (1 - M.FLAME) * fl.mix
+	return x * factor * cut, y * factor * cut
 end
 
 function M.clear()
@@ -88,6 +105,7 @@ function M.clear()
 	M.fire.level, M.fire.phase = 0, 0
 	M.game.x, M.game.y = 0, 0
 	M.sprint.level, M.sprint.phase = 0, 0
+	M.flame.left, M.flame.mix = 0, 0
 end
 
 return M

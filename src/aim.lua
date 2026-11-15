@@ -67,10 +67,7 @@ end
 
 -- The character's aim input. The game sets it while the player aims, fires or throws; it now points
 -- at the crosshair point. A pad's right stick turns the view, so it no longer turns the Helldiver.
--- body: in first person, the flat way the body faces (camera.first_body), which the aim input takes
--- whenever the player isn't aiming, firing or throwing; the game turns the Helldiver to a non-zero aim
--- without slowing the walk (character_component.lua 366, 443), so walking backwards steps back.
-function M.steer(data, input, view, point, body)
+function M.steer(data, input, view, point)
 	if type(data) ~= "table" or type(data.aim) ~= "table" then return false end
 	-- The map, a menu or the game's own input lock: the game's aim stands.
 	if not input.look then return false end
@@ -86,20 +83,8 @@ function M.steer(data, input, view, point, body)
 			return true
 		end
 	end
-	if body then
-		a.x, a.y, a.z = body.x, body.y, 0
-		return true
-	end
 	if not input.kbm then a.x, a.y, a.z = 0, 0, 0 end
 	return false
-end
-
--- Whether the movement in the character's input is more than a nudge of the stick.
-function M.moving(data)
-	local m = type(data) == "table" and data.movement
-	if type(m) ~= "table" then return false end
-	local ok, len2 = pcall(function() return (m.x or 0) ^ 2 + (m.y or 0) ^ 2 end)
-	return ok and len2 > 0.01
 end
 
 -- This player's units that fire: the avatar and, in a vehicle, the seat and the guns of that seat.
@@ -127,6 +112,22 @@ local function wielder_of(unit)
 		return nil
 	end)
 	return ok and w or unit
+end
+
+-- A flamethrower of this player among the flame weapon masters fires: the hand-held ones and the
+-- one of a vehicle seat this player sits in (the Lumberer).
+function M.note_flames(masters, view)
+	local own = own_units(view)
+	for unit, ctx in pairs(masters) do
+		local st = type(ctx) == "table" and ctx.state
+		if type(st) == "table" and (st.firing_auto or st.firing_single or st.was_firing) then
+			if own[unit] or own[wielder_of(unit)] then
+				shake.flamed()
+				return true
+			end
+		end
+	end
+	return false
 end
 
 -- For each weapon of this player in `slaves` (unit to context), the forward the game will compute and
@@ -234,12 +235,7 @@ function M.start(env)
 
 	obsidian.hook("InputComponent", "queue_command_master", function(original, self, unit, component, command, data, ...)
 		if component == "character" and command == "input" and live() and unit == camera.input.unit then
-			local body = nil
-			if env.view.first and not env.view.vehicle and camera.first_body and (state.sprint_fade or 1) > 0.5 then
-				local ok, b = pcall(camera.first_body, M.moving(data))
-				if ok then body = b end
-			end
-			pcall(M.steer, data, camera.input, env.view, state.aim_point, body)
+			pcall(M.steer, data, camera.input, env.view, state.aim_point)
 		end
 		return original(self, unit, component, command, data, ...)
 	end, env.VIEW)
@@ -260,6 +256,14 @@ function M.start(env)
 		local ok, list = pcall(M.collect_lasers, slaves, env.view, state.aim_point, g("Quaternion").forward)
 		if not ok or #list == 0 then return original(self, slaves, dt, ...) end
 		return M.redirect(list, original, self, slaves, dt, ...)
+	end, env.VIEW)
+
+	-- A flamethrower of this player firing quiets the camera shake (src/shake.lua): the masters of
+	-- this machine hold firing_auto while the trigger is held and was_firing for the frame.
+	obsidian.hook("FlameweaponComponent", "update_masters", function(original, self, masters, ...)
+		local r = scoped.pack(original(self, masters, ...))
+		if live() and type(masters) == "table" then pcall(M.note_flames, masters, env.view) end
+		return unpack(r, 1, r.n)
 	end, env.VIEW)
 
 	-- Launchers fire once per call, and set the height of the shot from z_direction.

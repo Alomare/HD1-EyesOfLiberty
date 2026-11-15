@@ -256,7 +256,7 @@ function M.start(env)
 			clear()
 			if not warned then
 				warned = true
-				env.log("Integrated Third Person: hit indicators: " .. tostring(err))
+				env.log("Unleashed Camera: hit indicators: " .. tostring(err))
 			end
 		end
 	end, env.VIEW)

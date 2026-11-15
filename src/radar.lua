@@ -24,7 +24,7 @@ M.PIECES = 14        -- pieces along each segment
 M.ICON = 22          -- warning triangle, pixels at 1080 lines (the height)
 M.ICON_LINE = 1.6    -- its outline
 M.FADE = 14          -- how fast a segment changes (ease rate, per second)
-M.LAYER = 480        -- under the crosshair of Integrated Third Person (500)
+M.LAYER = 480        -- under the crosshair (500)
 M.PAUSE = 300        -- frames without marks after an error
 M.SIDES = { "right", "back", "left" }
 
@@ -299,7 +299,7 @@ function M.start(env)
 			rest()
 			if not warned then
 				warned = true
-				env.log("Integrated Third Person: enemy indicators: " .. tostring(err))
+				env.log("Unleashed Camera: enemy indicators: " .. tostring(err))
 			end
 		end
 	end, env.VIEW)

@@ -2,6 +2,14 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 0.7.0
+
+- Changed: the mod is now called Unleashed Camera. Settings and installs carry over.
+- Changed: in first person the body turns with the view without the aiming walk, so the Helldiver moves at full speed and can throw, call stratagems and interact.
+- Changed: the first person camera sits higher and farther forward, and moves forward while looking down, so the inside of the body no longer shows.
+- Changed: the camera sway while sprinting is a little stronger.
+- Changed: while a flamethrower of the player fires, the Lumberer included, camera shake is 80% weaker.
+
 ## 0.6.0
 
 - New: first person, as a prototype. The Camera mode option picks the camera at the start (Default, Third person or First person), and the camera key cycles the three. In first person the camera sits in the head of the Helldiver and the helmet is hidden. Walking backwards steps back instead of turning round, and standing still the body turns only once the view has turned far enough.

@@ -281,12 +281,50 @@ function M.show_head(env)
 	M.hidden_head = {}
 end
 
--- First person, on the way the body faces: the flat direction the game's aim input takes, or nil
--- where the game's own facing stands (aiming, firing and throwing, sprinting, a vehicle, third person).
-function M.first_body(moving)
-	if M.mode ~= "first" or not M.body.yaw then return nil end
-	M.body.yaw, M.body.turning = rig.fp_body(M.body.yaw, M.view.yaw, moving, M.dt, M.body.turning)
-	return rig.flat_forward(M.body.yaw)
+-- First person turns the body through the facing the game works out for a Helldiver that stands or
+-- walks: CharacterComponent.update_masters turns the unit toward the movement and keeps the result in
+-- state.rotation_angle (a share of a turn, character_component.lua 579), which the unit takes on
+-- (line 1000). Feeding the aim input instead put the Helldiver in the aim states: slow, and only
+-- able to shoot. In every other state (aiming, firing, a throw, a sprint, a dive, down, a vehicle)
+-- the game's facing stands, and the body picks up from there.
+M.FREE_STATES = { "CharacterStateIdle", "CharacterStateWalk", "CharacterStateReload", "CharacterStateSwitchWeapon" }
+
+-- The state.rotation_angle for a yaw in degrees: atan2(forward.x, forward.y) / (2 pi) + 0.5.
+function M.angle_of(yaw)
+	return (0.5 - math.rad(yaw) / (2 * math.pi)) % 1
+end
+
+-- The yaw in degrees for a state.rotation_angle.
+function M.yaw_of_angle(a)
+	return rig.wrap(math.deg((0.5 - a) * 2 * math.pi))
+end
+
+-- After the game's character update: the body of this player's Helldiver in first person.
+function M.turn_body(masters)
+	if M.mode ~= "first" or not M.view.yaw or not M.input then return end
+	local unit = M.input.unit
+	local ctx = type(masters) == "table" and masters[unit]
+	local st = type(ctx) == "table" and ctx.state
+	if type(st) ~= "table" or type(st.rotation_angle) ~= "number" then return end
+	local free, walking = false, false
+	for _, name in ipairs(M.FREE_STATES) do
+		local cls = g(name)
+		if cls ~= nil and st.current_state == cls then
+			free, walking = true, name == "CharacterStateWalk"
+		end
+	end
+	if not free or st.seat_info or (st.input and st.input.aim and M.nonzero(st.input.aim)) then
+		M.body.yaw, M.body.turning = M.yaw_of_angle(st.rotation_angle), false
+		return
+	end
+	if not M.body.yaw then M.body.yaw = M.yaw_of_angle(st.rotation_angle) end
+	M.body.yaw, M.body.turning = rig.fp_body(M.body.yaw, M.view.yaw, walking, M.dt, M.body.turning)
+	st.rotation_angle = M.angle_of(M.body.yaw)
+end
+
+function M.nonzero(v)
+	local ok, l = pcall(function() return (v.x or 0) ^ 2 + (v.y or 0) ^ 2 end)
+	return ok and l > 0.0001
 end
 
 -- The next camera mode after `mode`.
@@ -436,16 +474,16 @@ function M.drive(env, cm, dt)
 	if why then
 		if state.active and M.dropped < 20 then
 			M.dropped = M.dropped + 1
-			env.log("Integrated Third Person: top-down view (" .. why .. ")")
+			env.log("Unleashed Camera: top-down view (" .. why .. ")")
 		end
 		if why == "tpc" and not M.warned.tpc then
 			M.warned.tpc = true
-			obsidian.toast("Integrated Third Person stays off: Third Person Camera is installed.", 8)
+			obsidian.toast("Unleashed Camera stays off: Third Person Camera is installed.", 8)
 			env.log("Third Person Camera found (HD2CAM_OVERLAY); staying off")
 		elseif why == "shared" and M.last_why ~= "shared" then
 			-- Players on one computer share one screen, which only the top-down camera can show.
 			obsidian.toast(M.SHARED_TEXT, 8)
-			env.log("Integrated Third Person: off while players share this computer")
+			env.log("Unleashed Camera: off while players share this computer")
 		end
 		M.last_why = why
 		M.release(env, cm)
@@ -512,14 +550,10 @@ function M.drive(env, cm, dt)
 	local position, fov
 	if first then
 		-- First person: at the head, a hair in front of the face, with the helmet hidden.
-		local head = M.head_position(avatar) or { x = p.x, y = p.y, z = p.z + rig.FP_HEIGHT }
+		local head = M.head_position(avatar) or { x = p.x, y = p.y, z = p.z + rig.FP_HEIGHT - rig.FP_UP }
 		smooth.pivot = rig.follow_head(smooth.pivot, head, dt)
-		position = rig.add(smooth.pivot, rig.forward(view.yaw, view.pitch), rig.FP_BUMP)
+		position = rig.fp_eye(smooth.pivot, view.yaw, view.pitch)
 		fov = config.get("first_person_fov") or 80
-		if not M.body.yaw then
-			local f = Q.forward(U.world_rotation(avatar, 0))
-			M.body.yaw = rig.yaw_of(f)
-		end
 		pcall(M.hide_head, env, avatar)
 	else
 		if next(M.hidden_head) then pcall(M.show_head, env) end
@@ -604,7 +638,7 @@ function M.drive(env, cm, dt)
 		local ok, err = pcall(fn, env.view, cm, dt)
 		if not ok and not M.warned[fn] then
 			M.warned[fn] = true
-			env.log("Integrated Third Person: " .. tostring(err))
+			env.log("Unleashed Camera: " .. tostring(err))
 		end
 	end
 	return true
@@ -719,6 +753,19 @@ function M.start(env)
 
 	-- A tank's tracks and a vehicle's turn read the driver's movement back through follow_spin: with this
 	-- player's vehicle the only one this machine drives, the view's yaw stands there for that update.
+	-- First person: the body turns with the view (M.turn_body), after the game's facing for the frame.
+	obsidian.hook("CharacterComponent", "update_masters", function(original, self, masters, ...)
+		local r = scoped.pack(original(self, masters, ...))
+		if state.active and M.mode == "first" then
+			local ok, err = pcall(M.turn_body, masters)
+			if not ok and not M.warned.body then
+				M.warned.body = true
+				env.log("Unleashed Camera: first person body: " .. tostring(err))
+			end
+		end
+		return unpack(r, 1, r.n)
+	end, env.VIEW)
+
 	obsidian.hook("VehicleComponent", "update_masters", function(original, self, masters, ...)
 		local cm = g("CameraManager")
 		local view = env.view
@@ -774,7 +821,7 @@ function M.start(env)
 		hud_flushing = false
 		if not ok and not M.warned.hud then
 			M.warned.hud = true
-			env.log("Integrated Third Person: ship HUD: " .. tostring(err))
+			env.log("Unleashed Camera: ship HUD: " .. tostring(err))
 		end
 	end
 
@@ -836,7 +883,7 @@ function M.start(env)
 		if not ok then
 			if not M.warned.drive then
 				M.warned.drive = true
-				env.log("Integrated Third Person: camera stopped: " .. tostring(drove))
+				env.log("Unleashed Camera: camera stopped: " .. tostring(drove))
 			end
 			pcall(M.release, env, self)
 		end

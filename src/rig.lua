@@ -27,7 +27,9 @@ M.SWAP_RATE = 9            -- how fast the camera crosses to the other shoulder 
 M.SPRINT_RATE = 6          -- how fast the sprint fade and camera noise come and go (ease rate)
 -- First person.
 M.FP_HEIGHT = 1.65         -- metres above the feet when the head can't be found
-M.FP_BUMP = 0.12           -- metres in front of the middle of the head, past the face
+M.FP_UP = 0.14             -- metres above the head node: the node sits low in the head, near the neck
+M.FP_BUMP = 0.22           -- metres in front of the head along the ground, past the face
+M.FP_DOWN_PUSH = 0.3       -- metres more in front while looking straight down, clear of the chest
 M.FP_PITCH_MIN, M.FP_PITCH_MAX = -80, 80
 M.FP_HEAD_RATE = 18        -- how fast the camera follows the head up and down (ease rate): steps don't jolt it
 M.FP_TURN_START = 55       -- degrees the view may turn from the body, standing, before the body turns
@@ -196,6 +198,16 @@ function M.follow_head(current, head, dt)
 		return { x = head.x, y = head.y, z = head.z }
 	end
 	return { x = head.x, y = head.y, z = current.z + dz * M.ease_share(M.FP_HEAD_RATE, dt) }
+end
+
+-- First person: the eye for the head node at `head` and a view turned to yaw and pitch (degrees).
+-- The bump runs along the ground, not along the view, so looking down moves the eye forward, out of
+-- the body, instead of down into it.
+function M.fp_eye(head, yaw, pitch)
+	local f = M.flat_forward(yaw)
+	local down = math.max(0, -math.sin(math.rad(pitch or 0)))
+	local ahead = M.FP_BUMP + M.FP_DOWN_PUSH * down
+	return { x = head.x + f.x * ahead, y = head.y + f.y * ahead, z = head.z + M.FP_UP }
 end
 
 -- First person: the way the body faces, for a view turned to view_yaw. Moving, the body follows the view,

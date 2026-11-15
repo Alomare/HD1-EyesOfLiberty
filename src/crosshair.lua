@@ -71,7 +71,7 @@ function M.start(env)
 			local ok, err = pcall(M.draw, self.cursor_gui, env)
 			if not ok then
 				failed = true
-				env.log("Integrated Third Person: crosshair stopped: " .. tostring(err))
+				env.log("Unleashed Camera: crosshair stopped: " .. tostring(err))
 			end
 		end
 		return unpack(r, 1, r.n)

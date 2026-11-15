@@ -1,4 +1,4 @@
-"""Builds the sky Integrated Third Person ships, in res/: one sky per planet type and one for the night, on
+"""Builds the sky Unleashed Camera ships, in res/: one sky per planet type and one for the night, on
 the dome the game's engine keeps for the editor, and the render config with the clear pass fixed.
 
 Adapted from Photo Mode's tools/build_sky.py (same dome, same texture format, same render config).

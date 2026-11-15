@@ -1,18 +1,18 @@
 {
   "obsidian": 1,
   "id": "alomare.integratedthirdperson",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "name": {
-    "en": "Integrated Third Person"
+    "en": "Unleashed Camera"
   },
   "description": {
-    "en": "An over-the-shoulder camera that keeps other mods working."
+    "en": "Third person and first person cameras that keep other mods working."
   },
   "authors": [
     "Alomare",
     "yukiorsrs"
   ],
-  "source": "https://github.com/Alomare/HD1-IntegratedThirdPerson",
+  "source": "https://github.com/Alomare/HD1-UnleashedCamera",
   "scope": "session",
   "parts": [
     {
