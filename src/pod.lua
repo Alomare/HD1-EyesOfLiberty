@@ -1,6 +1,7 @@
 -- The Hellpod camera: while the Helldiver drops in at the start of a mission or a respawn, the camera
 -- rides the pod down, looking down and ahead so the ground shows, shakes when the pod lands, waits a
--- moment and glides into the shoulder view.
+-- moment and glides into the shoulder view. The view can't be turned until the Helldiver is out of
+-- the pod (src/camera.lua).
 --
 -- The game drops a Helldiver through CharacterStateCutscene with the animation "intro_land" for
 -- character_info.spawn_time (5.4 s, character_component.lua:178, with the flow event spawn_hellpod
@@ -13,11 +14,11 @@ local rig = obsidian.module("src/rig")
 local M = {}
 
 M.HEIGHT = 70          -- metres above the landing spot the ride starts
-M.LOW = 4              -- metres above the spot the camera ends the fall
-M.BACK = 3             -- metres the camera sits behind the pod, along the view
+M.LOW = 7              -- metres above the spot the camera ends the fall
+M.BACK = 8             -- metres the camera sits behind the pod, along the view
 M.PITCH = -68          -- degrees the pod camera looks down
 M.LAND_FALLBACK = 1.8  -- seconds after the drop starts that the pod counts as landed without a shake
-M.HOLD = 0.5           -- seconds the camera stays on the landed pod
+M.HOLD = 2.0          -- seconds the camera stays on the landed pod, until about when the Helldiver climbs out
 M.GLIDE = 1.3          -- seconds the glide into the shoulder view takes
 M.NEAR = 6             -- metres from the Helldiver a hellpod shake counts as this pod's landing
 

@@ -6,7 +6,8 @@
 -- draws for it, "cursor_game" of the input component's cursor gui, is drawn at the crosshair instead:
 -- in a vehicle always, on foot while the aim button, fire or a throw is held, or always with the game
 -- option that keeps the crosshair up. Another mod that draws the crosshair (claim_crosshair in
--- main.lua, as Custom Crosshair does) turns this one off.
+-- main.lua, as Custom Crosshair does) turns this one off. While sprinting the crosshair fades out
+-- (state.sprint_fade, from src/camera.lua), and the export hands the same fade to the other mod.
 local scoped = obsidian.module("src/scoped")
 
 local M = {}
@@ -28,6 +29,7 @@ end
 function M.visible(env, always)
 	local state = env.state
 	if not state.active or not state.crosshair or state.claimed_by or state.dropping then return false end
+	if (state.sprint_fade or 1) <= 0.01 then return false end
 	local camera = env.camera
 	local input = camera and camera.input
 	if input and not input.look then return false end
@@ -56,7 +58,8 @@ function M.draw(gui, env)
 	local G, V2 = g("Gui"), g("Vector2")
 	local c = env.state.crosshair
 	local x, y, s = M.rect(c.x, c.y)
-	G.bitmap_uv(gui, M.SPRITE, V2(0, 0), V2(1, 1), V2(x, y), V2(s, s), g("Color")(255, 255, 255, 255))
+	local alpha = math.floor(255 * math.max(0, math.min(1, env.state.sprint_fade or 1)) + 0.5)
+	G.bitmap_uv(gui, M.SPRITE, V2(0, 0), V2(1, 1), V2(x, y), V2(s, s), g("Color")(alpha, 255, 255, 255))
 end
 
 function M.start(env)

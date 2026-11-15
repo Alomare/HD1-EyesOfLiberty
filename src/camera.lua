@@ -26,7 +26,15 @@ local M = {}
 local function g(name) return rawget(_G, name) end
 
 -- What stops the view, by reason, for tests and the log. Each is a function of (cm).
-M.enabled = true      -- the toggle key
+M.enabled = true      -- false in the top-down mode
+-- The camera mode: "default" (the game's top-down camera), "third" or "first". The toggle key cycles
+-- them; the mode set with the key is kept until the Camera mode option changes.
+M.MODES = { "default", "third", "first" }
+M.MODE_TEXT = { default = "Top-down camera", third = "Third person", first = "First person" }
+M.mode = "third"
+-- First person: the way the body faces (degrees), and whether it is turning to catch up with the view.
+M.body = { yaw = nil, turning = false }
+M.dt = 0.016
 M.view = { yaw = nil, pitch = 0, side = 1 }
 -- The vehicle the camera follows and where it sits there: side -1 left, 0 middle, 1 right. The place
 -- picked with the swap key is kept for each vehicle kind until the game closes.
@@ -52,7 +60,7 @@ M.last_why = nil      -- why the view stayed top-down last frame, nil while the 
 M.SHARED_TEXT = "Third person is off: players on one computer share the screen, so the top-down camera stays. It comes back when one player is left."
 M.BACK_TEXT = "One player on this computer: third person is back."
 
-local smooth = { pivot = nil, length = nil, aim = 0, target = nil, side = nil, dive = 0, down = 0 }
+local smooth = { pivot = nil, length = nil, aim = 0, target = nil, side = nil, dive = 0, down = 0, sprint = 0 }
 local saved_near = nil
 
 -- The local player's master of InputComponent: the avatar, the context of that master, and whether another local
@@ -203,6 +211,99 @@ function M.downed(avatar)
 	return ok and type(hs) == "table" and hs.is_downed == true
 end
 
+-- Whether the Helldiver sprints (CharacterStateSprint, or the sprint substate).
+function M.sprinting(avatar)
+	local EA = g("EntityAux")
+	local ok, cs = pcall(EA.state_master, avatar, "character")
+	if not ok or type(cs) ~= "table" then return false end
+	local sprint, sub_sprint = g("CharacterStateSprint"), g("CharacterSubstateSprint")
+	return (sprint ~= nil and cs.current_state == sprint) or (sub_sprint ~= nil and cs.current_substate == sub_sprint)
+end
+
+-- Whether the Helldiver is still in the drop cutscene: the Hellpod holds the aim until they climb out.
+function M.in_pod(avatar)
+	local EA = g("EntityAux")
+	local ok, cs = pcall(EA.state_master, avatar, "character")
+	local cut = g("CharacterStateCutscene")
+	return ok and type(cs) == "table" and cut ~= nil and cs.current_state == cut
+end
+
+-- The middle of the Helldiver's head (the "head" node of the character settings), or nil.
+function M.head_position(avatar)
+	local U = g("Unit")
+	local ok, at = pcall(function()
+		if not U.has_node(avatar, "head") then return nil end
+		local h = U.world_position(avatar, U.node(avatar, "head"))
+		return { x = h.x, y = h.y, z = h.z }
+	end)
+	return ok and at or nil
+end
+
+-- First person hides the helmet, mesh by mesh, and gives each mesh back as it was. Obsidian API's
+-- part_units finds the helmet (free in any lobby); part_visible itself is for session mods.
+-- unit -> { [mesh index] = whether it showed before }
+M.hidden_head = {}
+
+function M.hide_head(env, avatar)
+	local api = env.api
+	local world = api and api.world
+	if not (world and world.part_units) then return end
+	local U = g("Unit")
+	local units = world.part_units(avatar, "helmet") or {}
+	local now = {}
+	for _, u in ipairs(units) do
+		now[u] = true
+		if not M.hidden_head[u] then
+			local kept = {}
+			local ok, n = pcall(U.num_meshes, u)
+			for i = 0, (ok and n or 0) - 1 do
+				local got, vis = pcall(U.mesh_visibility, u, i)
+				kept[i] = not got or vis ~= false
+				pcall(U.set_mesh_visibility, u, i, false)
+			end
+			M.hidden_head[u] = kept
+		end
+	end
+	-- A helmet that is no longer the avatar's (a respawn): nothing to give back on a dead unit.
+	for u in pairs(M.hidden_head) do
+		if not now[u] then M.hidden_head[u] = nil end
+	end
+end
+
+function M.show_head(env)
+	local U = g("Unit")
+	for u, kept in pairs(M.hidden_head) do
+		local ok, alive = pcall(U.alive, u)
+		if ok and alive then
+			for i, vis in pairs(kept) do pcall(U.set_mesh_visibility, u, i, vis) end
+		end
+	end
+	M.hidden_head = {}
+end
+
+-- First person, on the way the body faces: the flat direction the game's aim input takes, or nil
+-- where the game's own facing stands (aiming, firing and throwing, sprinting, a vehicle, third person).
+function M.first_body(moving)
+	if M.mode ~= "first" or not M.body.yaw then return nil end
+	M.body.yaw, M.body.turning = rig.fp_body(M.body.yaw, M.view.yaw, moving, M.dt, M.body.turning)
+	return rig.flat_forward(M.body.yaw)
+end
+
+-- The next camera mode after `mode`.
+function M.next_mode(mode)
+	for i, m in ipairs(M.MODES) do
+		if m == mode then return M.MODES[i % #M.MODES + 1] end
+	end
+	return "third"
+end
+
+function M.set_mode(env, mode)
+	M.mode = mode
+	M.enabled = mode ~= "default"
+	if mode ~= "first" then pcall(M.show_head, env) end
+	M.body.yaw, M.body.turning = nil, false
+end
+
 -- The cursors of the game's aim, which the shoulder view keeps out of the window.
 M.GAME_CURSORS = { ["hud/cursors/game"] = true, ["hud/cursors/game_inactive"] = true }
 
@@ -285,7 +386,10 @@ function M.release(env, cm)
 	state.active, state.vehicle, state.aiming, state.firing, state.crosshair = false, false, false, false, nil
 	env.view = nil
 	smooth.pivot, smooth.length, smooth.aim, smooth.target, smooth.side, smooth.dive = nil, nil, 0, nil, nil, 0
-	smooth.down = 0
+	smooth.down, smooth.sprint = 0, 0
+	state.sprint_fade = 1
+	M.body.yaw, M.body.turning = nil, false
+	pcall(M.show_head, env)
 	state.dropping = false
 	shake.clear()
 	M.view.yaw = nil
@@ -362,13 +466,17 @@ function M.drive(env, cm, dt)
 		smooth.length = nil
 	end
 	dt = math.min(math.max(dt or 0.016, 0), 0.1)
+	M.dt = dt
 
 	-- Look.
 	local aim_t = smooth.aim
 	local zoom = 1 + (rig.AIM_FOV - 1) * aim_t
-	if input.look and M.frame - input.frame <= 4 then
+	-- The Hellpod holds the aim until the Helldiver climbs out.
+	local locked = M.drop ~= nil and M.drop.avatar == avatar and M.in_pod(avatar)
+	local first = M.mode == "first" and not kind
+	if input.look and not locked and M.frame - input.frame <= 4 then
 		rig.look(view, M.mouse_delta(true), input.stick, { speed = config.get("look_speed") or 1, invert = config.get("invert_y"),
-			zoom = zoom, dt = dt })
+			zoom = zoom, dt = dt, pitch_min = first and rig.FP_PITCH_MIN or nil, pitch_max = first and rig.FP_PITCH_MAX or nil })
 	else
 		M.mouse_delta(false) -- drop what moved while the view didn't take it
 	end
@@ -393,26 +501,49 @@ function M.drive(env, cm, dt)
 	-- Down and crawling: the camera comes low, near the ground, and backs away.
 	local down = not kind and config.get("downed_camera") ~= false and M.downed(avatar)
 	smooth.down = rig.ease(smooth.down, down and 1 or 0, rig.DOWN_RATE, dt)
+	-- Sprinting: the crosshair fades out and the camera moves a little (src/shake.lua).
+	local sprinting = not kind and M.sprinting(avatar)
+	smooth.sprint = rig.ease(smooth.sprint, sprinting and 1 or 0, rig.SPRINT_RATE, dt)
+	state.sprint_fade = 1 - smooth.sprint
+	shake.sprint.level = smooth.sprint
 
-	-- Pivot and lens. The ship has a distance of its own: the bridge is small.
 	local p = U.world_position(target, 0)
-	local want = { x = p.x, y = p.y, z = p.z + rig.height(kind, smooth.side, smooth.dive, smooth.down) }
-	smooth.pivot = rig.follow_pivot(smooth.pivot, want, dt)
-	local distance
-	if kind then distance = config.get("vehicle_distance") or 7
-	elseif cm.state == "follow_menu" then distance = config.get("ship_distance") or 2
-	else distance = config.get("foot_distance") or 6 end
-	local distance, fov, side = rig.lens({
-		distance = distance,
-		fov = kind and (config.get("vehicle_fov") or 70) or (config.get("foot_fov") or 70),
-		side = smooth.side, aim = smooth.aim, dive = smooth.dive, down = smooth.down, vehicle = kind })
-	local at, dir, full = rig.place(smooth.pivot, view.yaw, view.pitch, distance, side)
-
-	-- Walls and rocks pull the camera in.
 	local world, proxy = world_of(cm)
-	local hit = M.clear_length(g("World").physics_world(world), smooth.pivot, dir, full)
-	smooth.length = rig.follow_length(smooth.length, rig.pull_in(full, hit), dt)
-	local position = rig.add(smooth.pivot, dir, smooth.length)
+	local position, fov
+	if first then
+		-- First person: at the head, a hair in front of the face, with the helmet hidden.
+		local head = M.head_position(avatar) or { x = p.x, y = p.y, z = p.z + rig.FP_HEIGHT }
+		smooth.pivot = rig.follow_head(smooth.pivot, head, dt)
+		position = rig.add(smooth.pivot, rig.forward(view.yaw, view.pitch), rig.FP_BUMP)
+		fov = config.get("first_person_fov") or 80
+		if not M.body.yaw then
+			local f = Q.forward(U.world_rotation(avatar, 0))
+			M.body.yaw = rig.yaw_of(f)
+		end
+		pcall(M.hide_head, env, avatar)
+	else
+		if next(M.hidden_head) then pcall(M.show_head, env) end
+		M.body.yaw, M.body.turning = nil, false
+		-- Pivot and lens. The ship has a distance of its own: the bridge is small.
+		local lift = tonumber(config.get("camera_height")) or 0
+		local want = { x = p.x, y = p.y, z = p.z + rig.height(kind, smooth.side, smooth.dive, smooth.down) + lift }
+		smooth.pivot = rig.follow_pivot(smooth.pivot, want, dt)
+		local distance
+		if kind then distance = config.get("vehicle_distance") or 7
+		elseif cm.state == "follow_menu" then distance = config.get("ship_distance") or 2
+		else distance = config.get("foot_distance") or 3 end
+		local side
+		distance, fov, side = rig.lens({
+			distance = distance,
+			fov = kind and (config.get("vehicle_fov") or 70) or (config.get("foot_fov") or 70),
+			side = smooth.side, aim = smooth.aim, dive = smooth.dive, down = smooth.down, vehicle = kind })
+		local _, dir, full = rig.place(smooth.pivot, view.yaw, view.pitch, distance, side)
+
+		-- Walls and rocks pull the camera in.
+		local hit = M.clear_length(g("World").physics_world(world), smooth.pivot, dir, full)
+		smooth.length = rig.follow_length(smooth.length, rig.pull_in(full, hit), dt)
+		position = rig.add(smooth.pivot, dir, smooth.length)
+	end
 
 	-- The Hellpod ride: the pod pose, then the glide into the shoulder pose.
 	local pitch = view.pitch
@@ -466,7 +597,7 @@ function M.drive(env, cm, dt)
 	end
 
 	env.view = { position = position, forward = forward, yaw = view.yaw, pitch = pitch, fov = fov, pivot = smooth.pivot,
-		avatar = avatar, target = target, vehicle = kind, world = world, camera = cam }
+		avatar = avatar, target = target, vehicle = kind, world = world, camera = cam, first = first }
 	state.active = true
 	state.vehicle = kind ~= nil
 	for _, fn in ipairs(env.on_pose) do
@@ -520,7 +651,13 @@ function M.start(env)
 	env.on_release = env.on_release or {}
 	env.frame = function() return M.frame end
 	env.camera = M
-	M.enabled = obsidian.storage.get("third_person", true) ~= false
+	-- The mode the key left, while the Camera mode option is still the one it was then.
+	local option = env.config.get("camera_mode") or "third"
+	local kept = obsidian.storage.get("camera_mode", nil)
+	local kept_option = obsidian.storage.get("camera_mode_option", nil)
+	local mode = option
+	if kept_option == option and (kept == "default" or kept == "third" or kept == "first") then mode = kept end
+	M.set_mode(env, mode)
 	M.view.side = env.config.get("shoulder") == "left" and -1 or 1
 	env.config.on_change("shoulder", function(v) M.view.side = v == "left" and -1 or 1 end)
 
@@ -709,13 +846,14 @@ function M.start(env)
 	end, env.VIEW)
 
 	obsidian.keybind("toggle_view", function()
-		M.enabled = not M.enabled
-		obsidian.storage.set("third_person", M.enabled)
-		obsidian.toast(M.enabled and "Third person" or "Top-down camera", 2)
+		M.set_mode(env, M.next_mode(M.mode))
+		obsidian.storage.set("camera_mode", M.mode)
+		obsidian.storage.set("camera_mode_option", env.config.get("camera_mode") or "third")
+		obsidian.toast(M.MODE_TEXT[M.mode], 2)
 	end, env.KEY_VIEW)
 
 	obsidian.keybind("swap_shoulder", function()
-		if not state.active then return end
+		if not state.active or (M.mode == "first" and not state.vehicle) then return end
 		if state.vehicle then
 			if not M.ride.kind then return end
 			M.ride.side = rig.next_vehicle_side(M.ride.side)

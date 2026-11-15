@@ -340,10 +340,10 @@ return {
 		local masters = E.player(e, "me")
 		frame(e, env, masters)
 		eq(env.state.active, true)
-		KEYS.toggle_view.fn()
+		KEYS.toggle_view.fn() KEYS.toggle_view.fn() -- first person, then top-down
 		frame(e, env, masters)
 		eq(env.state.active, false, "off")
-		eq(STORED.third_person, false, "kept")
+		eq(STORED.camera_mode, "default", "kept")
 		eq(e.calls.set_vertical_fov[2], CameraManager.fov, "game's field of view back")
 		E.remove()
 	end },
@@ -369,7 +369,7 @@ return {
 		eq(env.state.active, true, "shoulder camera on")
 		eq(type(e.calls.set_local_position[3]), "table", "the shoulder pose is the one written")
 		eq(rawget(Camera, "set_local_position"), nil, "Camera put back after the game's update")
-		KEYS.toggle_view.fn()
+		KEYS.toggle_view.fn() KEYS.toggle_view.fn() -- first person, then top-down
 		step()
 		eq(reached[4], true, "toggled off: the game places the camera again")
 		eq(env.state.active, false, "off")
@@ -439,7 +439,7 @@ return {
 		end
 		for _ = 1, 30 do frame(e, env, masters, 0.05) end
 		local before = back()
-		near(before, 6, "the on-foot distance", 1e-3)
+		near(before, 3, "the on-foot distance", 1e-3)
 		local high = env.view.pivot.z
 		e.units.me.health.is_dodging = true
 		frame(e, env, masters, 0.05)
@@ -619,7 +619,7 @@ return {
 		eq(drew, 0, "own card skipped") eq(destroyed, "card") eq(info.gui_objects.texts.in_world_name, nil)
 		draw(game, hud, 0.016, info, {}, "friend", {}, {}, {}, "Friend", true, 2)
 		eq(drew, 1, "a friend's card stays")
-		KEYS.toggle_view.fn()
+		KEYS.toggle_view.fn() KEYS.toggle_view.fn() -- first person, then top-down
 		frame(e, env, masters)
 		draw(game, hud, 0.016, info, {}, "me", {}, {}, {}, "Me", false, 1)
 		eq(drew, 2, "top-down: the own card is back")

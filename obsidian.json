@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.integratedthirdperson",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "name": {
     "en": "Integrated Third Person"
   },
@@ -64,7 +64,6 @@
     "src/view.lua",
     "src/radar.lua",
     "src/hits.lua",
-    "src/footsteps.lua",
     "src/look.lua",
     "src/session.lua"
   ],
@@ -78,11 +77,15 @@
     { "id": "indicators", "label": { "en": "Indicators and names" } },
     { "id": "world", "label": { "en": "View distance and sky" } },
     { "id": "picture", "label": { "en": "Picture" } },
-    { "id": "sound", "label": { "en": "Sound" } },
-    { "id": "lobby", "label": { "en": "Lobby-wide changes" } }
+    { "id": "lobby", "label": { "en": "Session features" } }
   ],
   "options": [
-    { "id": "foot_distance", "type": "number", "default": 6, "min": 1, "max": 10, "step": 0.5,
+    { "id": "camera_mode", "type": "choice", "default": "third",
+      "choices": [ { "id": "default", "label": { "en": "Default" } }, { "id": "third", "label": { "en": "Third person" } }, { "id": "first", "label": { "en": "First person" } } ],
+      "group": "camera", "part": "view", "scope": "client",
+      "label": { "en": "Camera mode" },
+      "description": { "en": "The camera at the start of the game. Default is the top-down camera of the game. The camera key cycles the three in a mission. In first person the camera sits in the head of the Helldiver and the helmet is hidden; vehicles keep the third-person camera." } },
+    { "id": "foot_distance", "type": "number", "default": 3, "min": 1, "max": 10, "step": 0.5,
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "On-foot camera distance (m)" },
       "description": { "en": "Meters between the camera and the Helldiver on foot in a mission." } },
@@ -93,7 +96,15 @@
     { "id": "foot_fov", "type": "number", "default": 70, "min": 40, "max": 110, "step": 1,
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "On-foot field of view (degrees)" },
-      "description": { "en": "Vertical field of view on foot." } },
+      "description": { "en": "Vertical field of view on foot in third person." } },
+    { "id": "first_person_fov", "type": "number", "default": 80, "min": 50, "max": 120, "step": 1,
+      "group": "camera", "part": "view", "scope": "client",
+      "label": { "en": "First person field of view (degrees)" },
+      "description": { "en": "Vertical field of view in first person." } },
+    { "id": "camera_height", "type": "number", "default": 0, "min": -1, "max": 1.5, "step": 0.1,
+      "group": "camera", "part": "view", "scope": "client",
+      "label": { "en": "Overall camera height (m)" },
+      "description": { "en": "Raises or lowers the third-person camera on foot, in a dive, while down, in vehicles and on the Super Destroyer." } },
     { "id": "shoulder", "type": "choice", "default": "right",
       "choices": [ { "id": "right", "label": { "en": "Right" } }, { "id": "left", "label": { "en": "Left" } } ],
       "group": "camera", "part": "view", "scope": "client",
@@ -114,11 +125,11 @@
     { "id": "downed_camera", "type": "toggle", "default": true,
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "Downed camera" },
-      "description": { "en": "While the Helldiver is down and crawling, the camera sits low, near the ground, and 1 m farther back." } },
+      "description": { "en": "While the Helldiver is down and crawling, the camera sits as low as in a dive, and 1 m farther back." } },
     { "id": "hellpod_camera", "type": "toggle", "default": true,
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "Hellpod camera" },
-      "description": { "en": "When the Helldiver drops in, the camera rides the Hellpod down looking at the ground, shakes on the landing, then glides into the shoulder view." } },
+      "description": { "en": "When the Helldiver drops in, the camera rides the Hellpod down looking at the ground, shakes on the landing, and glides into the shoulder view once the Helldiver climbs out. The view stays still until then." } },
     { "id": "camera_shake", "type": "choice", "default": "medium",
       "choices": [ { "id": "off", "label": { "en": "Off" } }, { "id": "weak", "label": { "en": "Weak" } }, { "id": "medium", "label": { "en": "Medium" } }, { "id": "strong", "label": { "en": "Strong" } } ],
       "group": "camera", "part": "view", "scope": "client",
@@ -169,11 +180,6 @@
       "group": "picture", "part": "view", "scope": "client",
       "label": { "en": "Depth of field" },
       "description": { "en": "Game default keeps the blur of the planet. Focus on the Helldiver keeps the Helldiver sharp and blurs what is much nearer or farther. Off keeps the whole picture sharp. Photo Mode sets the depth of field while open." } },
-    { "id": "footsteps", "type": "choice", "default": "loudest",
-      "choices": [ { "id": "normal", "label": { "en": "Normal" } }, { "id": "louder", "label": { "en": "Louder" } }, { "id": "loudest", "label": { "en": "Loudest" } } ],
-      "group": "sound", "part": "view", "scope": "client",
-      "label": { "en": "Footsteps" },
-      "description": { "en": "In third person, each footstep of Helldivers and enemies plays more than once, so steps out of view are easier to hear. Louder plays a step twice, Loudest four times. Normal leaves the steps as in the game." } },
     { "id": "max_weapon_range", "type": "toggle", "default": true,
       "group": "lobby", "part": "weapon_range",
       "label": { "en": "Max weapon range" },
@@ -192,7 +198,7 @@
       "description": { "en": "Grenades and stratagem balls fly twice as far, on top of the Strong Arm perk. Changes the shared game: off in lobbies with players who don't run it." } }
   ],
   "keybinds": [
-    { "id": "toggle_view", "default": "f8", "label": { "en": "Switch between third person and the top-down camera" } },
+    { "id": "toggle_view", "default": "f8", "label": { "en": "Cycle the camera: top-down, third person, first person" } },
     { "id": "swap_shoulder", "default": "h", "label": { "en": "Swap the camera shoulder (in a vehicle: left, middle, right)" } }
   ],
   "resources": [

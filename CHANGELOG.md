@@ -2,6 +2,19 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 0.6.0
+
+- New: first person, as a prototype. The Camera mode option picks the camera at the start (Default, Third person or First person), and the camera key cycles the three. In first person the camera sits in the head of the Helldiver and the helmet is hidden. Walking backwards steps back instead of turning round, and standing still the body turns only once the view has turned far enough.
+- New: First person field of view option.
+- New: Overall camera height option, which raises or lowers the third-person camera everywhere.
+- New: a slight camera sway while sprinting. It follows the Camera shake option.
+- New: the crosshair fades out while sprinting, Custom Crosshair included.
+- Changed: the downed camera sits as low as the dive camera.
+- Changed: the on-foot camera distance is 3 m by default.
+- Changed: the Hellpod camera sits farther from the pod, waits longer before the glide, and the view stays still until the Helldiver climbs out.
+- Changed: the lobby-wide options are named Session features.
+- Removed: the Footsteps option.
+
 ## 0.5.0
 
 - New: Remove fog option, on by default. Photo Mode shows the fog while it is open.

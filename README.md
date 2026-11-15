@@ -8,15 +8,15 @@ Third Person Camera replaces 28 game scripts, so mods that change the same parts
 
 ## How to use
 
-**F8** switches between third person and the top-down camera, and **H** swaps the shoulder. Both keys can be changed in Obsidian.
+**F8** cycles the camera: the top-down camera of the game, third person, and first person (a prototype). **H** swaps the shoulder. Both keys can be changed in Obsidian.
 
 ## Playing with others
 
-The camera and everything on screen work in any lobby. Four options change the game for the whole lobby: Max weapon range, Far enemy detection, Free movement and Increased throw range. They run only when every player runs Obsidian with the same mods, and switch off when anyone else joins. With all four off, the mod counts as a client mod.
+The camera and everything on screen work in any lobby. Four session features change the game for the whole lobby: Max weapon range, Far enemy detection, Free movement and Increased throw range. They run only when every player runs Obsidian with the same mods, and switch off when anyone else joins. With all four off, the mod counts as a client mod.
 
 ## Known issues
 
 - Players on one computer share a screen, so third person turns off while a second local player is in, and comes back after.
 - The mod stays off while Third Person Camera is installed.
 
-Mod authors can read the camera state through `obsidian.import("alomare.integratedthirdperson")`: `active()`, `crosshair()` and `shoulder()`.
+Mod authors can read the camera state through `obsidian.import("alomare.integratedthirdperson")`: `active()`, `mode()`, `crosshair()` and `shoulder()`.

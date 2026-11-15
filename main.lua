@@ -2,8 +2,8 @@
 -- Based on Third Person Camera (HD2 Style) by yukiorsrs, used with permission.
 --
 -- The mod is split into parts (obsidian.json "parts"):
---   view             client: camera, aim, crosshair, view distance, sky, fog, bloom, depth of field,
---                    enemy indicators
+--   view             client: third and first person cameras, aim, crosshair, view distance, sky, fog,
+--                    bloom, depth of field, enemy indicators
 --   weapon_range     session: every weapon reaches as far as the farthest one
 --   enemy_detection  session: enemies notice the squad from farther away
 --   free_movement    session: the Helldiver can leave the shared top-down screen
@@ -26,6 +26,7 @@ local state = {
 	firing = false,     -- fire or a throw is held
 	crosshair = nil,    -- { x, y } in pixels from the bottom left, where shots go
 	claimed_by = nil,   -- id of a mod that draws the crosshair instead of this one
+	sprint_fade = 1,    -- 1, down to 0 while sprinting: the crosshair fades out
 }
 
 local env = {
@@ -47,7 +48,7 @@ local env = {
 config.start(env)
 
 local started = {}
-for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/footsteps", "src/look", "src/session" }) do
+for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/look", "src/session" }) do
 	local ok, err = pcall(function()
 		local m = obsidian.module(name)
 		if m and m.start then m.start(env) end
@@ -57,16 +58,17 @@ for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "s
 end
 
 -- What other mods get from obsidian.import("alomare.integratedthirdperson").
-local export = { version = "0.5.0" }
+local export = { version = "0.6.0" }
 
 -- Where shots go on screen while third person steers the view: { x, y, aiming, firing, vehicle }, in
 -- pixels from the bottom left (the coordinates of obsidian.ui.canvas). aiming: the aim button is held;
 -- firing (since 0.4.2): fire or a throw is held, which also brings up the aiming cursor of the game in
--- the top-down view. nil while the top-down camera is on.
+-- the top-down view. fade (since 0.6.0): from 1 down to 0 as the Helldiver sprints; a crosshair drawn
+-- there fades with it. nil while the top-down camera is on.
 function export.crosshair()
 	if not state.active or not state.crosshair then return nil end
 	return { x = state.crosshair.x, y = state.crosshair.y, aiming = state.aiming, firing = state.firing,
-		vehicle = state.vehicle }
+		vehicle = state.vehicle, fade = state.sprint_fade or 1 }
 end
 
 -- Another mod draws the crosshair from now on (Custom Crosshair does this). Integrated Third Person
@@ -76,18 +78,25 @@ function export.claim_crosshair(mod_id)
 	return true
 end
 
--- true while third person steers the view.
+-- true while the mod steers the view, in third or first person.
 function export.active()
 	return state.active
 end
 
+-- The camera mode (since 0.6.0): "default" (the game's top-down camera), "third" or "first".
+function export.mode()
+	local camera = env.camera
+	return camera and camera.mode or "default"
+end
+
 -- The shoulder the camera sits over while third person steers the view: 1 right, -1 left, nil in the
 -- top-down view. During a swap, the shoulder the camera is moving to. In a vehicle, 0 while the camera
--- sits in the middle.
+-- sits in the middle; 0 in first person on foot.
 function export.shoulder()
 	if not state.active then return nil end
 	local camera = env.camera
 	if state.vehicle and camera and camera.ride and camera.ride.kind then return camera.ride.side end
+	if camera and camera.mode == "first" then return 0 end
 	local side = camera and camera.view and camera.view.side
 	return side == -1 and -1 or 1
 end

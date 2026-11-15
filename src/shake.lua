@@ -2,7 +2,7 @@
 -- adds CameraShaker:update's offset to the top-down pose, camera_manager.lua:476-479), and that pose
 -- never reaches the screen under the shoulder view. The offset the game works out each frame is kept
 -- (game) and added to the shoulder pose, scaled by the Camera shake option, with shakes of this mod's
--- own on top (the Hellpod landing). Plain numbers only, so tests can run it.
+-- own on top (the Hellpod landing, a weapon firing, the sway of a sprint). Plain numbers only, so tests can run it.
 local M = {}
 
 -- The option's levels, as a factor on every shake.
@@ -17,6 +17,10 @@ M.fire = { level = 0, phase = 0, vehicle = false }
 -- (a mod with blasts on every kill) shook it all the time.
 M.GAME_MOST = 0.12
 M.game = { x = 0, y = 0 } -- the game's offset this frame, in metres right and up of the view
+-- A slow, uneven sway while sprinting: metres and swings a second. level (0 to 1) is set each frame
+-- by src/camera.lua, eased in and out.
+M.SPRINT = { amp = 0.028, freq = 1.4 }
+M.sprint = { level = 0, phase = 0 }
 
 function M.factor(level)
 	return M.LEVEL[level] or M.LEVEL.medium
@@ -51,6 +55,17 @@ function M.offset(dt, factor)
 		y = y + a * math.cos(w)
 		f.level = math.max(0, f.level - dt / M.FIRE.fade)
 	end
+	local sp = M.sprint
+	if sp.level > 0 then
+		sp.phase = sp.phase + dt
+		local w = sp.phase * M.SPRINT.freq * 2 * math.pi
+		local a = M.SPRINT.amp * sp.level
+		-- Two swings that never line up, so the sway doesn't read as a loop.
+		x = x + a * (0.7 * math.sin(w) + 0.3 * math.sin(w * 2.37 + 1.1))
+		y = y + a * (0.6 * math.sin(w * 2 + 0.4) + 0.4 * math.sin(w * 3.13))
+	else
+		sp.phase = 0
+	end
 	for i = #M.list, 1, -1 do
 		local s = M.list[i]
 		s.phase = s.phase + dt
@@ -72,6 +87,7 @@ function M.clear()
 	M.list = {}
 	M.fire.level, M.fire.phase = 0, 0
 	M.game.x, M.game.y = 0, 0
+	M.sprint.level, M.sprint.phase = 0, 0
 end
 
 return M

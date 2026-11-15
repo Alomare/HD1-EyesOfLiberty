@@ -20,10 +20,20 @@ M.MOUSE_RATE = 0.12        -- degrees per count of the mouse, at look speed 1
 M.STICK_YAW, M.STICK_PITCH = 160, 110 -- degrees a second at full stick, at look speed 1
 M.STICK_DEADZONE = 0.15
 M.DIVE_IN, M.DIVE_OUT = 14, 5 -- how fast the camera comes down for a dive and goes back up after (ease rates)
-M.DOWN_HEIGHT = 0.4       -- the pivot's height above the ground while down and crawling
+M.DOWN_HEIGHT = M.FOOT_HEIGHT - M.DIVE_DROP -- the pivot's height while down and crawling: as low as in a dive
 M.DOWN_BACK = 1           -- metres the camera backs away while down
 M.DOWN_RATE = 5           -- how fast the camera goes down and comes back up (ease rate)
 M.SWAP_RATE = 9            -- how fast the camera crosses to the other shoulder (ease rate)
+M.SPRINT_RATE = 6          -- how fast the sprint fade and camera noise come and go (ease rate)
+-- First person.
+M.FP_HEIGHT = 1.65         -- metres above the feet when the head can't be found
+M.FP_BUMP = 0.12           -- metres in front of the middle of the head, past the face
+M.FP_PITCH_MIN, M.FP_PITCH_MAX = -80, 80
+M.FP_HEAD_RATE = 18        -- how fast the camera follows the head up and down (ease rate): steps don't jolt it
+M.FP_TURN_START = 55       -- degrees the view may turn from the body, standing, before the body turns
+M.FP_TURN_STOP = 4         -- degrees from the view where a turn of the body ends
+M.FP_TURN_RATE = 9         -- how fast a standing body turns to the view (ease rate)
+M.FP_MOVE_RATE = 14        -- how fast a moving body follows the view (ease rate)
 M.MARGIN = 0.25            -- metres kept between the camera and a wall
 M.MIN_LENGTH = 0.35        -- the closest the camera comes to the pivot
 -- Pivot heights in a vehicle, by Obsidian API's vehicle kinds.
@@ -121,7 +131,8 @@ end
 
 -- Turns a view by this frame's look input. mouse: counts moved { x right, y down the screen }.
 -- stick: the right stick { x right, y up }. opts: speed (look speed), invert, zoom (share of the field
--- of view kept, so aiming turns slower), dt.
+-- of view kept, so aiming turns slower), dt, pitch_min and pitch_max (degrees, the third-person ones
+-- when left out).
 function M.look(view, mouse, stick, opts)
 	local speed = (opts.speed or 1) * (opts.zoom or 1)
 	local flip = opts.invert and -1 or 1
@@ -136,7 +147,7 @@ function M.look(view, mouse, stick, opts)
 		pitch = pitch + M.stick_curve(stick.y or 0) * M.STICK_PITCH * speed * dt * flip
 	end
 	view.yaw = M.wrap(yaw)
-	view.pitch = clamp(pitch, M.PITCH_MIN, M.PITCH_MAX)
+	view.pitch = clamp(pitch, opts.pitch_min or M.PITCH_MIN, opts.pitch_max or M.PITCH_MAX)
 	return view
 end
 
@@ -174,6 +185,33 @@ function M.follow_pivot(current, target, dt)
 	if dx * dx + dy * dy + dz * dz > 225 then return { x = target.x, y = target.y, z = target.z } end
 	local s, sz = M.ease_share(22, dt), M.ease_share(12, dt)
 	return { x = current.x + dx * s, y = current.y + dy * s, z = current.z + dz * sz }
+end
+
+-- First person: the camera follows the head across the ground at once and eases up and down, so the
+-- bob of a step stays small.
+function M.follow_head(current, head, dt)
+	if not current then return { x = head.x, y = head.y, z = head.z } end
+	local dz = head.z - current.z
+	if math.abs(dz) > 1.5 or (head.x - current.x) ^ 2 + (head.y - current.y) ^ 2 > 225 then
+		return { x = head.x, y = head.y, z = head.z }
+	end
+	return { x = head.x, y = head.y, z = current.z + dz * M.ease_share(M.FP_HEAD_RATE, dt) }
+end
+
+-- First person: the way the body faces, for a view turned to view_yaw. Moving, the body follows the view,
+-- so walking backwards steps back instead of turning round. Standing, the body stays put while the
+-- view turns up to FP_TURN_START either way, then turns to the view until within FP_TURN_STOP.
+-- Answers the new yaw and whether a standing turn is under way.
+function M.fp_body(body, view_yaw, moving, dt, turning)
+	if body == nil then return view_yaw, false end
+	local off = M.wrap(view_yaw - body)
+	if moving then return M.ease_angle(body, view_yaw, M.FP_MOVE_RATE, dt), false end
+	if not turning and math.abs(off) > M.FP_TURN_START then turning = true end
+	if turning then
+		body = M.ease_angle(body, view_yaw, M.FP_TURN_RATE, dt)
+		if math.abs(M.wrap(view_yaw - body)) <= M.FP_TURN_STOP then turning = false end
+	end
+	return body, turning
 end
 
 -- The camera's distance, field of view and side offset for this frame. opts: distance, fov (degrees),
