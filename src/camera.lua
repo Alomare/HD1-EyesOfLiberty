@@ -27,13 +27,11 @@ local function g(name) return rawget(_G, name) end
 
 -- What stops the view, by reason, for tests and the log. Each is a function of (cm).
 M.enabled = true      -- false in the top-down mode
--- The camera mode: "default" (the game's top-down camera), "third" or "first". The toggle key cycles
--- them; the mode set with the key is kept until the Camera mode option changes.
-M.MODES = { "default", "third", "first" }
-M.MODE_TEXT = { default = "Top-down camera", third = "Third person", first = "First person" }
+-- The camera mode: "default" (the game's top-down camera) or "third". The toggle key switches them;
+-- the mode set with the key is kept until the Camera mode option changes.
+M.MODES = { "default", "third" }
+M.MODE_TEXT = { default = "Top-down camera", third = "Third person" }
 M.mode = "third"
--- First person: the way the body faces (degrees), and whether it is turning to catch up with the view.
-M.body = { yaw = nil, turning = false }
 M.dt = 0.016
 M.view = { yaw = nil, pitch = 0, side = 1 }
 -- The vehicle the camera follows and where it sits there: side -1 left, 0 middle, 1 right. The place
@@ -229,112 +227,6 @@ function M.in_pod(avatar)
 	return ok and type(cs) == "table" and cut ~= nil and cs.current_state == cut
 end
 
--- The middle of the Helldiver's head (the "head" node of the character settings), or nil.
-function M.head_position(avatar)
-	local U = g("Unit")
-	local ok, at = pcall(function()
-		if not U.has_node(avatar, "head") then return nil end
-		local h = U.world_position(avatar, U.node(avatar, "head"))
-		return { x = h.x, y = h.y, z = h.z }
-	end)
-	return ok and at or nil
-end
-
--- First person hides the helmet, mesh by mesh, and gives each mesh back as it was. Obsidian API's
--- part_units finds the helmet (free in any lobby); part_visible itself is for session mods.
--- unit -> { [mesh index] = whether it showed before }
-M.hidden_head = {}
-
-M.HEAD_RECHECK = 60
-M.head_seen = { avatar = nil, frame = -1000 }
-
-function M.hide_head(env, avatar)
-	local api = env.api
-	local world = api and api.world
-	if not (world and world.part_units) then return end
-	local seen = M.head_seen
-	if seen.avatar == avatar and M.frame - seen.frame < M.HEAD_RECHECK and next(M.hidden_head) then return end
-	seen.avatar, seen.frame = avatar, M.frame
-	local U = g("Unit")
-	local units = world.part_units(avatar, "helmet") or {}
-	local now = {}
-	for _, u in ipairs(units) do
-		now[u] = true
-		if not M.hidden_head[u] then
-			local kept = {}
-			local ok, n = pcall(U.num_meshes, u)
-			for i = 0, (ok and n or 0) - 1 do
-				local got, vis = pcall(U.mesh_visibility, u, i)
-				kept[i] = not got or vis ~= false
-				pcall(U.set_mesh_visibility, u, i, false)
-			end
-			M.hidden_head[u] = kept
-		end
-	end
-	-- A helmet that is no longer the avatar's (a respawn): nothing to give back on a dead unit.
-	for u in pairs(M.hidden_head) do
-		if not now[u] then M.hidden_head[u] = nil end
-	end
-end
-
-function M.show_head(env)
-	local U = g("Unit")
-	for u, kept in pairs(M.hidden_head) do
-		local ok, alive = pcall(U.alive, u)
-		if ok and alive then
-			for i, vis in pairs(kept) do pcall(U.set_mesh_visibility, u, i, vis) end
-		end
-	end
-	M.hidden_head = {}
-	M.head_seen.avatar = nil
-end
-
--- First person turns the body through the facing the game works out for a Helldiver that stands or
--- walks: CharacterComponent.update_masters turns the unit toward the movement and keeps the result in
--- state.rotation_angle (a share of a turn, character_component.lua 579), which the unit takes on
--- (line 1000). Feeding the aim input instead put the Helldiver in the aim states: slow, and only
--- able to shoot. In every other state (aiming, firing, a throw, a sprint, a dive, down, a vehicle)
--- the game's facing stands, and the body picks up from there.
-M.FREE_STATES = { "CharacterStateIdle", "CharacterStateWalk", "CharacterStateReload", "CharacterStateSwitchWeapon" }
-
--- The state.rotation_angle for a yaw in degrees: atan2(forward.x, forward.y) / (2 pi) + 0.5.
-function M.angle_of(yaw)
-	return (0.5 - math.rad(yaw) / (2 * math.pi)) % 1
-end
-
--- The yaw in degrees for a state.rotation_angle.
-function M.yaw_of_angle(a)
-	return rig.wrap(math.deg((0.5 - a) * 2 * math.pi))
-end
-
--- After the game's character update: the body of this player's Helldiver in first person.
-function M.turn_body(masters)
-	if M.mode ~= "first" or not M.view.yaw or not M.input then return end
-	local unit = M.input.unit
-	local ctx = type(masters) == "table" and masters[unit]
-	local st = type(ctx) == "table" and ctx.state
-	if type(st) ~= "table" or type(st.rotation_angle) ~= "number" then return end
-	local free, walking = false, false
-	for _, name in ipairs(M.FREE_STATES) do
-		local cls = g(name)
-		if cls ~= nil and st.current_state == cls then
-			free, walking = true, name == "CharacterStateWalk"
-		end
-	end
-	if not free or st.seat_info or (st.input and st.input.aim and M.nonzero(st.input.aim)) then
-		M.body.yaw, M.body.turning = M.yaw_of_angle(st.rotation_angle), false
-		return
-	end
-	if not M.body.yaw then M.body.yaw = M.yaw_of_angle(st.rotation_angle) end
-	M.body.yaw, M.body.turning = rig.fp_body(M.body.yaw, M.view.yaw, walking, M.dt, M.body.turning)
-	st.rotation_angle = M.angle_of(M.body.yaw)
-end
-
-function M.nonzero(v)
-	local ok, l = pcall(function() return (v.x or 0) ^ 2 + (v.y or 0) ^ 2 end)
-	return ok and l > 0.0001
-end
-
 -- The next camera mode after `mode`.
 function M.next_mode(mode)
 	for i, m in ipairs(M.MODES) do
@@ -346,8 +238,6 @@ end
 function M.set_mode(env, mode)
 	M.mode = mode
 	M.enabled = mode ~= "default"
-	if mode ~= "first" then pcall(M.show_head, env) end
-	M.body.yaw, M.body.turning = nil, false
 end
 
 -- The cursors of the game's aim, which the shoulder view keeps out of the window.
@@ -434,8 +324,6 @@ function M.release(env, cm)
 	smooth.pivot, smooth.length, smooth.aim, smooth.target, smooth.side, smooth.dive = nil, nil, 0, nil, nil, 0
 	smooth.down, smooth.sprint = 0, 0
 	state.sprint_fade = 1
-	M.body.yaw, M.body.turning = nil, false
-	pcall(M.show_head, env)
 	state.dropping = false
 	shake.clear()
 	M.view.yaw = nil
@@ -519,10 +407,9 @@ function M.drive(env, cm, dt)
 	local zoom = 1 + (rig.AIM_FOV - 1) * aim_t
 	-- The Hellpod holds the aim until the Helldiver climbs out.
 	local locked = M.drop ~= nil and M.drop.avatar == avatar and M.in_pod(avatar)
-	local first = M.mode == "first" and not kind
 	if input.look and not locked and M.frame - input.frame <= 4 then
 		rig.look(view, M.mouse_delta(true), input.stick, { speed = config.get("look_speed") or 1, invert = config.get("invert_y"),
-			zoom = zoom, dt = dt, pitch_min = first and rig.FP_PITCH_MIN or nil, pitch_max = first and rig.FP_PITCH_MAX or nil })
+			zoom = zoom, dt = dt })
 	else
 		M.mouse_delta(false) -- drop what moved while the view didn't take it
 	end
@@ -556,38 +443,25 @@ function M.drive(env, cm, dt)
 	local p = U.world_position(target, 0)
 	local world, proxy = world_of(cm)
 	local position, fov
-	if first then
-		-- First person: at the head, a hair in front of the face, with the helmet hidden.
-		local head = M.head_position(avatar) or { x = p.x, y = p.y, z = p.z + rig.FP_HEIGHT - rig.FP_UP }
-		smooth.pivot = rig.follow_head(smooth.pivot, head, dt)
-		position = rig.fp_eye(smooth.pivot, view.yaw, view.pitch, { up = tonumber(config.get("first_person_height")),
-			ahead = tonumber(config.get("first_person_forward")), side = tonumber(config.get("first_person_side")),
-			push = config.get("first_person_arms") ~= false and 0 or nil })
-		fov = config.get("first_person_fov") or 80
-		pcall(M.hide_head, env, avatar)
-	else
-		if next(M.hidden_head) then pcall(M.show_head, env) end
-		M.body.yaw, M.body.turning = nil, false
-		-- Pivot and lens. The ship has a distance of its own: the bridge is small.
-		local lift = tonumber(config.get("camera_height")) or 0
-		local want = { x = p.x, y = p.y, z = p.z + rig.height(kind, smooth.side, smooth.dive, smooth.down) + lift }
-		smooth.pivot = rig.follow_pivot(smooth.pivot, want, dt)
-		local distance
-		if kind then distance = config.get("vehicle_distance") or 7
-		elseif cm.state == "follow_menu" then distance = config.get("ship_distance") or 2
-		else distance = config.get("foot_distance") or 3 end
-		local side
-		distance, fov, side = rig.lens({
-			distance = distance,
-			fov = kind and (config.get("vehicle_fov") or 70) or (config.get("foot_fov") or 70),
-			side = smooth.side, aim = smooth.aim, dive = smooth.dive, down = smooth.down, vehicle = kind })
-		local _, dir, full = rig.place(smooth.pivot, view.yaw, view.pitch, distance, side)
+	-- Pivot and lens. The ship has a distance of its own: the bridge is small.
+	local lift = tonumber(config.get("camera_height")) or 0
+	local want = { x = p.x, y = p.y, z = p.z + rig.height(kind, smooth.side, smooth.dive, smooth.down) + lift }
+	smooth.pivot = rig.follow_pivot(smooth.pivot, want, dt)
+	local distance
+	if kind then distance = config.get("vehicle_distance") or 7
+	elseif cm.state == "follow_menu" then distance = config.get("ship_distance") or 2
+	else distance = config.get("foot_distance") or 3 end
+	local side
+	distance, fov, side = rig.lens({
+		distance = distance,
+		fov = kind and (config.get("vehicle_fov") or 70) or (config.get("foot_fov") or 70),
+		side = smooth.side, aim = smooth.aim, dive = smooth.dive, down = smooth.down, vehicle = kind })
+	local _, dir, full = rig.place(smooth.pivot, view.yaw, view.pitch, distance, side)
 
-		-- Walls and rocks pull the camera in.
-		local hit = M.clear_length(g("World").physics_world(world), smooth.pivot, dir, full)
-		smooth.length = rig.follow_length(smooth.length, rig.pull_in(full, hit), dt)
-		position = rig.add(smooth.pivot, dir, smooth.length)
-	end
+	-- Walls and rocks pull the camera in.
+	local hit = M.clear_length(g("World").physics_world(world), smooth.pivot, dir, full)
+	smooth.length = rig.follow_length(smooth.length, rig.pull_in(full, hit), dt)
+	position = rig.add(smooth.pivot, dir, smooth.length)
 
 	-- The Hellpod ride: the pod pose, then the glide into the shoulder pose.
 	local pitch = view.pitch
@@ -641,7 +515,7 @@ function M.drive(env, cm, dt)
 	end
 
 	env.view = { position = position, forward = forward, yaw = view.yaw, pitch = pitch, fov = fov, pivot = smooth.pivot,
-		avatar = avatar, target = target, vehicle = kind, world = world, camera = cam, first = first }
+		avatar = avatar, target = target, vehicle = kind, world = world, camera = cam }
 	state.active = true
 	state.vehicle = kind ~= nil
 	for _, fn in ipairs(env.on_pose) do
@@ -700,7 +574,7 @@ function M.start(env)
 	local kept = obsidian.storage.get("camera_mode", nil)
 	local kept_option = obsidian.storage.get("camera_mode_option", nil)
 	local mode = option
-	if kept_option == option and (kept == "default" or kept == "third" or kept == "first") then mode = kept end
+	if kept_option == option and (kept == "default" or kept == "third") then mode = kept end
 	M.set_mode(env, mode)
 	M.view.side = env.config.get("shoulder") == "left" and -1 or 1
 	env.config.on_change("shoulder", function(v) M.view.side = v == "left" and -1 or 1 end)
@@ -763,19 +637,6 @@ function M.start(env)
 
 	-- A tank's tracks and a vehicle's turn read the driver's movement back through follow_spin: with this
 	-- player's vehicle the only one this machine drives, the view's yaw stands there for that update.
-	-- First person: the body turns with the view (M.turn_body), after the game's facing for the frame.
-	obsidian.hook("CharacterComponent", "update_masters", function(original, self, masters, ...)
-		local r = scoped.pack(original(self, masters, ...))
-		if state.active and M.mode == "first" then
-			local ok, err = pcall(M.turn_body, masters)
-			if not ok and not M.warned.body then
-				M.warned.body = true
-				env.log("Unleashed Camera: first person body: " .. tostring(err))
-			end
-		end
-		return unpack(r, 1, r.n)
-	end, env.VIEW)
-
 	obsidian.hook("VehicleComponent", "update_masters", function(original, self, masters, ...)
 		local cm = g("CameraManager")
 		local view = env.view
@@ -910,7 +771,7 @@ function M.start(env)
 	end, env.KEY_VIEW)
 
 	obsidian.keybind("swap_shoulder", function()
-		if not state.active or (M.mode == "first" and not state.vehicle) then return end
+		if not state.active then return end
 		if state.vehicle then
 			if not M.ride.kind then return end
 			M.ride.side = rig.next_vehicle_side(M.ride.side)

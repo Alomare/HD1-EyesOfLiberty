@@ -25,17 +25,6 @@ M.DOWN_BACK = 1           -- metres the camera backs away while down
 M.DOWN_RATE = 5           -- how fast the camera goes down and comes back up (ease rate)
 M.SWAP_RATE = 9            -- how fast the camera crosses to the other shoulder (ease rate)
 M.SPRINT_RATE = 6          -- how fast the sprint fade and camera noise come and go (ease rate)
--- First person.
-M.FP_HEIGHT = 1.65         -- metres above the feet when the head can't be found
-M.FP_UP = 0.14             -- metres above the head node: the node sits low in the head, near the neck
-M.FP_BUMP = 0.22           -- metres in front of the head along the ground, past the face
-M.FP_DOWN_PUSH = 0.3       -- metres more in front while looking straight down, clear of the chest
-M.FP_PITCH_MIN, M.FP_PITCH_MAX = -80, 80
-M.FP_HEAD_RATE = 18        -- how fast the camera follows the head up and down (ease rate): steps don't jolt it
-M.FP_TURN_START = 55       -- degrees the view may turn from the body, standing, before the body turns
-M.FP_TURN_STOP = 4         -- degrees from the view where a turn of the body ends
-M.FP_TURN_RATE = 9         -- how fast a standing body turns to the view (ease rate)
-M.FP_MOVE_RATE = 14        -- how fast a moving body follows the view (ease rate)
 M.MARGIN = 0.25            -- metres kept between the camera and a wall
 M.MIN_LENGTH = 0.35        -- the closest the camera comes to the pivot
 -- Pivot heights in a vehicle, by Obsidian API's vehicle kinds.
@@ -187,48 +176,6 @@ function M.follow_pivot(current, target, dt)
 	if dx * dx + dy * dy + dz * dz > 225 then return { x = target.x, y = target.y, z = target.z } end
 	local s, sz = M.ease_share(22, dt), M.ease_share(12, dt)
 	return { x = current.x + dx * s, y = current.y + dy * s, z = current.z + dz * sz }
-end
-
--- First person: the camera follows the head across the ground at once and eases up and down, so the
--- bob of a step stays small.
-function M.follow_head(current, head, dt)
-	if not current then return { x = head.x, y = head.y, z = head.z } end
-	local dz = head.z - current.z
-	if math.abs(dz) > 1.5 or (head.x - current.x) ^ 2 + (head.y - current.y) ^ 2 > 225 then
-		return { x = head.x, y = head.y, z = head.z }
-	end
-	return { x = head.x, y = head.y, z = current.z + dz * M.ease_share(M.FP_HEAD_RATE, dt) }
-end
-
--- First person: the eye for the head node at `head` and a view turned to yaw and pitch (degrees).
--- The bump runs along the ground, not along the view, so looking down moves the eye forward, out of
--- the body, instead of down into it. offset (the First person options): up, ahead and side (right)
--- in metres; FP_UP, FP_BUMP and 0 where left out. push: metres more ahead looking straight down
--- (FP_DOWN_PUSH when left out; 0 with the arms of src/viewmodel.lua, which hide the body).
-function M.fp_eye(head, yaw, pitch, offset)
-	offset = offset or {}
-	local f, r = M.flat_forward(yaw), M.right(yaw)
-	local down = math.max(0, -math.sin(math.rad(pitch or 0)))
-	local ahead = (offset.ahead or M.FP_BUMP) + (offset.push or M.FP_DOWN_PUSH) * down
-	local side = offset.side or 0
-	return { x = head.x + f.x * ahead + r.x * side, y = head.y + f.y * ahead + r.y * side,
-		z = head.z + (offset.up or M.FP_UP) }
-end
-
--- First person: the way the body faces, for a view turned to view_yaw. Moving, the body follows the view,
--- so walking backwards steps back instead of turning round. Standing, the body stays put while the
--- view turns up to FP_TURN_START either way, then turns to the view until within FP_TURN_STOP.
--- Answers the new yaw and whether a standing turn is under way.
-function M.fp_body(body, view_yaw, moving, dt, turning)
-	if body == nil then return view_yaw, false end
-	local off = M.wrap(view_yaw - body)
-	if moving then return M.ease_angle(body, view_yaw, M.FP_MOVE_RATE, dt), false end
-	if not turning and math.abs(off) > M.FP_TURN_START then turning = true end
-	if turning then
-		body = M.ease_angle(body, view_yaw, M.FP_TURN_RATE, dt)
-		if math.abs(M.wrap(view_yaw - body)) <= M.FP_TURN_STOP then turning = false end
-	end
-	return body, turning
 end
 
 -- The camera's distance, field of view and side offset for this frame. opts: distance, fov (degrees),

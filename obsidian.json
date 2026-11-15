@@ -65,10 +65,7 @@
     "src/radar.lua",
     "src/hits.lua",
     "src/look.lua",
-    "src/session.lua",
-    "src/pose.lua",
-    "src/fpanim.lua",
-    "src/viewmodel.lua"
+    "src/session.lua"
   ],
   "requires": [
     "obsidian.api"
@@ -77,7 +74,6 @@
   "option_groups": [
     { "id": "camera", "label": { "en": "Camera" } },
     { "id": "third", "label": { "en": "Third person" } },
-    { "id": "first", "label": { "en": "First person" } },
     { "id": "vehicles", "label": { "en": "Vehicles" } },
     { "id": "indicators", "label": { "en": "Indicators and names" } },
     { "id": "picture", "label": { "en": "Picture" } },
@@ -85,10 +81,10 @@
   ],
   "options": [
     { "id": "camera_mode", "type": "choice", "default": "third",
-      "choices": [ { "id": "default", "label": { "en": "Default" } }, { "id": "third", "label": { "en": "Third person" } }, { "id": "first", "label": { "en": "First person" } } ],
+      "choices": [ { "id": "default", "label": { "en": "Default" } }, { "id": "third", "label": { "en": "Third person" } } ],
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "Camera mode" },
-      "description": { "en": "The camera at the start of the game. Default is the top-down camera of the game. The camera key cycles the three in a mission. In first person the camera sits in the head of the Helldiver, and the arms hold the weapon in view while the rest of the body is hidden (with Arms and weapon off, only the helmet is hidden); vehicles keep the third-person camera." } },
+      "description": { "en": "The camera at the start of the game. Default is the top-down camera of the game. The camera key switches between the two in a mission." } },
     { "id": "look_speed", "type": "number", "default": 1, "min": 0.1, "max": 3, "step": 0.05,
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "Look sensitivity" },
@@ -135,26 +131,6 @@
       "group": "third", "part": "view", "scope": "client",
       "label": { "en": "Downed camera" },
       "description": { "en": "While the Helldiver is down and crawling, the camera sits as low as in a dive, and 1 m farther back." } },
-    { "id": "first_person_fov", "type": "number", "default": 80, "min": 50, "max": 120, "step": 1,
-      "group": "first", "part": "view", "scope": "client",
-      "label": { "en": "Field of view (degrees)" },
-      "description": { "en": "Vertical field of view in first person." } },
-    { "id": "first_person_arms", "type": "toggle", "default": true,
-      "group": "first", "part": "view", "scope": "client",
-      "label": { "en": "Arms and weapon" },
-      "description": { "en": "Shows the arms and the weapon in hand in first person, with motion for walking, sprinting, aiming, firing, reloading, switching weapons, diving and being downed. The rest of the body is hidden. Assault rifles and the standard pistol have holds of their own; other weapons use the rifle hold, and sidearms the pistol hold." } },
-    { "id": "first_person_height", "type": "number", "default": 0.14, "min": -0.3, "max": 0.6, "step": 0.01,
-      "group": "first", "part": "view", "scope": "client",
-      "label": { "en": "Eye height (m)" },
-      "description": { "en": "Metres the camera sits above the middle of the head." } },
-    { "id": "first_person_forward", "type": "number", "default": 0.22, "min": -0.2, "max": 0.8, "step": 0.01,
-      "group": "first", "part": "view", "scope": "client",
-      "label": { "en": "Eye forward (m)" },
-      "description": { "en": "Metres the camera sits in front of the head, along the ground. With Arms and weapon off, looking down adds up to 0.3 m more, so the inside of the body stays out of view." } },
-    { "id": "first_person_side", "type": "number", "default": 0, "min": -0.5, "max": 0.5, "step": 0.01,
-      "group": "first", "part": "view", "scope": "client",
-      "label": { "en": "Eye side (m)" },
-      "description": { "en": "Metres the camera sits to the right of the head; below 0, to the left." } },
     { "id": "vehicle_distance", "type": "number", "default": 7, "min": 3, "max": 20, "step": 0.5,
       "group": "vehicles", "part": "view", "scope": "client",
       "label": { "en": "Distance (m)" },
@@ -187,7 +163,7 @@
       "choices": [ { "id": "game", "label": { "en": "Game default" } }, { "id": "helldiver", "label": { "en": "Focus on the Helldiver" } }, { "id": "off", "label": { "en": "Off" } } ],
       "group": "picture", "part": "view", "scope": "client",
       "label": { "en": "Depth of field" },
-      "description": { "en": "Game default keeps the blur of the planet. Focus on the Helldiver keeps the Helldiver sharp and blurs what lies a metre or more nearer or farther; in first person the sharp part is where the crosshair points. Off keeps the whole picture sharp. Photo Mode sets the depth of field while open." } },
+      "description": { "en": "Game default keeps the blur of the planet. Focus on the Helldiver keeps the Helldiver sharp and blurs what lies a metre or more nearer or farther. Off keeps the whole picture sharp. Photo Mode sets the depth of field while open." } },
     { "id": "far_view", "type": "toggle", "default": true,
       "group": "picture", "part": "view", "scope": "client",
       "label": { "en": "Long view distance" },
@@ -214,7 +190,7 @@
       "description": { "en": "Grenades and stratagem balls fly twice as far, on top of the Strong Arm perk. Changes the shared game: off in lobbies with players who don't run it." } }
   ],
   "keybinds": [
-    { "id": "toggle_view", "default": "f8", "label": { "en": "Cycle the camera: top-down, third person, first person" } },
+    { "id": "toggle_view", "default": "f8", "label": { "en": "Switch the camera: top-down or third person" } },
     { "id": "swap_shoulder", "default": "h", "label": { "en": "Swap the camera shoulder (in a vehicle: left, middle, right)" } }
   ],
   "resources": [

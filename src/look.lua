@@ -20,7 +20,6 @@ M.FOG_SCALE = 2.5             -- the long view: the planet's fog range times thi
 M.DOF_BLUR = 1                -- the strongest blur Photo Mode offers
 M.DOF_DEPTH = 2               -- metres around the focus kept sharp
 M.DOF_RAMP = 1.5              -- metres from sharp to the full blur
-M.FP_FOCUS_MIN, M.FP_FOCUS_MAX = 1, 60 -- first person: the focus on the crosshair point, in metres
 M.CHEST = 1.2                 -- metres above the feet the focus sits
 
 M.FOG = { "fog_depth_range" }
@@ -101,14 +100,8 @@ function M.step_aside(shading)
 	for _, name in ipairs(M.DOF) do M.applied[name] = nil end
 end
 
--- Metres from the drawn camera to the chest of this player's Helldiver, or nil. In first person the
--- chest is at the camera, so the focus goes to the crosshair point instead.
+-- Metres from the drawn camera to the chest of this player's Helldiver, or nil.
 function M.focus(env, api)
-	local view, state = env.view, env.state
-	if view and view.first and state and state.aim_point and view.position then
-		local d = rig.length(rig.sub(state.aim_point, view.position))
-		return math.max(M.FP_FOCUS_MIN, math.min(M.FP_FOCUS_MAX, d))
-	end
 	local unit = nil
 	if env.view and env.view.avatar then unit = env.view.avatar
 	elseif api.game and api.game.my_unit then unit = api.game.my_unit() end

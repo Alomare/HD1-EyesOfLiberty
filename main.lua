@@ -1,12 +1,12 @@
--- Unleashed Camera: third and first person cameras built on Obsidian hooks. Formerly Integrated Third
+-- Unleashed Camera: a third person camera built on Obsidian hooks. Formerly Integrated Third
 -- Person (id alomare.integratedthirdperson until 0.7.0). Obsidian doesn't update a mod to another id, so
 -- that mod stays installed beside this one until the player removes it; while it is loaded, this one
 -- stays off (env.off), as both would hook the same game functions.
 -- Based on Third Person Camera (HD2 Style) by yukiorsrs, used with permission.
 --
 -- The mod is split into parts (obsidian.json "parts"):
---   view             client: third and first person cameras, the first person arms, aim, crosshair,
---                    view distance, sky, fog, depth of field, enemy indicators
+--   view             client: the third person camera, aim, crosshair, view distance, sky, fog, depth
+--                    of field, enemy indicators
 --   weapon_range     session: every weapon reaches as far as the farthest one
 --   enemy_detection  session: enemies notice the squad from farther away
 --   free_movement    session: the Helldiver can leave the shared top-down screen
@@ -53,7 +53,7 @@ local env = {
 config.start(env)
 
 local started = {}
-for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/look", "src/session", "src/viewmodel" }) do
+for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/look", "src/session" }) do
 	local ok, err = pcall(function()
 		local m = obsidian.module(name)
 		if m and m.start then m.start(env) end
@@ -95,12 +95,12 @@ function export.claim_crosshair(mod_id)
 	return true
 end
 
--- true while the mod steers the view, in third or first person.
+-- true while the mod steers the view.
 function export.active()
 	return state.active
 end
 
--- The camera mode (since 0.6.0): "default" (the game's top-down camera), "third" or "first".
+-- The camera mode (since 0.6.0): "default" (the game's top-down camera) or "third".
 function export.mode()
 	local camera = env.camera
 	return camera and camera.mode or "default"
@@ -108,12 +108,11 @@ end
 
 -- The shoulder the camera sits over while third person steers the view: 1 right, -1 left, nil in the
 -- top-down view. During a swap, the shoulder the camera is moving to. In a vehicle, 0 while the camera
--- sits in the middle; 0 in first person on foot.
+-- sits in the middle.
 function export.shoulder()
 	if not state.active then return nil end
 	local camera = env.camera
 	if state.vehicle and camera and camera.ride and camera.ride.kind then return camera.ride.side end
-	if camera and camera.mode == "first" then return 0 end
 	local side = camera and camera.view and camera.view.side
 	return side == -1 and -1 or 1
 end

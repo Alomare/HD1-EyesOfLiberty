@@ -1,4 +1,4 @@
--- First person, camera modes, the overall height, sprinting and the Hellpod hold on the view.
+-- Camera modes, the overall height, sprinting and the Hellpod hold on the view.
 local E = dofile("tests/engine.lua")
 
 local function rig() return obsidian.module("src/rig") end
@@ -34,107 +34,29 @@ local function started(api)
 	return e, env
 end
 
-local function helmet_api()
-	return { world = { part_units = function(_, part) if part == "helmet" then return { "helmet" } end return {} end } }
-end
-
 return {
-	{ "the camera key cycles third person, first person and the top-down camera, and keeps the mode", function()
+	{ "the camera key switches third person and the top-down camera, and keeps the mode", function()
 		local e, env = started()
 		local cam = obsidian.module("src/camera")
 		eq(cam.mode, "third", "the option's default")
 		KEYS.toggle_view.fn()
-		eq(cam.mode, "first") eq(STORED.camera_mode, "first") eq(STORED.camera_mode_option, "third")
-		KEYS.toggle_view.fn()
-		eq(cam.mode, "default") eq(cam.enabled, false)
+		eq(cam.mode, "default") eq(cam.enabled, false) eq(STORED.camera_mode, "default") eq(STORED.camera_mode_option, "third")
 		KEYS.toggle_view.fn()
 		eq(cam.mode, "third")
 		E.remove()
-		-- The kept mode holds while the option is the same, and a changed option wins.
+		-- The kept mode holds while the option is the same, and a changed option wins. A first person
+		-- mode kept from an older version falls back to the option.
+		STORED.camera_mode, STORED.camera_mode_option = "default", "third"
+		started()
+		eq(obsidian.module("src/camera").mode, "default", "kept from the key")
+		E.remove()
 		STORED.camera_mode, STORED.camera_mode_option = "first", "third"
 		started()
-		eq(obsidian.module("src/camera").mode, "first", "kept from the key")
+		eq(obsidian.module("src/camera").mode, "third", "no first person")
 		E.remove()
 		OPTIONS.camera_mode = "default"
 		started()
 		eq(obsidian.module("src/camera").mode, "default", "the option changed since")
-		E.remove()
-	end },
-
-	{ "first person sits above the head node and in front of the face, hides the helmet and gives it back", function()
-		OPTIONS.camera_mode, OPTIONS.first_person_fov = "first", 85
-		local e, env = started(helmet_api())
-		e.meshes.helmet = { true, false, true }
-		e.units.helmet = { position = { x = 0, y = 0, z = 0 } }
-		local masters = E.player(e, "me", { position = { x = 1, y = 2, z = 0 } })
-		frame(e, env, masters)
-		local v = env.view
-		eq(v.first, true)
-		near(v.pivot.z, 1.6, "the head node") near(v.pivot.x, 1)
-		near(v.position.z, 1.6 + rig().FP_UP, "above the node")
-		local d = rig().sub(v.position, v.pivot)
-		local ahead = rig().dot(d, rig().flat_forward(v.yaw))
-		assert(ahead >= rig().FP_BUMP - 1e-6, "in front of the face: " .. ahead)
-		near(v.fov, 85)
-		eq(e.meshes.helmet[1], false) eq(e.meshes.helmet[3], false)
-		KEYS.toggle_view.fn() -- top-down
-		frame(e, env, masters)
-		eq(e.meshes.helmet[1], true, "given back") eq(e.meshes.helmet[2], false, "a hidden mesh stays hidden")
-		E.remove()
-	end },
-
-	{ "first person body: steps back when walking backwards, turns standing only past the threshold", function()
-		local r = rig()
-		local body, turning = r.fp_body(0, 180, true, 1)
-		near(math.abs(r.wrap(body - 180)), 0, "moving: follows the view, so S steps back", 1e-3)
-		body, turning = r.fp_body(0, 40, false, 0.1, false)
-		eq(body, 0, "standing, a small turn of the view leaves the body") eq(turning, false)
-		body, turning = r.fp_body(0, 70, false, 0.05, false)
-		eq(turning, true, "past the threshold the body turns")
-		assert(body > 0 and body < 70, "on the way: " .. body)
-		for _ = 1, 60 do body, turning = r.fp_body(body, 70, false, 0.05, turning) end
-		eq(turning, false, "the turn ends") near(body, 70, "at the view", r.FP_TURN_STOP)
-	end },
-
-	{ "looking down moves the eye forward, out of the chest", function()
-		local r = rig()
-		local head = { x = 0, y = 0, z = 1.6 }
-		local level = r.fp_eye(head, 0, 0)
-		local down = r.fp_eye(head, 0, -80)
-		near(level.y, r.FP_BUMP, "level: the bump ahead")
-		assert(down.y > level.y + 0.2, "down: farther ahead " .. down.y)
-		near(down.z, level.z, "no lower")
-		local tuned = r.fp_eye(head, 0, 0, { up = 0.3, ahead = 0.1, side = 0.05 })
-		near(tuned.z, 1.9, "height option") near(tuned.y, 0.1, "forward option") near(tuned.x, 0.05, "side option: right")
-	end },
-
-	{ "first person turns the body through the game's facing while standing or walking, never the aim input", function()
-		local e, env = started()
-		local cam = obsidian.module("src/camera")
-		CharacterStateWalk, CharacterStateIdle, CharacterStateAim = { n = "walk" }, { n = "idle" }, { n = "aim" }
-		KEYS.toggle_view.fn() -- first person
-		local masters = E.player(e, "me")
-		frame(e, env, masters)
-		cam.view.yaw = 120
-		local st = { current_state = CharacterStateWalk, rotation_angle = cam.angle_of(0), input = { aim = { x = 0, y = 0 } } }
-		for _ = 1, 40 do cam.turn_body({ me = { state = st } }) end
-		near(cam.yaw_of_angle(st.rotation_angle), 120, "walking: the body follows the view", 1)
-		near(cam.yaw_of_angle(cam.angle_of(-90)), -90, "angle and yaw agree", 1e-9)
-		-- Standing, a small turn of the view leaves the body.
-		st.current_state = CharacterStateIdle
-		cam.view.yaw = 150
-		cam.turn_body({ me = { state = st } })
-		near(cam.yaw_of_angle(st.rotation_angle), 120, "standing: stays", 1)
-		-- Aiming: the game's facing stands and the body picks up from it.
-		st.current_state, st.rotation_angle = CharacterStateAim, cam.angle_of(10)
-		cam.turn_body({ me = { state = st } })
-		near(cam.yaw_of_angle(st.rotation_angle), 10, "aiming: the game's")
-		near(cam.body.yaw, 10, "picked up")
-		local aim = obsidian.module("src/aim")
-		local data = { aim = { x = 0, y = 0, z = 0 } }
-		aim.steer(data, { look = true, kbm = true }, {}, nil)
-		eq(data.aim.x, 0, "the aim input stays as the game set it")
-		CharacterStateWalk, CharacterStateIdle, CharacterStateAim = nil, nil, nil
 		E.remove()
 	end },
 

@@ -55,10 +55,6 @@ return {
 		eq(w.dof_amount, l.DOF_BLUR)
 		eq(w.dof_near_setting[1], 2) eq(w.dof_far_setting[1], 4, "blurred from 4 m on, past the Helldiver 3 m off")
 		eq(w.dof_far_setting[2], l.DOF_RAMP)
-		near(l.focus({ view = { first = true, position = { x = 0, y = 0, z = 0 } }, state = { aim_point = { x = 0, y = 20, z = 0 } } }, {}),
-			20, "first person: the crosshair point")
-		eq(l.focus({ view = { first = true, position = { x = 0, y = 0, z = 0 } }, state = { aim_point = { x = 0, y = 0.2, z = 0 } } }, {}),
-			l.FP_FOCUS_MIN, "never closer than a metre")
 		eq(l.wanted({}).fog_depth_range, false, "the planet's fog")
 	end },
 

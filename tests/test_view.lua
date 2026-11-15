@@ -64,7 +64,7 @@ return {
 		eq(#calls, 0, "the fog is src/look.lua's")
 		eq(calls.detail, view().DETAIL)
 		eq(e.calls.set_far_range[2], view().FAR)
-		KEYS.toggle_view.fn() KEYS.toggle_view.fn() -- first person, then top-down
+		KEYS.toggle_view.fn() -- top-down
 		frame(e, env, masters)
 		eq(calls.detail, nil, "the game's detail back")
 		E.remove()
