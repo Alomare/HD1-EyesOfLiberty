@@ -61,11 +61,15 @@ function M.wanted(o)
 	return out
 end
 
-local function same(a, b)
+-- Close enough to leave as sent: the focus of the depth of field moves with every step, and a
+-- quarter metre more or less of sharp ground doesn't show.
+local TOLERANCE = { dof_near_setting = 0.25, dof_far_setting = 0.25 }
+
+local function same(a, b, tolerance)
 	if type(a) ~= type(b) then return false end
 	if type(a) ~= "table" then return a == b end
 	for i = 1, math.max(#a, #b) do
-		if math.abs((a[i] or 0) - (b[i] or 0)) > 0.02 then return false end
+		if math.abs((a[i] or 0) - (b[i] or 0)) > (tolerance or 0.02) then return false end
 	end
 	return true
 end
@@ -82,7 +86,7 @@ function M.apply(shading, want)
 				pcall(shading, name, M.KIND[name])
 				M.applied[name] = nil
 			end
-		elseif now == nil or not same(now, value) then
+		elseif now == nil or not same(now, value, TOLERANCE[name]) then
 			local ok, done = pcall(shading, name, M.KIND[name], value)
 			if ok and done then M.applied[name] = value end
 		end
@@ -129,6 +133,7 @@ end
 local planet = { fog = nil, bloom = nil, read = false }
 
 function M.frame(env)
+	if env.off then return end
 	local api = env.api
 	local world = api and api.world
 	if not (world and world.shading) then return end

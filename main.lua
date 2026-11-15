@@ -1,6 +1,7 @@
 -- Unleashed Camera: third and first person cameras built on Obsidian hooks. Formerly Integrated Third
--- Person; the id stays alomare.integratedthirdperson so installs update in place (Obsidian refuses an
--- update with another id) and mods that import it keep working.
+-- Person (id alomare.integratedthirdperson until 0.7.0). Obsidian doesn't update a mod to another id, so
+-- that mod stays installed beside this one until the player removes it; while it is loaded, this one
+-- stays off (env.off), as both would hook the same game functions.
 -- Based on Third Person Camera (HD2 Style) by yukiorsrs, used with permission.
 --
 -- The mod is split into parts (obsidian.json "parts"):
@@ -42,6 +43,8 @@ local env = {
 	parts = obsidian.capabilities and obsidian.capabilities.parts or false,
 	-- Filled by src/camera.lua: fn(view, camera_manager, dt) after each frame's pose, fn(camera_manager)
 	-- when the view goes back to the top-down camera, and the pose itself while third person is on.
+	-- true while Integrated Third Person, the old id of this mod, is loaded too: everything stays off.
+	off = false,
 	on_pose = {},
 	on_release = {},
 	view = nil,
@@ -59,8 +62,20 @@ for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "s
 	if not ok then obsidian.log("Unleashed Camera: " .. name .. " did not start: " .. tostring(err)) end
 end
 
--- What other mods get from obsidian.import("alomare.integratedthirdperson").
-local export = { version = "0.7.0" }
+-- What other mods get from obsidian.import("alomare.unleashedcamera").
+-- The old id of this mod, loaded beside it: this one steps aside and says so once. Asked after every
+-- mod has started, whichever loaded first.
+local OLD_ID = "alomare.integratedthirdperson"
+local function old_one()
+	local ok, mod = pcall(obsidian.import, OLD_ID)
+	if not (ok and type(mod) == "table") then return end
+	env.off = true
+	obsidian.log("Unleashed Camera: Integrated Third Person is loaded too; staying off until it is removed")
+	obsidian.toast("Unleashed Camera stays off: Integrated Third Person, the old version, is still installed. Remove it in Obsidian.", 10)
+end
+if type(obsidian.after_startup) == "function" then obsidian.after_startup(old_one) else old_one() end
+
+local export = { version = "0.8.0" }
 
 -- Where shots go on screen while third person steers the view: { x, y, aiming, firing, vehicle }, in
 -- pixels from the bottom left (the coordinates of obsidian.ui.canvas). aiming: the aim button is held;

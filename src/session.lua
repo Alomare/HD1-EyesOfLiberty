@@ -25,6 +25,16 @@
 --   closer, and the alarm still needs the player inside patrol_range, as in the game.
 local M = {}
 
+-- Every hook of the session parts passes straight to the game while env.off (the old id of this mod
+-- is loaded too, and both would change the same call: a throw four times as far).
+local env_ref = nil
+local function hook(target, method, fn, opts)
+	obsidian.hook(target, method, function(original, ...)
+		if env_ref and env_ref.off then return original(...) end
+		return fn(original, ...)
+	end, opts)
+end
+
 M.MAX_RANGE = 100
 M.MIN_RANGE = 5
 M.AGGRO_RANGE = 150
@@ -74,10 +84,10 @@ local function start_weapon_range(env)
 	local function over_entities(original, self, entities, ...)
 		return M.with_entities(entities, original, self, entities, ...)
 	end
-	obsidian.hook("FirearmComponent", "update_slaves", over_entities, opts)
-	obsidian.hook("BeamweaponComponent", "update_slaves", over_entities, opts)
-	obsidian.hook("LaserSightComponent", "update_slaves", over_entities, opts)
-	obsidian.hook("LauncherComponent", "do_fire", function(original, self, unit, state, ...)
+	hook("FirearmComponent", "update_slaves", over_entities, opts)
+	hook("BeamweaponComponent", "update_slaves", over_entities, opts)
+	hook("LaserSightComponent", "update_slaves", over_entities, opts)
+	hook("LauncherComponent", "do_fire", function(original, self, unit, state, ...)
 		return M.with_state(state, original, self, unit, state, ...)
 	end, opts)
 end
@@ -147,10 +157,10 @@ local function start_enemy_detection(env)
 	local opts = env.part("enemy_detection")
 	-- wander runs once per patrol per frame, so the dt it gets can't make a clock; os.clock can.
 	local clock = os and os.clock or function() return 0 end
-	obsidian.hook("EnemyComponent", "update_target", function(original, self, unit, context, ...)
+	hook("EnemyComponent", "update_target", function(original, self, unit, context, ...)
 		return M.with_shadow(context, original, self, unit, context, ...)
 	end, opts)
-	obsidian.hook("EnemyUtility", "wander", function(original, unit, dt, component, state, settings, ...)
+	hook("EnemyUtility", "wander", function(original, unit, dt, component, state, settings, ...)
 		pcall(M.far_sight, unit, state, settings, clock())
 		return original(unit, dt, component, state, settings, ...)
 	end, opts)
@@ -187,7 +197,7 @@ function M.unleashed(masters, units, fn, ...)
 end
 
 local function start_free_movement(env)
-	obsidian.hook("MoverComponent", "update_masters", function(original, self, masters, ...)
+	hook("MoverComponent", "update_masters", function(original, self, masters, ...)
 		local view = env.view
 		if not (env.state and env.state.active and view and view.avatar) then return original(self, masters, ...) end
 		local units = { [view.avatar] = true }
@@ -238,13 +248,14 @@ function M.with_throw(context, fn, ...)
 end
 
 local function start_throw_range(env)
-	obsidian.hook("ThrowableComponent", "command_master", function(original, self, unit, context, message, ...)
+	hook("ThrowableComponent", "command_master", function(original, self, unit, context, message, ...)
 		if message ~= "thrown" then return original(self, unit, context, message, ...) end
 		return M.with_throw(context, original, self, unit, context, message, ...)
 	end, env.part("throw_range"))
 end
 
 function M.start(env)
+	env_ref = env
 	if env.config.get("throw_range") ~= false then start_throw_range(env) end
 	if env.config.get("max_weapon_range") ~= false then start_weapon_range(env) end
 	if env.config.get("far_detection") ~= false then start_enemy_detection(env) end

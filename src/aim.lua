@@ -27,10 +27,11 @@ local function own_hit(unit, view)
 	if unit == nil then return false end
 	if unit == view.avatar or unit == view.target then return true end
 	local EA = g("EntityAux")
-	local ok, wielder = pcall(function()
-		if EA and EA.has_component(unit, "equipment") then return EA.state(unit, "equipment").wielder end
+	if not EA then return false end
+	local ok, wielder = pcall(function(u)
+		if EA.has_component(u, "equipment") then return EA.state(u, "equipment").wielder end
 		return nil
-	end)
+	end, unit)
 	return ok and wielder ~= nil and (wielder == view.avatar or wielder == view.target)
 end
 
@@ -88,8 +89,13 @@ function M.steer(data, input, view, point)
 end
 
 -- This player's units that fire: the avatar and, in a vehicle, the seat and the guns of that seat.
+-- Every weapon update of every frame asks, so the set is made once per view (a new view each frame).
+local own_cache = setmetatable({}, { __mode = "k" })
 local function own_units(view)
+	local cached = own_cache[view]
+	if cached then return cached end
 	local set = { [view.avatar] = true }
+	own_cache[view] = set
 	if view.vehicle and view.target then
 		set[view.target] = true
 		local EA = g("EntityAux")
@@ -105,12 +111,13 @@ local function own_units(view)
 	return set
 end
 
+local function equipment_wielder(EA, unit)
+	if EA.has_component(unit, "equipment") then return EA.state(unit, "equipment").wielder end
+	return nil
+end
+
 local function wielder_of(unit)
-	local EA = g("EntityAux")
-	local ok, w = pcall(function()
-		if EA.has_component(unit, "equipment") then return EA.state(unit, "equipment").wielder end
-		return nil
-	end)
+	local ok, w = pcall(equipment_wielder, g("EntityAux"), unit)
 	return ok and w or unit
 end
 
@@ -137,7 +144,7 @@ function M.collect(slaves, view, point, quaternion_forward)
 	local U, Q, V3A = g("Unit"), g("Quaternion"), g("Vector3Aux")
 	local mine = own_units(view)
 	for unit, ctx in pairs(slaves) do
-		local wielder = wielder_of(unit)
+		local wielder = mine[unit] and unit or wielder_of(unit)
 		if wielder and (mine[wielder] or mine[unit]) and U.alive(wielder) then
 			local st = type(ctx) == "table" and (ctx.state or ctx) or {}
 			-- Every weapon component keeps was_firing on its slave while it fires: the camera's rumble.

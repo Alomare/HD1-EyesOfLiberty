@@ -91,11 +91,16 @@ function M.install(env)
 		return cached
 	end
 
-	local function enter() asking = asking + 1 end
-	local function leave() asking = asking - 1 end
+	-- The game asks these many times a frame (spawns, patrols, the leash, HUD markers): no table and no
+	-- closure per call. is_position_inside_frustum answers four values (camera_manager.lua 565), the
+	-- other fewer; six leave room for more.
 	local function rules(original, self, ...)
 		if not state.active or drawing then return original(self, ...) end
-		return scoped.around(enter, leave, original, self, ...)
+		asking = asking + 1
+		local ok, a, b, c, d, e, f = pcall(original, self, ...)
+		asking = asking - 1
+		if not ok then error(a, 0) end
+		return a, b, c, d, e, f
 	end
 	obsidian.hook("CameraManager", "is_position_inside_frustum", rules, env.VIEW)
 	obsidian.hook("CameraManager", "get_closest_position_outside_frustum", rules, env.VIEW)

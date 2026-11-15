@@ -97,4 +97,28 @@ return {
 		rows[1].opts.on_change(6)
 		eq(heard, 6) eq(config.get("foot_distance"), 6)
 	end },
+
+	{ "with the old id loaded too, everything stays off and says so", function()
+		local e = E.install()
+		obsidian.ui = { canvas = function() return { rect = function() end } end }
+		obsidian.import = function(id) if id == "alomare.integratedthirdperson" then return { version = "0.7.0" } end end
+		local export = dofile("main.lua")
+		local said = false
+		for _, l in ipairs(LOGS) do said = said or l:find("toast: Unleashed Camera stays off", 1, true) ~= nil end
+		eq(said, true, "told once")
+		local masters = E.player(e, "me")
+		E.hook("InputComponent", "update_masters")(function() end, {}, masters, 0.016)
+		E.hook("CameraManager", "update")(function() end, CameraManager, 0.016)
+		eq(export.active(), false, "the camera stays top-down")
+		-- A session part passes straight to the game.
+		local got
+		for _, h in ipairs(HOOKS) do
+			if h.target == "ThrowableComponent" then
+				local ctx = { settings = { throwable_info = { throw_distance_min = 2, throw_distance_max = 12 } } }
+				h.fn(function(_, _, c) got = c.settings.throwable_info.throw_distance_max end, {}, "g", ctx, "thrown", {})
+			end
+		end
+		eq(got, 12, "the throw stays as in the game")
+		E.remove()
+	end },
 }

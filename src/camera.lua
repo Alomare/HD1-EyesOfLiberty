@@ -160,6 +160,7 @@ end
 
 -- Why the view stays top-down now, or nil when the shoulder camera can steer it.
 function M.blocked(env, cm)
+	if env.off then return "old" end
 	if not M.enabled then return "off" end
 	if rawget(_G, "HD2CAM_OVERLAY") then return "tpc" end
 	local api = env.api
@@ -244,10 +245,16 @@ end
 -- unit -> { [mesh index] = whether it showed before }
 M.hidden_head = {}
 
+M.HEAD_RECHECK = 60
+M.head_seen = { avatar = nil, frame = -1000 }
+
 function M.hide_head(env, avatar)
 	local api = env.api
 	local world = api and api.world
 	if not (world and world.part_units) then return end
+	local seen = M.head_seen
+	if seen.avatar == avatar and M.frame - seen.frame < M.HEAD_RECHECK and next(M.hidden_head) then return end
+	seen.avatar, seen.frame = avatar, M.frame
 	local U = g("Unit")
 	local units = world.part_units(avatar, "helmet") or {}
 	local now = {}
@@ -279,6 +286,7 @@ function M.show_head(env)
 		end
 	end
 	M.hidden_head = {}
+	M.head_seen.avatar = nil
 end
 
 -- First person turns the body through the facing the game works out for a Helldiver that stands or

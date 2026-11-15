@@ -136,7 +136,7 @@ local function g(name) return rawget(_G, name) end
 function M.start(env)
 	local ui = obsidian.ui
 	if type(ui) ~= "table" or type(ui.canvas) ~= "function" then return end
-	local kit = ui.canvas("integratedthirdperson_radar", { layer = M.LAYER })
+	local kit = ui.canvas("unleashedcamera_radar", { layer = M.LAYER })
 	if not kit then return end
 
 	local config = env.config

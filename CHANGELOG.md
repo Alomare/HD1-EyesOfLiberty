@@ -2,6 +2,12 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 0.8.0
+
+- Changed: the mod id is now alomare.unleashedcamera. Obsidian installs it as a new mod: remove Integrated Third Person after installing it. Settings start from the defaults again.
+- Changed: while Integrated Third Person is still installed, Unleashed Camera stays off and says so.
+- Changed: less work every frame for the game's screen checks, the weapon aim, the hidden helmet in first person and the depth of field that follows the Helldiver.
+
 ## 0.7.0
 
 - Changed: the mod is now called Unleashed Camera. Settings and installs carry over.

@@ -1,6 +1,6 @@
 # Unleashed Camera
 
-Third person and first person cameras for HELLDIVERS (2015), for the [Obsidian](https://github.com/Alomare/ObsidianLauncher) mod manager. Formerly Integrated Third Person. Based on [Third Person Camera (HD2 Style)](https://github.com/yukiorsrs/third-person-camera-helldivers) by **yukiorsrs**, rebuilt with the permission of the author so that other mods keep working beside it.
+Third person and first person cameras for HELLDIVERS (2015), for the [Obsidian](https://github.com/Alomare/ObsidianLauncher) mod manager. Formerly Integrated Third Person: remove that mod when installing this one. Based on [Third Person Camera (HD2 Style)](https://github.com/yukiorsrs/third-person-camera-helldivers) by **yukiorsrs**, rebuilt with the permission of the author so that other mods keep working beside it.
 
 The camera follows the Helldiver over the shoulder on foot, in vehicles and on the ship, or from the eyes of the Helldiver in first person. Shots, grenades and stratagems go where the crosshair points. The view reaches farther, the sky over the level is filled in, a ring around the crosshair warns of enemies close by, and a bar shows where hits come from.
 
@@ -20,4 +20,4 @@ The camera and everything on screen work in any lobby. Four session features cha
 - The mod stays off while Third Person Camera is installed.
 - First person is new: vehicles keep the third-person camera.
 
-Mod authors can read the camera state through `obsidian.import("alomare.integratedthirdperson")`: `active()`, `mode()`, `crosshair()` and `shoulder()`.
+Mod authors can read the camera state through `obsidian.import("alomare.unleashedcamera")`: `active()`, `mode()`, `crosshair()` and `shoulder()`.
