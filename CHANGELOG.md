@@ -7,6 +7,10 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - Changed: the mod id is now alomare.unleashedcamera. Obsidian installs it as a new mod: remove Integrated Third Person after installing it. Settings start from the defaults again.
 - Changed: while Integrated Third Person is still installed, Unleashed Camera stays off and says so.
 - Changed: less work every frame for the game's screen checks, the weapon aim, the hidden helmet in first person and the depth of field that follows the Helldiver.
+- New: Eye height, Eye forward and Eye side options for the first person camera.
+- Changed: the options are in new groups: Camera, Third person, First person, Vehicles, Indicators and names, Picture, and Session features.
+- Changed: the Hellpod camera rides down above the pod and a little ahead, looking almost straight down, so the pod stays in the middle of the picture.
+- Fixed: the sky over the level was far too bright on every planet, at night too. It is now drawn at most as bright as made, the brightness Photo Mode uses, and dimmer under a darker planet fog.
 
 ## 0.7.0
 

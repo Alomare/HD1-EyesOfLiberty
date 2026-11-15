@@ -42,8 +42,10 @@ return {
 		eq(v.sky_name(4, "dusk"), "lava", "index in the API's order")
 		eq(v.sky_name("snow", "night"), "night")
 		eq(v.sky_name(nil, nil), "desert", "a known sky when unsure")
-		near(v.sky_intensity("desert", { 0.31, 0.30, 0.275 }), 1, "half as bright as drawn", 1e-3)
-		eq(v.sky_intensity("desert", nil), 2, "the dome's own")
+		near(v.sky_intensity("desert", { 0.31, 0.30, 0.275 }), 0.5, "fog half as bright as drawn: half", 1e-3)
+		eq(v.sky_intensity("desert", { 2, 2, 2 }), 1, "never above Photo Mode's 1")
+		eq(v.sky_intensity("night", { 0, 0, 0 }), v.SKY_DIMMEST, "a black fog: the dimmest")
+		eq(v.sky_intensity("desert", nil), 1, "unknown fog: as drawn")
 	end },
 
 	{ "the long view pushes the far range and the detail out, and gives them back", function()

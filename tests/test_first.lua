@@ -104,6 +104,8 @@ return {
 		near(level.y, r.FP_BUMP, "level: the bump ahead")
 		assert(down.y > level.y + 0.2, "down: farther ahead " .. down.y)
 		near(down.z, level.z, "no lower")
+		local tuned = r.fp_eye(head, 0, 0, { up = 0.3, ahead = 0.1, side = 0.05 })
+		near(tuned.z, 1.9, "height option") near(tuned.y, 0.1, "forward option") near(tuned.x, 0.05, "side option: right")
 	end },
 
 	{ "first person turns the body through the game's facing while standing or walking, never the aim input", function()

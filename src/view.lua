@@ -47,12 +47,16 @@ function M.sky_name(environment, time)
 	return "desert"
 end
 
--- The dome's brightness: how bright the planet's fog is next to the colour the sky was drawn in.
+-- The dome's brightness. Photo Mode draws its skies at intensity 1, as made; above that every sky
+-- glowed, the night one too. The dome is drawn in the colour of the planet's fog, so 1 is the most,
+-- and a planet whose fog is darker than the colour the sky was drawn in dims it to match, down to
+-- SKY_DIMMEST.
+M.SKY_BRIGHTEST, M.SKY_DIMMEST = 1, 0.25
 function M.sky_intensity(name, fog)
 	local drawn = M.SKIES[name] or M.SKIES.desert
 	local function lum(c) return 0.2126 * c[1] + 0.7152 * c[2] + 0.0722 * c[3] end
-	if type(fog) ~= "table" or type(fog[1]) ~= "number" then return 2 end
-	return rig.clamp(2 * lum(fog) / math.max(0.02, lum(drawn)), 0.5, 4)
+	if type(fog) ~= "table" or type(fog[1]) ~= "number" then return M.SKY_BRIGHTEST end
+	return rig.clamp(lum(fog) / math.max(0.02, lum(drawn)), M.SKY_DIMMEST, M.SKY_BRIGHTEST)
 end
 
 -- Far view ------------------------------------------------------------------------------------------
