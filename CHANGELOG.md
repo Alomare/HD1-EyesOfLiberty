@@ -2,6 +2,10 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## Next
+
+- Changed: on a gamepad in third person, holding the left trigger aims, and the right stick only turns the camera. While aiming, the reload button throws grenades instead of reloading.
+
 ## 1.0.0
 
 - Changed: Unleashed Camera is now Eyes of Liberty, under the id alomare.eyesofliberty. Remove Unleashed Camera when installing it: while Unleashed Camera or Integrated Third Person is installed, Eyes of Liberty stays off.

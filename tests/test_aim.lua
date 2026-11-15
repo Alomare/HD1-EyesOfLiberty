@@ -85,6 +85,36 @@ return {
 		near(firing.aim.y, 1, "pad fires at the crosshair")
 	end },
 
+	{ "a pad aims with the left trigger, and the reload button throws while it does", function()
+		local e = E.install()
+		local cam = obsidian.module("src/camera")
+		local function read(data)
+			data.is_active = true
+			data.fire_button = data.fire_button or 0
+			data.throw = data.throw or 0
+			return cam.read_input(nil, "me", { state = { pad_number = 0, input_data = data, has_focus = true } }, false, 0.016)
+		end
+		local idle = read({ aim = { x = 1, y = 0, z = 0 } })
+		eq(idle.aiming, false, "the stick alone doesn't aim") eq(idle.pad_aim, nil)
+		local held = read({ left_trigger = 1, throw = 1, reload_button = 0 })
+		eq(held.aiming, true, "the left trigger aims") eq(held.throw, false, "and doesn't throw")
+		local q = { throw = true, throw_amount = 1, reload = true }
+		eq(cam.pad_buttons(q, held), true)
+		eq(q.throw, false) eq(q.reload, false, "no reload while aiming")
+		local toss = read({ left_trigger = 1, throw = 1, reload_button = 1 })
+		eq(toss.throw, true, "the reload button throws")
+		q = { throw = false, throw_amount = 0, reload = true }
+		cam.pad_buttons(q, toss)
+		eq(q.throw, true) eq(q.throw_amount, 1) eq(q.reload, false)
+		local free = { throw = true, reload = true }
+		eq(cam.pad_buttons(free, idle), false, "not aiming: the game's buttons")
+		eq(free.throw, true) eq(free.reload, true)
+		local mouse = cam.read_input(nil, "me", { state = { pad_number = 99, has_focus = true,
+			input_data = { is_active = true, fire_button = 0, throw = 0, left_trigger = 1 } } }, false, 0.016)
+		eq(mouse.pad_aim, nil, "keyboard and mouse untouched")
+		E.remove()
+	end },
+
 	{ "the queued aim command of this player is steered", function()
 		local e, env = started()
 		local masters = E.player(e, "me", { aiming = true })

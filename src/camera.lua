@@ -144,14 +144,39 @@ function M.read_input(self, unit, ctx, shared, dt)
 	local fire = active and type(data.fire_button) == "number" and data.fire_button >= 0.5 or false
 	local throw = active and type(data.throw) == "number" and data.throw > 0.1 or false
 	local aiming = active and kbm and data.aiming_pressed and true or false
+	-- A pad aims with the left trigger, as in other third person games. The game's pad layout throws
+	-- with it (controller_settings.lua: left_trigger is "throw"), so while it aims, the reload button
+	-- throws instead (M.pad_buttons). left_trigger and reload_button are the held values the game's pad
+	-- interface answers each frame.
+	local pad_aim, pad_throw = nil, nil
+	if active and not kbm then
+		local lt = type(data.left_trigger) == "number" and data.left_trigger or 0
+		if lt > 0.1 then
+			aiming = true
+			pad_aim = true
+			pad_throw = type(data.reload_button) == "number" and data.reload_button or 0
+			throw = pad_throw > 0.1
+		end
+	end
 	local stick = nil
 	if active and not kbm and data.aim then
 		local ok, x, y = pcall(function() return data.aim.x, data.aim.y end)
 		if ok then stick = { x = x or 0, y = y or 0 } end
 	end
 	M.input = { frame = M.frame, unit = unit, ctx = ctx, kbm = kbm, look = look, fire = fire, throw = throw,
-		aiming = aiming, stick = look and stick or nil, shared = shared, dt = dt }
+		aiming = aiming, stick = look and stick or nil, shared = shared, dt = dt, pad_aim = pad_aim, pad_throw = pad_throw }
 	return M.input
+end
+
+-- While a pad aims with the left trigger (M.read_input), the character input the game queues throws
+-- with the reload button and doesn't reload; the left trigger's own throw is dropped.
+function M.pad_buttons(data, input)
+	if type(data) ~= "table" or not (input and input.pad_aim and input.look) then return false end
+	local amount = input.pad_throw or 0
+	data.throw = amount > 0.1
+	data.throw_amount = amount
+	data.reload = false
+	return true
 end
 
 -- Why the view stays top-down now, or nil when the shoulder camera can steer it.
