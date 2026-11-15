@@ -14,6 +14,9 @@
 --     from the character, as the game aims them; other players see nothing of this
 --   - the left hand takes its place on the weapon from the character's animation (the game's grip for
 --     that weapon, and its reload), relative to the weapon
+--   - throwing, calling stratagems, using things, reviving and carrying: the arms blend over to the
+--     character's own arms, as the game animates them, moved from its head to the camera. A grenade or
+--     stratagem ball in either hand moves into the rig's hand the way the weapon does
 -- src/fpanim.lua moves the weapon: holds, sprint, reload, dive, downed, bob, sway, recoil. The character
 -- itself is hidden mesh by mesh while the rig shows, and everything is given back as it was.
 local pose = obsidian.module("src/pose")
@@ -51,6 +54,15 @@ M.AWAY_STATES = {
 }
 M.RELOAD_STATES = { CharacterStateReload = true, CharacterStateDownedReload = true }
 M.MELEE_STATES = { CharacterStateMelee = true, CharacterStateDownedMelee = true }
+-- The states the character's own arms show in, with the game's animation.
+M.LIVE_STATES = {
+	CharacterStateThrow = true, CharacterStateDownedThrow = true, CharacterStateStratagems = true,
+	CharacterStateStratagemsThrow = true, CharacterStateDownedStratagems = true, CharacterStateDownedStratagemsThrow = true,
+	CharacterStateInteract = true, CharacterStateInteractObjective = true, CharacterStateRevive = true, CharacterStateCarry = true,
+}
+M.LIVE_RATE = 10           -- how fast the arms go over to the character's and back (ease rate)
+M.LIVE_OFFSET = { x = 0.05, y = 0.16, z = 0.07 } -- where the character's head lands, from the camera
+M.LIVE_TILT = 14            -- degrees the character's arms tilt up, into view
 -- The states where the character holds the weapon as it should be held: its left hand is learnt there.
 M.HOLD_STATES = {
 	CharacterStateIdle = true, CharacterStateWalk = true, CharacterStateAim = true, CharacterStateAimWalk = true,
@@ -74,6 +86,8 @@ end
 
 local rig = nil       -- the arms: { unit, world, path, node = {}, fingers = {}, arm = { l = {}, r = {} } }
 local held = nil      -- the weapon taken from the character
+local items = {}      -- other things taken from its hands: unit -> { side, rel_pos, rel_rot, saved, ... }
+local live = { w = 0 } -- how far the arms are the character's own
 local hidden = {}     -- unit -> { [mesh] = shown before }
 local seen = { avatar = nil, frame = -1000 }
 local anim = fpanim.new()
@@ -113,8 +127,8 @@ local function unhide(u)
 	end)
 end
 
-local function hide_parts(api, avatar, in_hand)
-	if in_hand then unhide(in_hand) end
+local function hide_parts(api, avatar, keep)
+	for u in pairs(keep) do unhide(u) end
 	local world = api and api.world
 	if not (world and world.part_units) then return end
 	if seen.avatar == avatar and frame - seen.frame < M.RECHECK then return end
@@ -123,7 +137,7 @@ local function hide_parts(api, avatar, in_hand)
 	for _, kind in ipairs(M.PARTS) do
 		local ok, units = pcall(world.part_units, avatar, kind)
 		for _, u in ipairs(ok and units or {}) do
-			if u ~= in_hand then
+			if not keep[u] then
 				local kept = hidden[u]
 				if not kept then kept = {} hidden[u] = kept end
 				local n = U.num_meshes(u)
@@ -200,10 +214,64 @@ local function take(w, avatar, world)
 	return true
 end
 
+-- Grenades, stratagem balls and the like: wielded equipment of the character that sits in a hand.
+local function give_items()
+	local U, W = g("Unit"), g("World")
+	for u, it in pairs(items) do
+		pcall(function()
+			if not (U.alive(u) and U.alive(it.avatar)) then return end
+			W.unlink_unit(it.world, u)
+			W.link_unit(it.world, u, 0, it.avatar, U.node(it.avatar, it.side .. "_hand_attach"))
+			U.set_local_pose(u, 0, it.saved)
+		end)
+	end
+	items = {}
+end
+
+local function take_item(u, avatar, world, side)
+	local U, W = g("Unit"), g("World")
+	local attach = U.node(avatar, side .. "_hand_attach")
+	local a_pos, a_rot = vec(U.local_position(avatar, attach)), quat(U.local_rotation(avatar, attach))
+	local i_pos, i_rot = vec(U.local_position(u, 0)), quat(U.local_rotation(u, 0))
+	local rel_pos, rel_rot = pose.compose(a_pos, a_rot, i_pos, i_rot)
+	items[u] = { side = side, avatar = avatar, world = world, saved = U.local_pose(u, 0), rel_pos = rel_pos, rel_rot = rel_rot }
+	W.unlink_unit(world, u)
+	W.link_unit(world, u, 0, rig.unit, rig.node[side .. "_wrist"])
+	U.set_local_pose(u, 0, matrix(rel_pos, rel_rot))
+end
+
+-- Takes what the character holds besides the weapon, and forgets what it let go of (thrown, put away:
+-- the game moved those itself).
+local function update_items(api, avatar, world, weapon)
+	local U = g("Unit")
+	local slaves = api.game.slaves("equipment")
+	for u, it in pairs(items) do
+		local ctx = slaves[u]
+		local gone = not U.alive(u) or not (ctx and ctx.state and ctx.state.wielded and ctx.state.wielder == avatar)
+		if not gone and it.expected then
+			gone = pose.length(pose.sub(vec(U.world_position(u, 0)), it.expected)) > M.RELINK
+		end
+		if gone then items[u] = nil end
+	end
+	for u, ctx in pairs(slaves) do
+		local st = type(ctx) == "table" and ctx.state
+		if st and st.wielded and st.wielder == avatar and u ~= weapon and not items[u] and U.alive(u) then
+			local at = vec(U.world_position(u, 0))
+			for _, side in ipairs({ "l", "r" }) do
+				if U.has_node(avatar, side .. "_hand_attach") then
+					local hp = vec(U.world_position(avatar, U.node(avatar, side .. "_hand_attach")))
+					if pose.length(pose.sub(at, hp)) < 0.05 then pcall(take_item, u, avatar, world, side) break end
+				end
+			end
+		end
+	end
+end
+
 -- The rig ---------------------------------------------------------------------------------------------
 
 local function remove_rig()
 	give_back()
+	give_items()
 	if rig then
 		local U, W = g("Unit"), g("World")
 		local r = rig
@@ -292,6 +360,22 @@ local function place_arm(arm, spine_inv, sh, el, wr)
 	U.set_local_pose(rig.unit, arm.elbow, matrix(lp, lr))
 	lp, lr = pose.relative(el.pos, el.rot, wr.pos, wr.rot)
 	U.set_local_pose(rig.unit, arm.wrist, matrix(lp, lr))
+end
+
+-- The character's own arm, moved from its head to the camera: { pos, rot } for the shoulder, elbow and
+-- wrist. head_pos/char_rot: the character's head and facing; anchor/cam_rot: where they land.
+local function live_arm(avatar, side, head_pos, turn, anchor)
+	local U = g("Unit")
+	local out = {}
+	for i, b in ipairs({ "_shoulder", "_elbow", "_wrist" }) do
+		local p, q = world_of_node(avatar, U.node(avatar, side .. b))
+		out[i] = { pos = pose.add(anchor, pose.rotate(turn, pose.sub(p, head_pos))), rot = pose.mul(turn, q) }
+	end
+	return out[1], out[2], out[3]
+end
+
+local function mix(a, b, t)
+	return { pos = pose.lerp(a.pos, b.pos, t), rot = pose.nlerp(a.rot, b.rot, t) }
 end
 
 -- What the character is doing, for fpanim.
@@ -387,6 +471,7 @@ function M.update(env, view, dt)
 		if pose.length(pose.sub(now, held.expected)) > M.RELINK then held = nil end
 	end
 	if w and not held then pcall(take, w, avatar, world) end
+	update_items(api, avatar, world, w and w.unit)
 
 	local feel = feel_of(env, avatar, view, dt)
 	local family = "rifle"
@@ -446,6 +531,15 @@ function M.update(env, view, dt)
 	local spine = M4.from_quaternion_position(Qe(pose.IDENTITY), V(behind))
 	M4.set_scale(spine, g("Vector3")(M.COLLAPSE, M.COLLAPSE, M.COLLAPSE))
 	local spine_inv = M4.inverse(spine)
+	-- The character's own arms: from its head and facing to the camera.
+	live.w = live.w + ((M.LIVE_STATES[feel.state] and 1 or 0) - live.w) * (1 - math.exp(-M.LIVE_RATE * dt))
+	local head_pos, turn, anchor
+	if live.w > 0.002 and U.has_node(avatar, "head") then
+		head_pos = vec(U.world_position(avatar, U.node(avatar, "head")))
+		turn = pose.mul(pose.mul(cam_rot, pose.euler(0, M.LIVE_TILT, 0)), pose.conj(quat(U.world_rotation(avatar, 0))))
+		anchor = pose.add(cam, pose.rotate(cam_rot, M.LIVE_OFFSET))
+	end
+	local wrists = {}
 	for side, sign in pairs({ r = 1, l = -1 }) do
 		local s = pose.add(cam, pose.rotate(cam_rot, { x = sign * M.SHOULDER.side, y = -M.SHOULDER.back, z = -M.SHOULDER.down }))
 		local pole = pose.add(s, pose.rotate(cam_rot, { x = sign * M.POLE.side, y = -M.POLE.back, z = -M.POLE.down }))
@@ -455,15 +549,28 @@ function M.update(env, view, dt)
 		local far = pose.length(pose.sub(wp, s)) - (arm.a + arm.b) * 0.97
 		if far > 0 then s = pose.mad(s, pose.normalize(pose.sub(wp, s)), math.min(far, M.REACH)) end
 		local sh, el, wr = M.solve_arm(arm, s, wp, wq, pole)
+		if head_pos then
+			local lsh, lel, lwr = live_arm(avatar, side, head_pos, turn, anchor)
+			sh, el, wr = mix(sh, lsh, live.w), mix(el, lel, live.w), mix(wr, lwr, live.w)
+		end
 		place_arm(rig.arm[side], spine_inv, sh, el, wr)
+		wrists[side] = wr
 	end
 	for i = 1, #rig.fingers do
 		local f = rig.fingers[i]
 		U.set_local_pose(rig.unit, f[2], U.local_pose(avatar, f[1]))
 	end
-	if held then held.expected = gun_pos end
-	M.last = { cam = cam, rot = cam_rot, gun = gun_pos, right_wrist = rw_pos, left_wrist = grip_pos, family = family, feel = feel }
-	hide_parts(api, avatar, w and w.unit)
+	-- Where what the hands hold should be next frame: anywhere else, the game took it back.
+	if held then held.expected = pose.compose(wrists.r.pos, wrists.r.rot, held.rel_pos, held.rel_rot) end
+	local keep = {}
+	if w then keep[w.unit] = true end
+	for u, it in pairs(items) do
+		local wr = wrists[it.side]
+		it.expected = pose.compose(wr.pos, wr.rot, it.rel_pos, it.rel_rot)
+		keep[u] = true
+	end
+	M.last = { cam = cam, rot = cam_rot, gun = gun_pos, right_wrist = rw_pos, left_wrist = grip_pos, family = family, feel = feel, live = live.w }
+	hide_parts(api, avatar, keep)
 	M.why = nil
 	return true
 end
@@ -471,6 +578,7 @@ end
 function M.release()
 	remove_rig()
 	show_parts()
+	live.w = 0
 	last.yaw, last.pos, last.rounds, last.weapon = nil, nil, nil, nil
 	hand.pos, hand.rot = nil, nil
 end
@@ -492,10 +600,10 @@ function M.start(env)
 			M.why = "error"
 			rest = 300
 		end
-		if not (ok and on) and (rig or held or next(hidden)) then M.release() end
+		if not (ok and on) and (rig or held or next(hidden) or next(items)) then M.release() end
 	end)
 	table.insert(env.on_release, function() M.release() end)
 end
 
-M._state = function() return { rig = rig, held = held, hidden = hidden, anim = anim, hand = hand } end -- for tests
+M._state = function() return { rig = rig, held = held, hidden = hidden, anim = anim, hand = hand, items = items, live = live } end -- for tests
 return M

@@ -2,6 +2,10 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 0.9.1
+
+- New: in first person, throwing, calling stratagems, using objectives, reviving and carrying show the arms of the Helldiver as the game animates them, in place of lowering the weapon.
+
 ## 0.9.0
 
 - New: first person arms. The arms hold the weapon in view, with motion for walking, sprinting, aiming, firing, reloading, melee, switching weapons, throwing, calling stratagems, diving and being downed. The option Arms and weapon, under First person, is on by default.

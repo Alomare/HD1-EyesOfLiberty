@@ -77,6 +77,16 @@ return {
 		vnear(p.add(el.pos, p.scale(p.rotate(el.rot, arm.d_fore), arm.b)), wr.pos, "forearm ends at the wrist", 1e-6)
 		vnear(wr.pos, w, "wrist", 1e-6)
 	end },
+	{ "the character's own arms show in the busy states, never while it holds the weapon", function()
+		local vm = VM()
+		for _, s in ipairs({ "CharacterStateThrow", "CharacterStateStratagems", "CharacterStateInteract", "CharacterStateCarry" }) do
+			eq(vm.LIVE_STATES[s], true, s)
+		end
+		for s in pairs(vm.LIVE_STATES) do
+			eq(vm.HOLD_STATES[s], nil, s .. " is no holding state")
+			eq(vm.RELOAD_STATES[s], nil, s .. " is no reload")
+		end
+	end },
 	{ "weapons are told apart by the id the engine prints", function()
 		local vm, a = VM(), A()
 		eq(vm.name_of("[#ID[e7d373e49b87d4ba]]"), "equipment/wep_assaultrifle_01")
