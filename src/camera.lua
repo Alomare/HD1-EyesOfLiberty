@@ -561,7 +561,8 @@ function M.drive(env, cm, dt)
 		local head = M.head_position(avatar) or { x = p.x, y = p.y, z = p.z + rig.FP_HEIGHT - rig.FP_UP }
 		smooth.pivot = rig.follow_head(smooth.pivot, head, dt)
 		position = rig.fp_eye(smooth.pivot, view.yaw, view.pitch, { up = tonumber(config.get("first_person_height")),
-			ahead = tonumber(config.get("first_person_forward")), side = tonumber(config.get("first_person_side")) })
+			ahead = tonumber(config.get("first_person_forward")), side = tonumber(config.get("first_person_side")),
+			push = config.get("first_person_arms") ~= false and 0 or nil })
 		fov = config.get("first_person_fov") or 80
 		pcall(M.hide_head, env, avatar)
 	else

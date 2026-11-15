@@ -5,8 +5,8 @@
 -- Based on Third Person Camera (HD2 Style) by yukiorsrs, used with permission.
 --
 -- The mod is split into parts (obsidian.json "parts"):
---   view             client: third and first person cameras, aim, crosshair, view distance, sky, fog,
---                    depth of field, enemy indicators
+--   view             client: third and first person cameras, the first person arms, aim, crosshair,
+--                    view distance, sky, fog, depth of field, enemy indicators
 --   weapon_range     session: every weapon reaches as far as the farthest one
 --   enemy_detection  session: enemies notice the squad from farther away
 --   free_movement    session: the Helldiver can leave the shared top-down screen
@@ -53,7 +53,7 @@ local env = {
 config.start(env)
 
 local started = {}
-for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/look", "src/session" }) do
+for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/look", "src/session", "src/viewmodel" }) do
 	local ok, err = pcall(function()
 		local m = obsidian.module(name)
 		if m and m.start then m.start(env) end
@@ -75,7 +75,7 @@ local function old_one()
 end
 if type(obsidian.after_startup) == "function" then obsidian.after_startup(old_one) else old_one() end
 
-local export = { version = "0.8.2" }
+local export = { version = "0.9.0" }
 
 -- Where shots go on screen while third person steers the view: { x, y, aiming, firing, vehicle }, in
 -- pixels from the bottom left (the coordinates of obsidian.ui.canvas). aiming: the aim button is held;

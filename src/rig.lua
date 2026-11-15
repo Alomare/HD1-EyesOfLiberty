@@ -203,12 +203,13 @@ end
 -- First person: the eye for the head node at `head` and a view turned to yaw and pitch (degrees).
 -- The bump runs along the ground, not along the view, so looking down moves the eye forward, out of
 -- the body, instead of down into it. offset (the First person options): up, ahead and side (right)
--- in metres; FP_UP, FP_BUMP and 0 where left out.
+-- in metres; FP_UP, FP_BUMP and 0 where left out. push: metres more ahead looking straight down
+-- (FP_DOWN_PUSH when left out; 0 with the arms of src/viewmodel.lua, which hide the body).
 function M.fp_eye(head, yaw, pitch, offset)
 	offset = offset or {}
 	local f, r = M.flat_forward(yaw), M.right(yaw)
 	local down = math.max(0, -math.sin(math.rad(pitch or 0)))
-	local ahead = (offset.ahead or M.FP_BUMP) + M.FP_DOWN_PUSH * down
+	local ahead = (offset.ahead or M.FP_BUMP) + (offset.push or M.FP_DOWN_PUSH) * down
 	local side = offset.side or 0
 	return { x = head.x + f.x * ahead + r.x * side, y = head.y + f.y * ahead + r.y * side,
 		z = head.z + (offset.up or M.FP_UP) }

@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.unleashedcamera",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "name": {
     "en": "Unleashed Camera"
   },
@@ -65,7 +65,10 @@
     "src/radar.lua",
     "src/hits.lua",
     "src/look.lua",
-    "src/session.lua"
+    "src/session.lua",
+    "src/pose.lua",
+    "src/fpanim.lua",
+    "src/viewmodel.lua"
   ],
   "requires": [
     "obsidian.api"
@@ -85,7 +88,7 @@
       "choices": [ { "id": "default", "label": { "en": "Default" } }, { "id": "third", "label": { "en": "Third person" } }, { "id": "first", "label": { "en": "First person" } } ],
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "Camera mode" },
-      "description": { "en": "The camera at the start of the game. Default is the top-down camera of the game. The camera key cycles the three in a mission. In first person the camera sits in the head of the Helldiver and the helmet is hidden; vehicles keep the third-person camera." } },
+      "description": { "en": "The camera at the start of the game. Default is the top-down camera of the game. The camera key cycles the three in a mission. In first person the camera sits in the head of the Helldiver, and the arms hold the weapon in view while the rest of the body is hidden (with Arms and weapon off, only the helmet is hidden); vehicles keep the third-person camera." } },
     { "id": "look_speed", "type": "number", "default": 1, "min": 0.1, "max": 3, "step": 0.05,
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "Look sensitivity" },
@@ -136,6 +139,10 @@
       "group": "first", "part": "view", "scope": "client",
       "label": { "en": "Field of view (degrees)" },
       "description": { "en": "Vertical field of view in first person." } },
+    { "id": "first_person_arms", "type": "toggle", "default": true,
+      "group": "first", "part": "view", "scope": "client",
+      "label": { "en": "Arms and weapon" },
+      "description": { "en": "Shows the arms and the weapon in hand in first person, with motion for walking, sprinting, aiming, firing, reloading, switching weapons, diving and being downed. The rest of the body is hidden. Assault rifles and the standard pistol have holds of their own; other weapons use the rifle hold, and sidearms the pistol hold." } },
     { "id": "first_person_height", "type": "number", "default": 0.14, "min": -0.3, "max": 0.6, "step": 0.01,
       "group": "first", "part": "view", "scope": "client",
       "label": { "en": "Eye height (m)" },
@@ -143,7 +150,7 @@
     { "id": "first_person_forward", "type": "number", "default": 0.22, "min": -0.2, "max": 0.8, "step": 0.01,
       "group": "first", "part": "view", "scope": "client",
       "label": { "en": "Eye forward (m)" },
-      "description": { "en": "Metres the camera sits in front of the head, along the ground. Looking down adds up to 0.3 m more, so the inside of the body stays out of view." } },
+      "description": { "en": "Metres the camera sits in front of the head, along the ground. With Arms and weapon off, looking down adds up to 0.3 m more, so the inside of the body stays out of view." } },
     { "id": "first_person_side", "type": "number", "default": 0, "min": -0.5, "max": 0.5, "step": 0.01,
       "group": "first", "part": "view", "scope": "client",
       "label": { "en": "Eye side (m)" },
@@ -188,7 +195,7 @@
     { "id": "fix_sky", "type": "toggle", "default": true,
       "group": "picture", "part": "view", "scope": "client",
       "label": { "en": "Sky" },
-      "description": { "en": "Draws a sky over the level for the time of the mission, dawn, day, dusk or night, instead of the smears the game leaves past the level. The same skies as Photo Mode. Needs a deploy." } },
+      "description": { "en": "Draws a sky over the level for the time of the mission, dawn, day, dusk or night, instead of the smears the game leaves past the level: brighter toward the horizon, with the sun where the light of the level comes from, clouds, and stars and a moon at night. Needs a deploy." } },
     { "id": "max_weapon_range", "type": "toggle", "default": true,
       "group": "lobby", "part": "weapon_range",
       "label": { "en": "Max weapon range" },
@@ -212,17 +219,17 @@
   ],
   "resources": [
     { "type": "render_config", "name": "#1a9c33dcd0301dfd", "bundle": "1a9c33dcd0301dfd", "data": "res/render_config.bin", "part": "view", "when": { "fix_sky": true } },
-    { "type": "texture", "name": "photomode/sky/dawn_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.texture", "part": "view", "when": { "fix_sky": true } },
-    { "type": "material", "name": "photomode/sky/dawn", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.material", "part": "view", "when": { "fix_sky": true } },
-    { "type": "unit", "name": "photomode/sky/dawn", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.unit", "part": "view", "when": { "fix_sky": true } },
-    { "type": "texture", "name": "photomode/sky/day_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.texture", "part": "view", "when": { "fix_sky": true } },
-    { "type": "material", "name": "photomode/sky/day", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.material", "part": "view", "when": { "fix_sky": true } },
-    { "type": "unit", "name": "photomode/sky/day", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.unit", "part": "view", "when": { "fix_sky": true } },
-    { "type": "texture", "name": "photomode/sky/dusk_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.texture", "part": "view", "when": { "fix_sky": true } },
-    { "type": "material", "name": "photomode/sky/dusk", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.material", "part": "view", "when": { "fix_sky": true } },
-    { "type": "unit", "name": "photomode/sky/dusk", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.unit", "part": "view", "when": { "fix_sky": true } },
-    { "type": "texture", "name": "photomode/sky/night_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.texture", "part": "view", "when": { "fix_sky": true } },
-    { "type": "material", "name": "photomode/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.material", "part": "view", "when": { "fix_sky": true } },
-    { "type": "unit", "name": "photomode/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.unit", "part": "view", "when": { "fix_sky": true } }
+    { "type": "texture", "name": "unleashedcamera/sky/dawn_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.texture", "part": "view", "when": { "fix_sky": true } },
+    { "type": "material", "name": "unleashedcamera/sky/dawn", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.material", "part": "view", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "unleashedcamera/sky/dawn", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.unit", "part": "view", "when": { "fix_sky": true } },
+    { "type": "texture", "name": "unleashedcamera/sky/day_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.texture", "part": "view", "when": { "fix_sky": true } },
+    { "type": "material", "name": "unleashedcamera/sky/day", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.material", "part": "view", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "unleashedcamera/sky/day", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.unit", "part": "view", "when": { "fix_sky": true } },
+    { "type": "texture", "name": "unleashedcamera/sky/dusk_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.texture", "part": "view", "when": { "fix_sky": true } },
+    { "type": "material", "name": "unleashedcamera/sky/dusk", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.material", "part": "view", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "unleashedcamera/sky/dusk", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.unit", "part": "view", "when": { "fix_sky": true } },
+    { "type": "texture", "name": "unleashedcamera/sky/night_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.texture", "part": "view", "when": { "fix_sky": true } },
+    { "type": "material", "name": "unleashedcamera/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.material", "part": "view", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "unleashedcamera/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.unit", "part": "view", "when": { "fix_sky": true } }
   ]
 }

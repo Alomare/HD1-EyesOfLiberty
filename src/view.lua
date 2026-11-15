@@ -3,10 +3,10 @@
 --
 --   far_view    the camera's far range and distant models keeping their detail (API detail, the
 --               lod_object_multiplier setting); the fog is pushed out in src/look.lua
---   fix_sky     a sky around the camera for the time of the mission: Photo Mode's dawn, day, dusk and
---               night skies (res/sky_*, the same bytes under the same names, so the two mods never
---               clash), added when the option is on at launch, with the render config that clears
---               the picture past the level (also Photo Mode's bytes)
+--   fix_sky     a sky around the camera for the time of the mission: dawn, day, dusk or night
+--               (res/sky_*, drawn by tools/build_sky.py), turned so its sun stands where the level's
+--               sun is, added when the option is on at launch, with the render config that clears the
+--               picture past the level (Photo Mode's bytes, so the two mods never clash)
 
 local M = {}
 
@@ -19,7 +19,7 @@ M.SKY_RADIUS = 1800   -- metres
 M.SKY_MADE = 500      -- the dome's own radius
 -- The skies, by the time of the mission (generated_level.time_of_day: dawn, day, dusk or night).
 M.TIMES = { dawn = true, day = true, dusk = true, night = true }
-M.SKY_UNIT = "photomode/sky/"
+M.SKY_UNIT = "unleashedcamera/sky/"
 -- Photo Mode draws its skies at intensity 1, as made. Before 0.8.0 the planet-coloured domes of this
 -- mod went to 2 and more, and every sky glowed.
 M.SKY_INTENSITY = 1
@@ -35,6 +35,16 @@ end
 function M.sky_name(time)
 	if type(time) == "string" and M.TIMES[time] then return time end
 	return "day"
+end
+
+-- The turn of the dome about the up axis (radians) that puts its sun (drawn at +x) where the level's
+-- sun is. sun_direction is the way the sunlight travels (the shading value of that name); nil when the
+-- sun stands straight up or the value is missing.
+function M.sky_yaw(sun_direction)
+	local d = sun_direction
+	if type(d) ~= "table" or type(d[1]) ~= "number" or type(d[2]) ~= "number" then return nil end
+	if d[1] * d[1] + d[2] * d[2] < 1e-6 then return nil end
+	return math.atan2(-d[2], -d[1])
 end
 
 -- Far view ------------------------------------------------------------------------------------------
@@ -138,6 +148,9 @@ local function sky_update(env, view)
 		if not ok or not unit then return end
 		sky.unit, sky.world, sky.name = unit, view.world, name
 		pcall(U.set_local_scale, unit, 0, V3(M.SKY_RADIUS / M.SKY_MADE, M.SKY_RADIUS / M.SKY_MADE, M.SKY_RADIUS / M.SKY_MADE))
+		local ok_s, sun = pcall(function() return api.world.planet_shading("sun_direction") end)
+		local yaw = ok_s and M.sky_yaw(sun) or nil
+		if yaw then pcall(U.set_local_rotation, unit, 0, g("Quaternion")(V3(0, 0, 1), yaw)) end
 		sky_brightness(unit, M.SKY_INTENSITY)
 	end
 	pcall(U.teleport_local_position, sky.unit, 0, V3(view.position.x, view.position.y, 0))

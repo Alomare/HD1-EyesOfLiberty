@@ -42,6 +42,11 @@ return {
 		eq(v.sky_name("ghost_town"), "day", "another time: day")
 		eq(v.sky_name(nil), "day", "unknown: day")
 		eq(v.SKY_INTENSITY, 1, "Photo Mode's brightness")
+		-- The sun of a level whose light travels toward -x stands at +x: no turn. Toward -y: a quarter turn.
+		near(v.sky_yaw({ -1, 0, -1 }), 0, "sun at +x")
+		near(v.sky_yaw({ 0, -1, -0.5 }), math.pi / 2, "sun at +y")
+		eq(v.sky_yaw({ 0, 0, -1 }), nil, "straight up")
+		eq(v.sky_yaw(nil), nil, "no value")
 		-- The time comes from the game state's level, the camera manager's after.
 		local api = { game = { state = function() return { generated_level = { time_of_day = "night" } } end } }
 		eq(v.mission_time(api), "night", "the game state's level")
@@ -80,7 +85,7 @@ return {
 		local name = nil
 		World.spawn_unit = function(_, n) name = n spawned = spawned + 1 return "dome" end
 		frame(e, env, E.player(e, "me"))
-		eq(spawned, 1) eq(name, "photomode/sky/day", "the day sky when the time is unknown")
+		eq(spawned, 1) eq(name, "unleashedcamera/sky/day", "the day sky when the time is unknown")
 		frame(e, env, E.player(e, "me"))
 		eq(spawned, 1, "one dome, moved with the camera")
 		E.remove()

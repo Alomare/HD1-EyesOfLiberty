@@ -2,6 +2,14 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 0.9.0
+
+- New: first person arms. The arms hold the weapon in view, with motion for walking, sprinting, aiming, firing, reloading, melee, switching weapons, throwing, calling stratagems, diving and being downed. The option Arms and weapon, under First person, is on by default.
+- New: assault rifles and the standard pistol have holds of their own. Other weapons use the rifle hold, and other sidearms the pistol hold.
+- Changed: with the arms on, first person hides the whole body, and looking down no longer moves the camera forward.
+- Changed: new skies, drawn for each time of day: brighter toward the horizon, a sun where the light of the level comes from, clouds in perspective, and stars and a moon at night.
+- Fixed: the sky was a flat dome with clouds circling overhead.
+
 ## 0.8.2
 
 - Fixed: the sky was the day sky in every mission. It now follows the time of the mission: dawn, day, dusk or night.
