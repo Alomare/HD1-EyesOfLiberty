@@ -225,6 +225,11 @@ function M.start(env)
 	state.aim_point = nil
 
 	table.insert(env.on_pose, function(view, cm)
+		-- The death cam aims nothing and draws no crosshair.
+		if view.watching then
+			state.aim_point, state.aim_hit, state.crosshair = nil, nil, nil
+			return
+		end
 		local U = g("Unit")
 		local tp = U.world_position(view.target, 0)
 		view.target_position = { x = tp.x, y = tp.y, z = tp.z }

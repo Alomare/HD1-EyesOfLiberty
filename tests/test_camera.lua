@@ -318,7 +318,7 @@ return {
 		eq(env.state.active, false, "off")
 		eq(e.calls.set_local_position, nil, "camera untouched")
 		local toast = false
-		for _, l in ipairs(LOGS) do toast = toast or l:find("toast: Unleashed Camera stays off", 1, true) ~= nil end
+		for _, l in ipairs(LOGS) do toast = toast or l:find("toast: Eyes of Liberty stays off", 1, true) ~= nil end
 		assert(toast, "toast")
 		E.remove()
 	end },

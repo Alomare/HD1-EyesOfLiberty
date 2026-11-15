@@ -1,18 +1,18 @@
 {
   "obsidian": 1,
-  "id": "alomare.unleashedcamera",
-  "version": "0.9.1",
+  "id": "alomare.eyesofliberty",
+  "version": "1.0.0",
   "name": {
-    "en": "Unleashed Camera"
+    "en": "Eyes of Liberty"
   },
   "description": {
-    "en": "Third person and first person cameras that keep other mods working."
+    "en": "A third person camera that keeps other mods working."
   },
   "authors": [
     "Alomare",
     "yukiorsrs"
   ],
-  "source": "https://github.com/Alomare/HD1-UnleashedCamera",
+  "source": "https://github.com/Alomare/HD1-EyesOfLiberty",
   "scope": "session",
   "parts": [
     {
@@ -56,6 +56,7 @@
     "src/scoped.lua",
     "src/rig.lua",
     "src/pod.lua",
+    "src/deathcam.lua",
     "src/shake.lua",
     "src/frustum.lua",
     "src/camera.lua",
@@ -102,6 +103,10 @@
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "Hellpod camera" },
       "description": { "en": "When the Helldiver drops in, the camera rides down above the Hellpod looking down on it, shakes on the landing, and glides into the shoulder view once the Helldiver climbs out. The view stays still until then." } },
+    { "id": "death_cam", "type": "toggle", "default": true,
+      "group": "camera", "part": "view", "scope": "client",
+      "label": { "en": "Death cam" },
+      "description": { "en": "When the Helldiver dies, the camera stays on the body, or where the body was once the game removes it, until the Helldiver drops in again or the mission ends. With allies alive, the camera moves to one of them after 4 seconds. Left and right click switch between allies, and the mouse turns the camera." } },
     { "id": "shoulder", "type": "choice", "default": "right",
       "choices": [ { "id": "right", "label": { "en": "Right" } }, { "id": "left", "label": { "en": "Left" } } ],
       "group": "third", "part": "view", "scope": "client",
@@ -195,17 +200,17 @@
   ],
   "resources": [
     { "type": "render_config", "name": "#1a9c33dcd0301dfd", "bundle": "1a9c33dcd0301dfd", "data": "res/render_config.bin", "part": "view", "when": { "fix_sky": true } },
-    { "type": "texture", "name": "unleashedcamera/sky/dawn_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.texture", "part": "view", "when": { "fix_sky": true } },
-    { "type": "material", "name": "unleashedcamera/sky/dawn", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.material", "part": "view", "when": { "fix_sky": true } },
-    { "type": "unit", "name": "unleashedcamera/sky/dawn", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.unit", "part": "view", "when": { "fix_sky": true } },
-    { "type": "texture", "name": "unleashedcamera/sky/day_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.texture", "part": "view", "when": { "fix_sky": true } },
-    { "type": "material", "name": "unleashedcamera/sky/day", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.material", "part": "view", "when": { "fix_sky": true } },
-    { "type": "unit", "name": "unleashedcamera/sky/day", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.unit", "part": "view", "when": { "fix_sky": true } },
-    { "type": "texture", "name": "unleashedcamera/sky/dusk_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.texture", "part": "view", "when": { "fix_sky": true } },
-    { "type": "material", "name": "unleashedcamera/sky/dusk", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.material", "part": "view", "when": { "fix_sky": true } },
-    { "type": "unit", "name": "unleashedcamera/sky/dusk", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.unit", "part": "view", "when": { "fix_sky": true } },
-    { "type": "texture", "name": "unleashedcamera/sky/night_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.texture", "part": "view", "when": { "fix_sky": true } },
-    { "type": "material", "name": "unleashedcamera/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.material", "part": "view", "when": { "fix_sky": true } },
-    { "type": "unit", "name": "unleashedcamera/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.unit", "part": "view", "when": { "fix_sky": true } }
+    { "type": "texture", "name": "eyesofliberty/sky/dawn_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.texture", "part": "view", "when": { "fix_sky": true } },
+    { "type": "material", "name": "eyesofliberty/sky/dawn", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.material", "part": "view", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "eyesofliberty/sky/dawn", "bundle": "9cf71054ea26dddf", "data": "res/sky_dawn.unit", "part": "view", "when": { "fix_sky": true } },
+    { "type": "texture", "name": "eyesofliberty/sky/day_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.texture", "part": "view", "when": { "fix_sky": true } },
+    { "type": "material", "name": "eyesofliberty/sky/day", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.material", "part": "view", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "eyesofliberty/sky/day", "bundle": "9cf71054ea26dddf", "data": "res/sky_day.unit", "part": "view", "when": { "fix_sky": true } },
+    { "type": "texture", "name": "eyesofliberty/sky/dusk_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.texture", "part": "view", "when": { "fix_sky": true } },
+    { "type": "material", "name": "eyesofliberty/sky/dusk", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.material", "part": "view", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "eyesofliberty/sky/dusk", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.unit", "part": "view", "when": { "fix_sky": true } },
+    { "type": "texture", "name": "eyesofliberty/sky/night_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.texture", "part": "view", "when": { "fix_sky": true } },
+    { "type": "material", "name": "eyesofliberty/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.material", "part": "view", "when": { "fix_sky": true } },
+    { "type": "unit", "name": "eyesofliberty/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.unit", "part": "view", "when": { "fix_sky": true } }
   ]
 }

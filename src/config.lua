@@ -48,7 +48,7 @@ local ROWS = {
 function M.start(env)
 	local api = env.api
 	if not (api and api.mod_settings and api.mod_settings.BINDS) then return end
-	local page = api.mod_settings.page("Unleashed Camera")
+	local page = api.mod_settings.page("Eyes of Liberty")
 	for _, row in ipairs(ROWS) do
 		local unit = row.unit
 		local start = page[row.kind](page, row.id, {

@@ -85,7 +85,7 @@ return {
 		local name = nil
 		World.spawn_unit = function(_, n) name = n spawned = spawned + 1 return "dome" end
 		frame(e, env, E.player(e, "me"))
-		eq(spawned, 1) eq(name, "unleashedcamera/sky/day", "the day sky when the time is unknown")
+		eq(spawned, 1) eq(name, "eyesofliberty/sky/day", "the day sky when the time is unknown")
 		frame(e, env, E.player(e, "me"))
 		eq(spawned, 1, "one dome, moved with the camera")
 		E.remove()

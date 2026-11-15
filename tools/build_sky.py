@@ -8,7 +8,7 @@ three changes:
   - its texture coordinates are rewritten as a disk seen from below: the zenith in the middle, the
     horizon on a ring at HORIZON_R, the skirt out to the edge. The texture then holds the whole sky
     once, with no seam and no tiling
-  - its material and texture are named unleashedcamera/sky/<time>, so they never clash with Photo Mode
+  - its material and texture are named eyesofliberty/sky/<time>, so they never clash with Photo Mode
   - the texture is drawn here, direction by direction: a sky that brightens toward the horizon, a sun
     with a glow, two layers of cloud on flat planes seen in perspective (thick low cloud and thin high
     streaks), haze toward the horizon, and stars at night. DXT1 with every mip, 2048 square.
@@ -330,7 +330,7 @@ def main():
     unit = remap_uvs(source_unit)
     sheets = []
     for name in TIMES:
-        base = f"unleashedcamera/sky/{name}"
+        base = f"eyesofliberty/sky/{name}"
         rgb = draw(name)
         (RES / f"sky_{name}.texture").write_bytes(dxt1_texture(rgb))
         material = replace_u64(source_material, murmur64(b"photomode/sky/day_map"), murmur64((base + "_map").encode()))

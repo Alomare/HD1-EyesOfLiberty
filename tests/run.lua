@@ -1,4 +1,4 @@
--- Offline tests for the parts of Unleashed Camera that don't need the game. From the
+-- Offline tests for the parts of Eyes of Liberty that don't need the game. From the
 -- repository root:
 --   luajit tests/run.lua
 -- Every tests/test_*.lua file returns a list of { name, fn }. Each test starts with a fresh fake
@@ -16,7 +16,7 @@ function fresh_obsidian()
 		end,
 		import = function() return nil end,
 		log = function(...) LOGS[#LOGS + 1] = table.concat({ ... }, " ") end,
-		caller = function() return "alomare.unleashedcamera" end,
+		caller = function() return "alomare.eyesofliberty" end,
 		settings = { get = function(id) return OPTIONS[id] end },
 		storage = { get = function(k, d) if STORED[k] == nil then return d end return STORED[k] end,
 			set = function(k, v) STORED[k] = v end },

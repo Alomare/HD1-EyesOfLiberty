@@ -1,7 +1,8 @@
--- Unleashed Camera: a third person camera built on Obsidian hooks. Formerly Integrated Third
--- Person (id alomare.integratedthirdperson until 0.7.0). Obsidian doesn't update a mod to another id, so
--- that mod stays installed beside this one until the player removes it; while it is loaded, this one
--- stays off (env.off), as both would hook the same game functions.
+-- Eyes of Liberty: a third person camera built on Obsidian hooks. Formerly Unleashed Camera (id
+-- alomare.unleashedcamera, 0.8.0 to 0.9.1) and before that Integrated Third Person (id
+-- alomare.integratedthirdperson, up to 0.7.0). Obsidian doesn't update a mod to another id, so an old
+-- one stays installed beside this one until the player removes it; while one is loaded, this one stays
+-- off (env.off), as both would hook the same game functions.
 -- Based on Third Person Camera (HD2 Style) by yukiorsrs, used with permission.
 --
 -- The mod is split into parts (obsidian.json "parts"):
@@ -43,7 +44,7 @@ local env = {
 	parts = obsidian.capabilities and obsidian.capabilities.parts or false,
 	-- Filled by src/camera.lua: fn(view, camera_manager, dt) after each frame's pose, fn(camera_manager)
 	-- when the view goes back to the top-down camera, and the pose itself while third person is on.
-	-- true while Integrated Third Person, the old id of this mod, is loaded too: everything stays off.
+	-- true while an old id of this mod is loaded too: everything stays off.
 	off = false,
 	on_pose = {},
 	on_release = {},
@@ -59,23 +60,30 @@ for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "s
 		if m and m.start then m.start(env) end
 		started[name] = m
 	end)
-	if not ok then obsidian.log("Unleashed Camera: " .. name .. " did not start: " .. tostring(err)) end
+	if not ok then obsidian.log("Eyes of Liberty: " .. name .. " did not start: " .. tostring(err)) end
 end
 
--- What other mods get from obsidian.import("alomare.unleashedcamera").
--- The old id of this mod, loaded beside it: this one steps aside and says so once. Asked after every
+-- An old id of this mod, loaded beside it: this one steps aside and says so once. Asked after every
 -- mod has started, whichever loaded first.
-local OLD_ID = "alomare.integratedthirdperson"
+local OLD_IDS = {
+	{ id = "alomare.unleashedcamera", name = "Unleashed Camera" },
+	{ id = "alomare.integratedthirdperson", name = "Integrated Third Person" },
+}
 local function old_one()
-	local ok, mod = pcall(obsidian.import, OLD_ID)
-	if not (ok and type(mod) == "table") then return end
-	env.off = true
-	obsidian.log("Unleashed Camera: Integrated Third Person is loaded too; staying off until it is removed")
-	obsidian.toast("Unleashed Camera stays off: Integrated Third Person, the old version, is still installed. Remove it in Obsidian.", 10)
+	for _, old in ipairs(OLD_IDS) do
+		local ok, mod = pcall(obsidian.import, old.id)
+		if ok and type(mod) == "table" then
+			env.off = true
+			obsidian.log("Eyes of Liberty: " .. old.name .. " is loaded too; staying off until it is removed")
+			obsidian.toast("Eyes of Liberty stays off: " .. old.name .. ", the old version, is still installed. Remove it in Obsidian.", 10)
+			return
+		end
+	end
 end
 if type(obsidian.after_startup) == "function" then obsidian.after_startup(old_one) else old_one() end
 
-local export = { version = "0.9.1" }
+-- What other mods get from obsidian.import("alomare.eyesofliberty").
+local export = { version = "1.0.0" }
 
 -- Where shots go on screen while third person steers the view: { x, y, aiming, firing, vehicle }, in
 -- pixels from the bottom left (the coordinates of obsidian.ui.canvas). aiming: the aim button is held;
@@ -88,7 +96,7 @@ function export.crosshair()
 		vehicle = state.vehicle, fade = state.sprint_fade or 1 }
 end
 
--- Another mod draws the crosshair from now on (Custom Crosshair does this). Unleashed Camera
+-- Another mod draws the crosshair from now on (Custom Crosshair does this). Eyes of Liberty
 -- stops drawing the game's crosshair at the middle of the view. Answers true.
 function export.claim_crosshair(mod_id)
 	state.claimed_by = mod_id or obsidian.caller and obsidian.caller() or "unknown"
