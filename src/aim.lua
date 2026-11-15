@@ -247,6 +247,7 @@ function M.start(env)
 
 	obsidian.hook("InputComponent", "queue_command_master", function(original, self, unit, component, command, data, ...)
 		if component == "character" and command == "input" and live() and unit == camera.input.unit then
+			pcall(camera.pad_buttons, data, camera.input)
 			pcall(M.steer, data, camera.input, env.view, state.aim_point)
 		end
 		return original(self, unit, component, command, data, ...)

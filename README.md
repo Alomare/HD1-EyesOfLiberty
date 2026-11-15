@@ -8,7 +8,7 @@ Third Person Camera replaces 28 game scripts, so mods that change the same parts
 
 ## How to use
 
-**F8** cycles the camera: the top-down camera of the game, third person, and first person. **H** swaps the shoulder. Both keys can be changed in Obsidian. While the death cam follows allies, left and right click switch between them.
+**F8** cycles the camera: the top-down camera of the game, third person, and first person. **H** swaps the shoulder. Both keys can be changed in Obsidian. On a gamepad, the right stick turns the camera and holding the left trigger aims; while aiming, the reload button throws grenades. While the death cam follows allies, left and right click switch between them.
 
 ## Playing with others
 
