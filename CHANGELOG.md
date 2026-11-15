@@ -2,6 +2,13 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 1.0.0
+
+- Changed: Unleashed Camera is now Eyes of Liberty, under the id alomare.eyesofliberty. Remove Unleashed Camera when installing it: while Unleashed Camera or Integrated Third Person is installed, Eyes of Liberty stays off.
+- New: Death cam, on by default. When the Helldiver dies, the camera stays on the body, or where the body was once the game removes it, until the Helldiver drops in again or the mission ends. With allies alive, the camera moves to one of them after 4 seconds. Left and right click switch between allies, and the mouse turns the camera.
+- Changed: after a death in a squad, the Hellpod camera also rides down with the reinforced Helldiver.
+- Removed: first person, which moves to separate beta versions.
+
 ## 0.9.1
 
 - New: in first person, throwing, calling stratagems, using objectives, reviving and carrying show the arms of the Helldiver as the game animates them, in place of lowering the weapon.

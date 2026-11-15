@@ -19,7 +19,7 @@ M.SKY_RADIUS = 1800   -- metres
 M.SKY_MADE = 500      -- the dome's own radius
 -- The skies, by the time of the mission (generated_level.time_of_day: dawn, day, dusk or night).
 M.TIMES = { dawn = true, day = true, dusk = true, night = true }
-M.SKY_UNIT = "unleashedcamera/sky/"
+M.SKY_UNIT = "eyesofliberty/sky/"
 -- Photo Mode draws its skies at intensity 1, as made. Before 0.8.0 the planet-coloured domes of this
 -- mod went to 2 and more, and every sky glowed.
 M.SKY_INTENSITY = 1

@@ -104,7 +104,7 @@ local function g(name) return rawget(_G, name) end
 function M.start(env)
 	local ui = obsidian.ui
 	if type(ui) ~= "table" or type(ui.canvas) ~= "function" then return end
-	local kit = ui.canvas("unleashedcamera_hits", { layer = M.LAYER })
+	local kit = ui.canvas("eyesofliberty_hits", { layer = M.LAYER })
 	if not kit then return end
 
 	local config = env.config
@@ -256,7 +256,7 @@ function M.start(env)
 			clear()
 			if not warned then
 				warned = true
-				env.log("Unleashed Camera: hit indicators: " .. tostring(err))
+				env.log("Eyes of Liberty: hit indicators: " .. tostring(err))
 			end
 		end
 	end, env.VIEW)

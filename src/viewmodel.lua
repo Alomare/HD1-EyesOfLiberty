@@ -595,7 +595,7 @@ function M.start(env)
 			local text = tostring(on)
 			if not said[text] then
 				said[text] = true
-				env.log("Unleashed Camera: first person arms: " .. text)
+				env.log("Eyes of Liberty: first person arms: " .. text)
 			end
 			M.why = "error"
 			rest = 300

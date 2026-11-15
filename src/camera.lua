@@ -20,6 +20,7 @@ local scoped = obsidian.module("src/scoped")
 local frustum = obsidian.module("src/frustum")
 local pod = obsidian.module("src/pod")
 local shake = obsidian.module("src/shake")
+local deathcam = obsidian.module("src/deathcam")
 
 local M = {}
 
@@ -113,16 +114,13 @@ end
 
 -- Whether a Helldiver entering the drop cutscene is this player's. The game enters it as it makes the
 -- body (CharacterComponent's master setup), before Obsidian API knows the new unit as this player's:
--- a body of this machine counts when it's the known avatar, or when this player has no living one.
+-- a body of this machine counts when it's the known avatar, or when this player has no living one (a
+-- dead body left on the ground doesn't count as living).
 function M.drop_is_mine(unit, mine, current)
 	if unit == nil then return false end
 	if mine ~= nil and unit == mine then return true end
-	local U = g("Unit")
 	for _, u in ipairs({ mine, current }) do
-		if u ~= nil then
-			local ok, alive = pcall(U.alive, u)
-			if ok and alive then return false end
-		end
+		if u ~= nil and deathcam.living(u) then return false end
 	end
 	return true
 end
@@ -430,6 +428,7 @@ function M.release(env, cm)
 	local state = env.state
 	if not state.active then return end
 	state.active, state.vehicle, state.aiming, state.firing, state.crosshair = false, false, false, false, nil
+	state.watching, M.watching = false, false
 	env.view = nil
 	smooth.pivot, smooth.length, smooth.aim, smooth.target, smooth.side, smooth.dive = nil, nil, 0, nil, nil, 0
 	smooth.down, smooth.sprint = 0, 0
@@ -475,23 +474,148 @@ function M.game_pose(cm)
 	if cm.viewport:is_active() and proxy:is_active() then g("World").update_unit(world, cam_unit) end
 end
 
+-- The reasons to stay top-down that a death explains: the dead Helldiver reads no input, or is gone.
+M.DEATH_WHY = { no_input = true, no_avatar = true }
+M.watching = false
+
+-- Whether the mouse may turn the death cam: the window has focus and no menu cursor is up (the game's
+-- aiming cursors don't count; the shoulder view hides them).
+function M.watch_look()
+	local input = M.input
+	if input and M.frame - input.frame <= 4 and input.unit then
+		local U = g("Unit")
+		local ok, alive = pcall(U.alive, input.unit)
+		if ok and alive and not input.look then return false end
+	end
+	local window = g("Window")
+	if window and window.has_focus and not window.has_focus() then return false end
+	local cursors = g("CursorManager")
+	if type(cursors) == "table" and cursors.is_shown then
+		local ok, shown = pcall(cursors.is_shown, cursors)
+		if ok and shown and not M.GAME_CURSORS[cursors.current_cursor] then return false end
+	end
+	return true
+end
+
+-- The clicks that browse the allies this frame: 1 for the right button, -1 for the left.
+function M.watch_clicks()
+	local mouse = g("Mouse")
+	if not (mouse and mouse.pressed and mouse.button_index) then return 0 end
+	local ok, step = pcall(function()
+		local n = 0
+		if mouse.pressed(mouse.button_index("right")) then n = n + 1 end
+		if mouse.pressed(mouse.button_index("left")) then n = n - 1 end
+		return n
+	end)
+	return ok and step or 0
+end
+
+-- The watch for this frame, and whether the mouse may turn it.
+function M.watch_step(env, cm, dt)
+	local look = M.watch_look()
+	local world = world_of(cm)
+	return deathcam.update(env.api, world, dt, look and M.watch_clicks() or 0), look
+end
+
+-- One frame of the death cam: the view turns about the body, or the ally watched, from farther back.
+-- Answers false when there is nothing to look at.
+function M.watch_frame(env, cm, dt, w, look)
+	local state, config = env.state, env.config
+	local U = g("Unit")
+	M.last_why = nil
+	dt = math.min(math.max(dt or 0.016, 0), 0.1)
+	M.dt = dt
+	local target, kind = nil, nil
+	if w.ally then target, kind = M.target(env, w.ally) end
+	local want
+	if target then
+		local p = U.world_position(target, 0)
+		want = { x = p.x, y = p.y, z = p.z + rig.height(kind, 0, 0, 0) + (tonumber(config.get("camera_height")) or 0) }
+	elseif w.at then
+		want = { x = w.at.x, y = w.at.y, z = w.at.z }
+	else
+		return false
+	end
+	local view = M.view
+	if view.yaw == nil then
+		local f = deathcam.point(w.body) and g("Quaternion").forward(U.world_rotation(w.body, 0))
+		view.yaw, view.pitch = f and rig.yaw_of(f) or 0, rig.START_PITCH
+	end
+	local input = M.input
+	local stick = input and M.frame - input.frame <= 4 and input.stick or nil
+	if look then
+		rig.look(view, M.mouse_delta(true), stick, { speed = config.get("look_speed") or 1, invert = config.get("invert_y"), zoom = 1, dt = dt })
+	else
+		M.mouse_delta(false)
+	end
+	local followed = target or w.body
+	if smooth.target ~= followed then smooth.target, smooth.length = followed, nil end
+	M.ride.target, M.ride.kind = nil, nil
+	-- First person hid the helmet of the body; the death cam shows it whole.
+	if next(M.hidden_head) then pcall(M.show_head, env) end
+	M.body.yaw, M.body.turning = nil, false
+	state.aiming, state.firing, state.crosshair, state.sprint_fade = false, false, nil, 1
+	smooth.aim, smooth.dive, smooth.down, smooth.sprint = 0, 0, 0, 0
+	shake.sprint.level = 0
+	smooth.pivot = rig.follow_pivot(smooth.pivot, want, dt)
+	local distance
+	if kind then distance = config.get("vehicle_distance") or 7
+	else distance = (config.get("foot_distance") or 3) + (target and 0 or deathcam.BACK) end
+	local fov, side
+	distance, fov, side = rig.lens({ distance = distance, side = 0, vehicle = kind,
+		fov = kind and (config.get("vehicle_fov") or 70) or (config.get("foot_fov") or 70) })
+	local world, proxy = world_of(cm)
+	local _, dir, full = rig.place(smooth.pivot, view.yaw, view.pitch, distance, side)
+	local hit = M.clear_length(g("World").physics_world(world), smooth.pivot, dir, full)
+	smooth.length = rig.follow_length(smooth.length, rig.pull_in(full, hit), dt)
+	local position = rig.add(smooth.pivot, dir, smooth.length)
+	local sx, sy = shake.offset(dt, shake.factor(config.get("camera_shake")))
+	if sx ~= 0 or sy ~= 0 then
+		local r, u = rig.right(view.yaw), rig.up(view.yaw, view.pitch)
+		position = { x = position.x + r.x * sx + u.x * sy, y = position.y + r.y * sx + u.y * sy, z = position.z + u.z * sy }
+	end
+	state.dropping = false
+	return M.apply(env, cm, dt, { position = position, pitch = view.pitch, fov = fov, avatar = nil, target = followed,
+		kind = kind, world = world, proxy = proxy, ground = want.z, watching = true })
+end
+
 -- One frame of the shoulder camera, after the game's own update.
 function M.drive(env, cm, dt)
 	local state, config = env.state, env.config
 	local why = M.blocked(env, cm)
+	-- This player's Helldiver is dead: the death cam (src/deathcam.lua) watches the body, then allies.
+	-- It stays in the client part: with the game's shared top-down screen, a dead player sees the whole
+	-- squad anyway, so watching an ally shows nothing the game doesn't.
+	if config.get("death_cam") == false then
+		deathcam.reset()
+	elseif why == nil or M.DEATH_WHY[why] then
+		local ok, w, look = pcall(M.watch_step, env, cm, dt)
+		if not ok and not M.warned.watch then
+			M.warned.watch = true
+			env.log("Eyes of Liberty: death cam: " .. tostring(w))
+		end
+		if ok and w then
+			local drew, err = pcall(M.watch_frame, env, cm, dt, w, look)
+			if drew and err then return true end
+			if not drew and not M.warned.watch_frame then
+				M.warned.watch_frame = true
+				env.log("Eyes of Liberty: death cam: " .. tostring(err))
+			end
+		end
+	end
 	if why then
 		if state.active and M.dropped < 20 then
 			M.dropped = M.dropped + 1
-			env.log("Unleashed Camera: top-down view (" .. why .. ")")
+			env.log("Eyes of Liberty: top-down view (" .. why .. ")")
 		end
 		if why == "tpc" and not M.warned.tpc then
 			M.warned.tpc = true
-			obsidian.toast("Unleashed Camera stays off: Third Person Camera is installed.", 8)
+			obsidian.toast("Eyes of Liberty stays off: Third Person Camera is installed.", 8)
 			env.log("Third Person Camera found (HD2CAM_OVERLAY); staying off")
 		elseif why == "shared" and M.last_why ~= "shared" then
 			-- Players on one computer share one screen, which only the top-down camera can show.
 			obsidian.toast(M.SHARED_TEXT, 8)
-			env.log("Unleashed Camera: off while players share this computer")
+			env.log("Eyes of Liberty: off while players share this computer")
 		end
 		M.last_why = why
 		M.release(env, cm)
@@ -501,7 +625,7 @@ function M.drive(env, cm, dt)
 	M.last_why = nil
 	local input = M.input
 	local avatar = input.unit
-	local U, Q, V3, C = g("Unit"), g("Quaternion"), g("Vector3"), g("Camera")
+	local U, Q, V3 = g("Unit"), g("Quaternion"), g("Vector3")
 	local target, kind = M.target(env, avatar)
 	local view = M.view
 	if view.yaw == nil or smooth.target ~= target then
@@ -615,6 +739,17 @@ function M.drive(env, cm, dt)
 		position = { x = position.x + r.x * sx + u.x * sy, y = position.y + r.y * sx + u.y * sy, z = position.z + u.z * sy }
 	end
 
+	return M.apply(env, cm, dt, { position = position, pitch = pitch, fov = fov, avatar = avatar, target = target,
+		kind = kind, world = world, proxy = proxy, ground = p.z, first = first })
+end
+
+-- Puts the drawn camera at pose.position, turned to the view's yaw and pose.pitch, and tells the other
+-- modules (env.on_pose). pose: position, pitch, fov (degrees), avatar, target, kind, world, proxy,
+-- ground (the height the grass gathers about), watching (the death cam).
+function M.apply(env, cm, dt, pose)
+	local state, view = env.state, M.view
+	local Q, V3, C = g("Quaternion"), g("Vector3"), g("Camera")
+	local position, pitch, fov, world, proxy = pose.position, pose.pitch, pose.fov, pose.world, pose.proxy
 	-- Apply.
 	local cam, cam_unit = cm.viewport:get_camera(), cm.viewport.camera_unit
 	local rotation = Q.multiply(Q(V3(0, 0, 1), math.rad(view.yaw)), Q(V3(1, 0, 0), math.rad(pitch)))
@@ -633,7 +768,7 @@ function M.drive(env, cm, dt)
 	local scatter = g("ScatterSystem")
 	if scatter and cm.scatter_system and cm.observer_id then
 		local f = rig.flat_forward(view.yaw)
-		pcall(scatter.move_observer, cm.scatter_system, cm.observer_id, V3(smooth.pivot.x + f.x * 20, smooth.pivot.y + f.y * 20, p.z + 10))
+		pcall(scatter.move_observer, cm.scatter_system, cm.observer_id, V3(smooth.pivot.x + f.x * 20, smooth.pivot.y + f.y * 20, pose.ground + 10))
 	end
 	local tw, M4 = g("TimpaniWorld"), g("Matrix4x4")
 	if tw and M4 and cm.timpani_world then
@@ -641,14 +776,16 @@ function M.drive(env, cm, dt)
 	end
 
 	env.view = { position = position, forward = forward, yaw = view.yaw, pitch = pitch, fov = fov, pivot = smooth.pivot,
-		avatar = avatar, target = target, vehicle = kind, world = world, camera = cam, first = first }
+		avatar = pose.avatar, target = pose.target, vehicle = pose.kind, world = world, camera = cam, watching = pose.watching, first = pose.first }
 	state.active = true
-	state.vehicle = kind ~= nil
+	state.vehicle = pose.kind ~= nil and not pose.watching
+	state.watching = pose.watching and true or false
+	M.watching = state.watching
 	for _, fn in ipairs(env.on_pose) do
 		local ok, err = pcall(fn, env.view, cm, dt)
 		if not ok and not M.warned[fn] then
 			M.warned[fn] = true
-			env.log("Unleashed Camera: " .. tostring(err))
+			env.log("Eyes of Liberty: " .. tostring(err))
 		end
 	end
 	return true
@@ -766,11 +903,11 @@ function M.start(env)
 	-- First person: the body turns with the view (M.turn_body), after the game's facing for the frame.
 	obsidian.hook("CharacterComponent", "update_masters", function(original, self, masters, ...)
 		local r = scoped.pack(original(self, masters, ...))
-		if state.active and M.mode == "first" then
+		if state.active and M.mode == "first" and not M.watching then
 			local ok, err = pcall(M.turn_body, masters)
 			if not ok and not M.warned.body then
 				M.warned.body = true
-				env.log("Unleashed Camera: first person body: " .. tostring(err))
+				env.log("Eyes of Liberty: first person body: " .. tostring(err))
 			end
 		end
 		return unpack(r, 1, r.n)
@@ -804,7 +941,7 @@ function M.start(env)
 		return original(self, path, ...)
 	end, env.VIEW)
 	obsidian.hook("CursorManager", "update", function(original, self, ...)
-		if state.active and M.input and M.input.look and type(self) == "table" then
+		if state.active and (M.watching or (M.input and M.input.look)) and type(self) == "table" then
 			pcall(M.hide_game_cursor, self)
 		end
 		return original(self, ...)
@@ -831,7 +968,7 @@ function M.start(env)
 		hud_flushing = false
 		if not ok and not M.warned.hud then
 			M.warned.hud = true
-			env.log("Unleashed Camera: ship HUD: " .. tostring(err))
+			env.log("Eyes of Liberty: ship HUD: " .. tostring(err))
 		end
 	end
 
@@ -881,7 +1018,7 @@ function M.start(env)
 		shake.game.x, shake.game.y = 0, 0
 		-- The shoulder camera of the last frame goes on unless something stops it in this one.
 		local asked, why = pcall(M.blocked, env, self)
-		local still = state.active and asked and why == nil
+		local still = state.active and asked and (why == nil or (M.watching and M.DEATH_WHY[why] ~= nil))
 		local r
 		if still then
 			r = scoped.pack(M.quiet_update(original, self, dt, ...))
@@ -893,7 +1030,7 @@ function M.start(env)
 		if not ok then
 			if not M.warned.drive then
 				M.warned.drive = true
-				env.log("Unleashed Camera: camera stopped: " .. tostring(drove))
+				env.log("Eyes of Liberty: camera stopped: " .. tostring(drove))
 			end
 			pcall(M.release, env, self)
 		end

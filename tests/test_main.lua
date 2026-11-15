@@ -104,7 +104,7 @@ return {
 		obsidian.import = function(id) if id == "alomare.integratedthirdperson" then return { version = "0.7.0" } end end
 		local export = dofile("main.lua")
 		local said = false
-		for _, l in ipairs(LOGS) do said = said or l:find("toast: Unleashed Camera stays off", 1, true) ~= nil end
+		for _, l in ipairs(LOGS) do said = said or l:find("toast: Eyes of Liberty stays off", 1, true) ~= nil end
 		eq(said, true, "told once")
 		local masters = E.player(e, "me")
 		E.hook("InputComponent", "update_masters")(function() end, {}, masters, 0.016)
@@ -119,6 +119,21 @@ return {
 			end
 		end
 		eq(got, 12, "the throw stays as in the game")
+		E.remove()
+	end },
+
+	{ "Unleashed Camera, the id before this one, also keeps this mod off", function()
+		local e = E.install()
+		obsidian.ui = { canvas = function() return { rect = function() end } end }
+		obsidian.import = function(id) if id == "alomare.unleashedcamera" then return { version = "0.9.1" } end end
+		local export = dofile("main.lua")
+		local said = false
+		for _, l in ipairs(LOGS) do said = said or l:find("toast: Eyes of Liberty stays off: Unleashed Camera", 1, true) ~= nil end
+		eq(said, true, "told, by name")
+		local masters = E.player(e, "me")
+		E.hook("InputComponent", "update_masters")(function() end, {}, masters, 0.016)
+		E.hook("CameraManager", "update")(function() end, CameraManager, 0.016)
+		eq(export.active(), false, "the camera stays top-down")
 		E.remove()
 	end },
 }

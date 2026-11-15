@@ -110,7 +110,8 @@ function M.focus(env, api)
 		return math.max(M.FP_FOCUS_MIN, math.min(M.FP_FOCUS_MAX, d))
 	end
 	local unit = nil
-	if env.view and env.view.avatar then unit = env.view.avatar
+	if env.view and env.view.watching then unit = env.view.target
+	elseif env.view and env.view.avatar then unit = env.view.avatar
 	elseif api.game and api.game.my_unit then unit = api.game.my_unit() end
 	if unit == nil then return nil end
 	local U, C = g("Unit"), g("Camera")
@@ -174,7 +175,7 @@ function M.start(env)
 		local ok, err = pcall(M.frame, env)
 		if not ok then
 			failed = true
-			env.log("Unleashed Camera: look stopped: " .. tostring(err))
+			env.log("Eyes of Liberty: look stopped: " .. tostring(err))
 		end
 	end, env.VIEW)
 end
