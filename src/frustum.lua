@@ -16,6 +16,7 @@ local scoped = obsidian.module("src/scoped")
 local M = {}
 
 M.NAME_HEIGHT = 2.3   -- metres above the feet where a name card goes in the shoulder view
+M.OFF = -100000       -- a screen place far outside any window, for points behind the camera
 
 local function g(name) return rawget(_G, name) end
 
@@ -138,13 +139,26 @@ function M.install(env)
 		return original(self, dt, info, player, unit, health, shield, character, name, remote, ...)
 	end, env.VIEW)
 
+	-- ViewportProxy.world_to_viewport answers Camera.world_to_screen as it is: x, depth, y. HUD plugins
+	-- call it straight (the "!" over the crew on the ship, the busy box, interact prompts), so a point
+	-- behind the shoulder camera, mirrored in front, goes far off screen here too.
+	local function seen(self, v)
+		local cm = g("CameraManager")
+		if state.active and v and type(v.y) == "number" and v.y <= 0 and type(cm) == "table" and cm.viewport == self then
+			return g("Vector3")(M.OFF, v.y, M.OFF)
+		end
+		return v
+	end
 	obsidian.hook("ViewportProxy", "world_to_viewport", function(original, self, p, ...)
 		if naming and asking == 0 and p then
 			naming = false
-			return original(self, g("Vector3")(p.x, p.y, p.z + M.NAME_HEIGHT), ...)
+			return seen(self, original(self, g("Vector3")(p.x, p.y, p.z + M.NAME_HEIGHT), ...))
 		end
 		local yes, cm = ours(self)
-		if not yes then return original(self, p, ...) end
+		if not yes then
+			if asking > 0 then return original(self, p, ...) end
+			return seen(self, original(self, p, ...))
+		end
 		local w, h = self:window()
 		local sx, depth, sy = M.project(top_down(cm), { x = p.x, y = p.y, z = p.z }, w, h)
 		return g("Vector3")(sx, depth, sy)
@@ -164,7 +178,7 @@ function M.install(env)
 	local function off_screen(original, self, p, ...)
 		local v = original(self, p, ...)
 		if state.active and asking == 0 and v and type(v.z) == "number" and v.z <= 0 then
-			return g("Vector3")(-100000, -100000, v.z)
+			return g("Vector3")(M.OFF, M.OFF, v.z)
 		end
 		return v
 	end

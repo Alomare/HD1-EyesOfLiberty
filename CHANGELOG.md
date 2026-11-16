@@ -2,6 +2,10 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## Next
+
+- Fixed: on the ship, the "!" over crew members behind the camera showed mirrored on screen, as if floating in the room. Prompts and name cards behind the camera are hidden the same way.
+
 ## 1.0.2
 
 - New: an icon in Obsidian.

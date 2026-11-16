@@ -579,6 +579,23 @@ return {
 		E.remove()
 	end },
 
+	{ "HUD plugins that ask the viewport straight don't mirror points behind the view", function()
+		local e, env = started()
+		frame(e, env, E.player(e, "me"))
+		local w2v = E.hook("ViewportProxy", "world_to_viewport")
+		-- Camera.world_to_screen as the proxy answers it: x, depth, y.
+		local v = w2v(function() return E.V3(800, -4, 400) end, CameraManager.viewport, E.V3())
+		eq(v.x, -100000) eq(v.z, -100000) eq(v.y, -4, "depth kept")
+		local front = w2v(function() return E.V3(800, 4, 400) end, CameraManager.viewport, E.V3())
+		eq(front.x, 800) eq(front.z, 400)
+		local other = w2v(function() return E.V3(800, -4, 400) end, {}, E.V3())
+		eq(other.x, 800, "another viewport (the galaxy map) is left alone")
+		env.state.active = false
+		local off = w2v(function() return E.V3(800, -4, 400) end, CameraManager.viewport, E.V3())
+		eq(off.x, 800, "top-down is left alone")
+		E.remove()
+	end },
+
 	{ "a vehicle uses the vehicle distance and field of view", function()
 		OPTIONS.vehicle_distance, OPTIONS.vehicle_fov = 8, 80
 		local e, env = started({ vehicles = { kind = function() return "exosuit" end } })
