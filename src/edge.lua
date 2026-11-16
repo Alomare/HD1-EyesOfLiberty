@@ -28,11 +28,10 @@ M.LAYER = 98          -- under the "!" (99) and the busy box (99, 100)
 M.ALLY_HEIGHT = 1.0   -- metres above the feet the marker of an ally points at
 -- Rotations, radians, of the art at rotation 0, as the direction it points on screen (x right, y up).
 -- icon_arrow_01 points left at 0 (menu_screen_base draws the left arrow at 0 and the right one at pi).
--- The map's player arrow points up and to the right at 0 (Hud.draw_map turns it by -(heading + pi/4)).
+-- The map's player arrow points up at 0. Both seen in game (2026-11-16).
 M.ARROW_ART = math.pi
-M.PLAYER_ART = math.pi / 4
--- Gui rotations turn clockwise on screen: Hud.draw_dialogue turns the left arrow by +90 degrees for
--- the arrow at the top of the box.
+M.PLAYER_ART = math.pi / 2
+-- Gui rotations turn clockwise on screen (seen in game: the player arrow at +90 degrees points right).
 M.CLOCKWISE = true
 M.PAUSE = 300         -- frames without markers after an error
 

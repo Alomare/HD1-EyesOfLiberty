@@ -2,7 +2,7 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
-## Next
+## 1.1.0
 
 - New: Edge markers, on by default. In third person, allies, stratagem beacons and objectives out of view show at the edge of the screen, with the icons and colours of the map. Allies show as the player arrow in the colour of the player, red while downed.
 - New: Throw arc, on by default. In third person, while a grenade or a stratagem ball is held, a dashed line shows the way it would fly if thrown now, and a ring where it first lands.

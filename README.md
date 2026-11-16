@@ -2,13 +2,13 @@
 
 A third person camera for HELLDIVERS (2015), for the [Obsidian](https://github.com/Alomare/ObsidianLauncher) mod manager. Formerly Unleashed Camera, and before that Integrated Third Person: remove either one when installing this mod. Based on [Third Person Camera (HD2 Style)](https://github.com/yukiorsrs/third-person-camera-helldivers) by **yukiorsrs**, rebuilt with the permission of the author so that other mods keep working beside it.
 
-The camera follows the Helldiver over the shoulder on foot, in vehicles and on the ship. Shots, grenades and stratagems go where the crosshair points. The view reaches farther, the sky over the level is filled in, a ring around the crosshair warns of enemies close by, and a bar shows where hits come from. After a death the camera stays on the body, then follows a living ally until the Helldiver is back.
+The camera follows the Helldiver over the shoulder on foot, in vehicles and on the ship. Shots, grenades and stratagems go where the crosshair points. The view reaches farther, the sky over the level is filled in, a ring around the crosshair warns of enemies close by, and a bar shows where hits come from. Allies, stratagem beacons and objectives out of view show at the edge of the screen, and a dashed line shows where a held grenade or stratagem ball would fly. After a death the camera stays on the body, then follows a living ally until the Helldiver is back. After extraction it rides the shuttle out.
 
 Third Person Camera replaces 28 game scripts, so mods that change the same parts of the game stop working with it. Eyes of Liberty replaces no script: every change is a hook through Obsidian.
 
 ## How to use
 
-**F8** switches between the top-down camera of the game and third person. **H** swaps the shoulder. Both keys can be changed in Obsidian. On a gamepad, the right stick turns the camera and holding the left trigger aims; while aiming, the reload button throws grenades. While the death cam follows allies, left and right click switch between them.
+**F8** switches between the top-down camera of the game and third person. **H** swaps the shoulder. Both keys can be changed in Obsidian. On a gamepad, the right stick turns the camera and holding the left trigger aims; while aiming, the reload button throws grenades. A tap of the right stick swaps the shoulder. While the death cam follows allies, left and right click switch between them.
 
 ## Playing with others
 
