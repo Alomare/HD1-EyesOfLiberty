@@ -417,6 +417,7 @@ end
 
 -- The reasons to stay top-down that a death explains: the dead Helldiver reads no input, or is gone.
 M.DEATH_WHY = { no_input = true, no_avatar = true }
+M.RIDE_PITCH = -20    -- degrees: the extraction ride looks at least this far down when it starts
 M.watching = false
 
 -- Whether the mouse may turn the death cam: the window has focus and no menu cursor is up (the game's
@@ -478,6 +479,11 @@ function M.watch_frame(env, cm, dt, w, look)
 		return false
 	end
 	local view = M.view
+	if w.ride and not w.turned then
+		-- The ride starts looking down on the shuttle from a little higher than the shoulder view.
+		w.turned = true
+		view.pitch = math.min(view.pitch or rig.START_PITCH, M.RIDE_PITCH)
+	end
 	if view.yaw == nil then
 		local f = deathcam.point(w.body) and g("Quaternion").forward(U.world_rotation(w.body, 0))
 		view.yaw, view.pitch = f and rig.yaw_of(f) or 0, rig.START_PITCH
@@ -498,6 +504,7 @@ function M.watch_frame(env, cm, dt, w, look)
 	smooth.pivot = rig.follow_pivot(smooth.pivot, want, dt)
 	local distance
 	if kind then distance = config.get("vehicle_distance") or 7
+	elseif w.ride then distance = deathcam.RIDE_DISTANCE
 	else distance = (config.get("foot_distance") or 3) + (target and 0 or deathcam.BACK) end
 	local fov, side
 	distance, fov, side = rig.lens({ distance = distance, side = 0, vehicle = kind,
@@ -524,7 +531,9 @@ function M.drive(env, cm, dt)
 	-- This player's Helldiver is dead: the death cam (src/deathcam.lua) watches the body, then allies.
 	-- It stays in the client part: with the game's shared top-down screen, a dead player sees the whole
 	-- squad anyway, so watching an ally shows nothing the game doesn't.
-	if config.get("death_cam") == false then
+	deathcam.dead_on = config.get("death_cam") ~= false
+	deathcam.ride_on = config.get("extraction_camera") ~= false
+	if not (deathcam.dead_on or deathcam.ride_on) then
 		deathcam.reset()
 	elseif why == nil or M.DEATH_WHY[why] then
 		local ok, w, look = pcall(M.watch_step, env, cm, dt)
@@ -781,6 +790,14 @@ function M.start(env)
 			M.particles[name] = { aspect = aspect, scale = 1 }
 		end
 		return unpack(r, 1, r.n)
+	end, env.VIEW)
+	-- The extraction ride: the shuttle this player's Helldiver boards (src/deathcam.lua).
+	obsidian.hook("StateGame", "on_avatar_extract", function(original, self, avatar, shuttle, ...)
+		local cm = g("CameraManager")
+		if type(cm) == "table" and cm.viewport then
+			pcall(function() deathcam.board(avatar, shuttle, (world_of(cm))) end)
+		end
+		return original(self, avatar, shuttle, ...)
 	end, env.VIEW)
 	obsidian.hook("CameraManager", "remove_camera_particle", function(original, self, name, ...)
 		M.particles[name] = nil

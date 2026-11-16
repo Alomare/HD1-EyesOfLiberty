@@ -7,7 +7,13 @@
 --   - with nobody left alive, game_over_timer runs out and the mission ends; the watch lasts until the
 --     game's camera state changes
 -- The watch starts only for a death seen while the camera ran in the same world, so a new mission or
--- the ship never starts on a stale body. A player who extracted isn't dead.
+-- the ship never starts on a stale body. A player who extracted isn't dead: the camera rides the
+-- shuttle out instead (the extraction ride), until the mission ends.
+--
+-- Boarding: ObjectiveExtractLZComponent.overlap_callback_extract_players raises "on_avatar_extract"
+-- (avatar, shuttle) on the machine that owns the avatar, and StateGame.on_avatar_extract clears the
+-- player's avatar_unit and sets has_extracted (state_game.lua). src/camera.lua hands the shuttle over
+-- through M.board.
 local M = {}
 
 local function g(name) return rawget(_G, name) end
@@ -15,6 +21,13 @@ local function g(name) return rawget(_G, name) end
 M.ALLY_DELAY = 4      -- seconds on the body before the camera moves to a living ally
 M.BODY_LIFT = 0.6     -- metres above the hips that the camera turns about
 M.BACK = 1.5          -- metres farther back than the on-foot distance, so the body shows whole
+M.RIDE_LIFT = 3       -- metres above the shuttle's root that the ride camera turns about
+M.RIDE_DISTANCE = 16  -- metres between the ride camera and the shuttle
+
+-- The shuttle this player's Helldiver boarded: { unit, world }, until the next living Helldiver.
+M.shuttle = nil
+-- Whether the extraction ride runs (the Extraction camera option).
+M.ride_on = true
 
 -- The living Helldiver last seen: { unit, world, at }.
 M.mine = nil
@@ -44,6 +57,14 @@ function M.point(unit, lift)
 		return { x = v.x, y = v.y, z = v.z + (lift or 0) }
 	end)
 	return ok and p or nil
+end
+
+-- This player's Helldiver boarded the shuttle `shuttle` in `world`.
+function M.board(avatar, shuttle, world)
+	local mine = M.mine
+	if mine and avatar ~= nil and avatar == mine.unit and shuttle ~= nil then
+		M.shuttle = { unit = shuttle, world = world }
+	end
 end
 
 -- Whether this player has left the mission by extraction.
@@ -94,20 +115,37 @@ function M.update(api, world, dt, step)
 			M.mine = mine
 		end
 		mine.at = M.point(unit, M.BODY_LIFT) or mine.at
-		M.watch = nil
+		M.watch, M.shuttle = nil, nil
 		return nil
 	end
 	local w = M.watch
 	if not w then
 		local mine = M.mine
-		if not (mine and mine.world == world) or M.extracted(api) then
+		if not (mine and mine.world == world) then
 			M.mine = nil
 			return nil
 		end
-		w = { body = mine.unit, at = mine.at, t = 0, ally = nil, world = world }
-		M.watch = w
+		if M.extracted(api) then
+			local ride = M.shuttle
+			if not (M.ride_on and ride and ride.world == world and M.point(ride.unit)) then
+				M.mine = nil
+				return nil
+			end
+			w = { body = ride.unit, at = M.point(ride.unit, M.RIDE_LIFT), t = 0, ally = nil, world = world, ride = true }
+			M.watch = w
+		elseif not M.dead_on then
+			return nil
+		else
+			w = { body = mine.unit, at = mine.at, t = 0, ally = nil, world = world }
+			M.watch = w
+		end
 	end
 	w.t = w.t + math.max(0, dt or 0)
+	-- The ride follows the shuttle up and away; allies left behind don't take the camera.
+	if w.ride then
+		w.at = M.point(w.body, M.RIDE_LIFT) or w.at
+		return w
+	end
 	-- The body, while the game keeps it; its last point after.
 	if w.ally == nil then w.at = M.point(w.body, M.BODY_LIFT) or w.at end
 	local list = M.allies(api, w.body)
@@ -126,7 +164,10 @@ end
 
 -- Forgets the watch and the Helldiver behind it (leaving the mission, tests).
 function M.reset()
-	M.mine, M.watch = nil, nil
+	M.mine, M.watch, M.shuttle = nil, nil, nil
 end
+
+-- Whether the death cam runs (the Death cam option); the ride follows M.ride_on.
+M.dead_on = true
 
 return M

@@ -118,6 +118,35 @@ return {
 		E.remove()
 	end },
 
+	{ "after boarding, the camera rides the shuttle and no ally takes it", function()
+		local e = E.install()
+		local g = game_api(e)
+		local d = D()
+		d.reset()
+		body(e, "me", 0) body(e, "ally", 10) body(e, "shuttle", 50)
+		g.others = { "ally" }
+		d.update(g.api, "world", 0.1)
+		d.board("someone else", "shuttle", "world")
+		eq(d.shuttle, nil, "another player's boarding is not ours")
+		d.board("me", "shuttle", "world")
+		g.mine, g.extracted = nil, true
+		local w = d.update(g.api, "world", 0.1)
+		assert(w and w.ride, "the ride")
+		eq(w.body, "shuttle") near(w.at.x, 50) near(w.at.z, d.RIDE_LIFT)
+		e.units.shuttle.position.z = 30
+		w = d.update(g.api, "world", 10)
+		eq(w.ally, nil, "allies stay behind") near(w.at.z, 30 + d.RIDE_LIFT, "follows the shuttle up")
+		d.reset()
+		body(e, "me", 0) g.mine, g.extracted = "me", false
+		d.update(g.api, "world", 0.1)
+		d.board("me", "shuttle", "world")
+		d.ride_on = false
+		g.mine, g.extracted = nil, true
+		eq(d.update(g.api, "world", 0.1), nil, "the option off: no ride")
+		d.ride_on = true
+		E.remove()
+	end },
+
 	{ "the camera keeps drawing after a death: farther back, no crosshair, then the ally", function()
 		local e = E.install()
 		local g = game_api(e)
