@@ -68,6 +68,7 @@
     "src/hits.lua",
     "src/look.lua",
     "src/edge.lua",
+    "src/arc.lua",
     "src/session.lua"
   ],
   "requires": [
@@ -162,6 +163,10 @@
       "group": "indicators", "part": "view", "scope": "client",
       "label": { "en": "Edge markers" },
       "description": { "en": "In third person, allies, stratagem beacons and objectives out of view show at the edge of the screen, with the icons and colours of the map. Allies show as the player arrow in the colour of the player, red while downed." } },
+    { "id": "throw_arc", "type": "toggle", "default": true,
+      "group": "indicators", "part": "view", "scope": "client",
+      "label": { "en": "Throw arc" },
+      "description": { "en": "In third person, while a grenade or a stratagem ball is held, a dashed line shows the way it would fly if thrown now, and a ring where it first lands." } },
     { "id": "names_above", "type": "toggle", "default": true,
       "group": "indicators", "part": "view", "scope": "client",
       "label": { "en": "Names above heads" },
