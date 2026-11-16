@@ -112,6 +112,11 @@ return {
 		local mouse = cam.read_input(nil, "me", { state = { pad_number = 99, has_focus = true,
 			input_data = { is_active = true, fire_button = 0, throw = 0, left_trigger = 1 } } }, false, 0.016)
 		eq(mouse.pad_aim, nil, "keyboard and mouse untouched")
+		eq(read({ push_to_talk = 1 }).swap, false, "pressed: not yet")
+		eq(read({ push_to_talk = 0 }).swap, true, "a right stick tap swaps the shoulder")
+		eq(read({ push_to_talk = 0 }).swap, false, "once")
+		for _ = 1, 30 do read({ push_to_talk = 1 }) end
+		eq(read({ push_to_talk = 0 }).swap, false, "holding it to talk doesn't swap")
 		E.remove()
 	end },
 

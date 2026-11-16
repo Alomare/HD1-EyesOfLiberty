@@ -4,6 +4,8 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 
 ## Next
 
+- New: Edge markers, on by default. In third person, allies, stratagem beacons and objectives out of view show at the edge of the screen, with the icons and colours of the map. Allies show as the player arrow in the colour of the player, red while downed.
+- New: on a gamepad, a tap of the right stick swaps the shoulder. Holding it to talk does not.
 - Fixed: on the ship, the "!" over crew members behind the camera showed mirrored on screen, as if floating in the room. Prompts and name cards behind the camera are hidden the same way.
 
 ## 1.0.2

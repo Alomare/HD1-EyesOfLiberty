@@ -54,7 +54,7 @@ local env = {
 config.start(env)
 
 local started = {}
-for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/look", "src/session" }) do
+for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/look", "src/edge", "src/session" }) do
 	local ok, err = pcall(function()
 		local m = obsidian.module(name)
 		if m and m.start then m.start(env) end

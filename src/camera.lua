@@ -51,6 +51,8 @@ M.LAND_SHAKE = { 0.35, 9, 0.8 }
 function M.pod_landed()
 	if M.drop and pod.land(M.drop) then shake.add(M.LAND_SHAKE[1], M.LAND_SHAKE[2], M.LAND_SHAKE[3]) end
 end
+M.TAP = 0.35          -- seconds: a right stick click shorter than this swaps the shoulder
+M.stick_held = nil    -- seconds the right stick has been held down, nil when up
 M.input = nil         -- the local player's input this frame (from InputComponent.update_masters)
 M.frame = 0
 M.warned = {}
@@ -158,13 +160,27 @@ function M.read_input(self, unit, ctx, shared, dt)
 			throw = pad_throw > 0.1
 		end
 	end
+	-- A tap of the right stick swaps the shoulder. The game's pad layout reads that button as
+	-- push_to_talk, held (controller_settings.lua), and its press only on a Vita, so a short tap is
+	-- free: the swap comes when the button lets go within M.TAP seconds, and talking doesn't swap.
+	local swap = false
+	if active and not kbm then
+		local held = type(data.push_to_talk) == "number" and data.push_to_talk > 0.5 or data.push_to_talk == true
+		if held then
+			M.stick_held = (M.stick_held or 0) + (dt or 0)
+		else
+			swap = look and M.stick_held ~= nil and M.stick_held <= M.TAP or false
+			M.stick_held = nil
+		end
+	end
 	local stick = nil
 	if active and not kbm and data.aim then
 		local ok, x, y = pcall(function() return data.aim.x, data.aim.y end)
 		if ok then stick = { x = x or 0, y = y or 0 } end
 	end
 	M.input = { frame = M.frame, unit = unit, ctx = ctx, kbm = kbm, look = look, fire = fire, throw = throw,
-		aiming = aiming, stick = look and stick or nil, shared = shared, dt = dt, pad_aim = pad_aim, pad_throw = pad_throw }
+		aiming = aiming, stick = look and stick or nil, shared = shared, dt = dt, pad_aim = pad_aim, pad_throw = pad_throw,
+		swap = swap }
 	return M.input
 end
 
@@ -177,6 +193,18 @@ function M.pad_buttons(data, input)
 	data.throw_amount = amount
 	data.reload = false
 	return true
+end
+
+-- The swap key, or a click of the right stick: the other shoulder on foot, in a vehicle the next of
+-- left, middle and right.
+function M.swap_shoulder(state)
+	if state.vehicle then
+		if not M.ride.kind then return end
+		M.ride.side = rig.next_vehicle_side(M.ride.side)
+		M.vehicle_sides[M.ride.kind] = M.ride.side
+		return
+	end
+	M.view.side = -M.view.side
 end
 
 -- Why the view stays top-down now, or nil when the shoulder camera can steer it.
@@ -765,7 +793,10 @@ function M.start(env)
 	local function leave() inside = false end
 	obsidian.hook("InputComponent", "update_masters", function(original, self, masters, dt, ...)
 		local unit, ctx, shared = M.local_master(masters, env.api)
-		if unit then M.read_input(self, unit, ctx, shared, dt) end
+		if unit then
+			M.read_input(self, unit, ctx, shared, dt)
+			if M.input.swap and state.active then M.swap_shoulder(state) end
+		end
 		if not (state.active and M.view.yaw) then return original(self, masters, dt, ...) end
 		if M.input and M.input.look then
 			local st = ctx and ctx.state
@@ -930,14 +961,7 @@ function M.start(env)
 	end, env.KEY_VIEW)
 
 	obsidian.keybind("swap_shoulder", function()
-		if not state.active then return end
-		if state.vehicle then
-			if not M.ride.kind then return end
-			M.ride.side = rig.next_vehicle_side(M.ride.side)
-			M.vehicle_sides[M.ride.kind] = M.ride.side
-			return
-		end
-		M.view.side = -M.view.side
+		if state.active then M.swap_shoulder(state) end
 	end, env.KEY_VIEW)
 end
 
