@@ -9,9 +9,9 @@
 -- throw_range_multiplier (Strong Arm). The Increased throw range part doubles both distances while it
 -- runs (src/session.lua).
 --
--- The look is the map's: the dashes are "map_carry_objective_dash", the moving line the map draws from
--- a carried objective to where it goes (Hud.draw_map), white, scrolling the same way; the ring is
--- "distractor_ping", the map's ping, laid flat on the ground in perspective.
+-- The look: short white dashes scrolling along the flight like the map's moving line (Hud.draw_map),
+-- drawn as plain bars (Gui.rect_3d, as HdGui.rotated_rect) since the map's dash art carries its own
+-- colour; the ring is "distractor_ping", the map's ping, laid flat on the ground in perspective.
 local frustum = obsidian.module("src/frustum")
 
 local M = {}
@@ -19,12 +19,13 @@ local M = {}
 M.GRAVITY = 18        -- m/s^2, PhysicsWorld.set_gravity in state_game
 M.STEP = 1 / 30       -- seconds per piece of the flight
 M.MAX_TIME = 4        -- seconds of flight at the most
-M.DASH = 16           -- design pixels (1280 x 720), as on the map
-M.DASH_EVERY = 0.9    -- metres between two dashes along the flight
+M.DASH = 8            -- design pixels (1280 x 720), the length of a dash at 6 m
+M.DASH_WIDTH = 2.4    -- design pixels, how thick a dash is at 6 m
+M.DASH_EVERY = 0.6    -- metres between two dashes along the flight
 M.SCROLL = 1.2        -- metres a second the dashes move along the flight
 M.RING = 0.9          -- metres, radius of the ring on the ground
 M.LAYER = 97
-M.ALPHA = 200         -- the dashes and the ring, out of 255
+M.ALPHA = 100         -- the dashes and the ring, out of 255
 -- The dash art lies along screen x at rotation 0; Gui rotations turn clockwise (see src/edge.lua).
 M.DASH_ART = 0
 M.THROW_STATES = { "CharacterStateThrow", "CharacterStateStratagemsThrow", "CharacterStateDownedThrow",
@@ -168,7 +169,7 @@ function M.draw(hud, env, scale, dt)
 	local points, land = M.fly(start, v, ground_hit(pw))
 	local w, h = cm.viewport:window()
 	local cam = frustum.camera_from(view.position, view.forward, math.rad(view.fov or 70))
-	local V2, V3, C = g("Vector2"), g("Vector3"), g("Color")
+	local V2, V3, C, G, R2D = g("Vector2"), g("Vector3"), g("Color"), g("Gui"), g("Rotation2D")
 	local s = gui.ui_scale or h / 720
 	M.scroll = (M.scroll + (dt or 0) * M.SCROLL) % M.DASH_EVERY
 	gui:set_ignore_position_scale(true)
@@ -185,9 +186,13 @@ function M.draw(hud, env, scale, dt)
 			local x2, y2 = screen({ x = d.x + d.dx * 0.1, y = d.y + d.dy * 0.1, z = d.z + d.dz * 0.1 })
 			if x2 then
 				-- Dashes shrink with distance, as if lying in the air, from the map's size at 6 m.
-				local size = M.DASH * s * min(1.5, max(0.35, 6 / depth))
+				local k = s * min(1.5, max(0.35, 6 / depth))
+				local len, wid = M.DASH * k, M.DASH_WIDTH * k
 				local a = -(atan2(y2 - y, x2 - x) - M.DASH_ART)
-				gui:rotated_image("map_carry_objective_dash", V3(x - size / 2, y - size / 2, M.LAYER), V2(size, size), a, colour)
+				-- A plain white bar turned about its middle, as HdGui.rotated_image turns an image
+				-- (Gui.bitmap_3d_uv), through Gui.rect_3d as HdGui.rotated_rect does.
+				local at = V3(x - len / 2, y - wid / 2, 0)
+				G.rect_3d(gui.gui, R2D(at, a, at + V2(len / 2, wid / 2)), V3(0, 0, 0), M.LAYER, V2(len, wid), colour)
 			end
 		end
 	end

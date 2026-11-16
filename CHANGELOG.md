@@ -2,9 +2,10 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
-## Next
+## 0.10.0
 
 - Changed: The vehicle and mech camera sits 1.5 m higher in every view.
+- Changed: The throw arc is white, with more frequent, fainter and thinner dashes.
 - Fixed: The extraction camera follows the shuttle when it takes off.
 - Fixed: The extraction camera no longer clips into the shuttle while turning.
 - Fixed: Placing a map marker from a mech no longer fires the mech.
