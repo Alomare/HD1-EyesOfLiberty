@@ -55,6 +55,24 @@ function M.unproject(cam, x, y, depth, w, h)
 	return rig.add(p, cam.up, ny * depth * ty)
 end
 
+-- Where a point behind the camera goes on a w by h screen: far off screen on the side to turn to, as
+-- if it stood in front (behind and to the right goes right), straight down for a point dead behind.
+-- The game's off-screen marker of a player (Hud.draw_player_name_in_world, "icon_outofscreen_player_01")
+-- clamps such a place to the edge of the screen and points at it.
+function M.behind(cam, p, w, h)
+	local d = rig.sub(p, cam.position)
+	local dx, dy = rig.dot(d, cam.right), rig.dot(d, cam.up)
+	if dx * dx + dy * dy < 1e-12 then dx, dy = 0, -1 end
+	-- Just past the edge along the way, not far out: the game clamps x and y each on their own, so a
+	-- point far out would slide into a corner.
+	local t = math.huge
+	if math.abs(dx) > 1e-9 then t = math.min(t, (w / 2) / math.abs(dx)) end
+	if math.abs(dy) > 1e-9 then t = math.min(t, (h / 2) / math.abs(dy)) end
+	t = t * M.PAST
+	return w / 2 + dx * t, h / 2 + dy * t
+end
+M.PAST = 1.1          -- how far past the screen edge a point behind is put, as a share of the way there
+
 -- The top-down pose the game's CameraManager keeps, as a camera.
 function M.top_down(cm)
 	local V3A, QA, Q = g("Vector3Aux"), g("QuaternionAux"), g("Quaternion")
@@ -67,6 +85,47 @@ end
 function M.own_card(env, unit, remote)
 	local view = env.view
 	return env.state.active and not remote and view ~= nil and unit ~= nil and unit == view.avatar
+end
+
+-- The red of a downed player's name card, t from 0 to 1 over the heartbeat (Hud.draw_player_name_in_world).
+function M.downed_rgb(health)
+	local t = 1
+	if type(health) == "table" and type(health.downed_heartbeat_interval) == "number"
+		and type(health.downed_heartbeat_timer) == "number" then
+		t = math.min((health.downed_heartbeat_interval - health.downed_heartbeat_timer) * 2, 1)
+		if t < 0 then t = 0 end
+	end
+	return 200, 64 + 136 * t, 64 + 136 * t
+end
+
+-- Whether the game draws a name card as its off-screen marker: the same test as
+-- Hud.draw_player_name_in_world, on info.screen_pos_immediate and the gui's screen size.
+function M.card_off_screen(gui, info)
+	local p = type(info) == "table" and info.screen_pos_immediate
+	local res = gui.screen_resolution
+	if not (p and res) then return false end
+	return not (p.x > 0 and p.x < res.width and p.y > 0 and p.y < res.height)
+end
+
+-- Runs the game's name card of a downed player with its off-screen marker and name in that red. The
+-- game draws the marker white and the name grey there; on screen it already reddens the name itself.
+function M.downed_marker(gui, health, info, original, ...)
+	if not M.card_off_screen(gui, info) then return original(...) end
+	local r, gg, b = M.downed_rgb(health)
+	local red = g("Color")(255, r, gg, b)
+	local names = { "rotated_image", "update_text", "create_text" }
+	local own, real = {}, {}
+	for _, n in ipairs(names) do own[n], real[n] = rawget(gui, n), gui[n] end
+	gui.rotated_image = function(s, icon, pos, size, angle, colour, ...)
+		if icon == "icon_outofscreen_player_01" then colour = red end
+		return real.rotated_image(s, icon, pos, size, angle, colour, ...)
+	end
+	gui.update_text = function(s, id, text, pos, colour, ...) return real.update_text(s, id, text, pos, red, ...) end
+	gui.create_text = function(s, text, pos, colour, ...) return real.create_text(s, text, pos, red, ...) end
+	local results = { pcall(original, ...) }
+	for _, n in ipairs(names) do rawset(gui, n, own[n]) end
+	if not results[1] then error(results[2], 0) end
+	return unpack(results, 2, table.maxn(results))
 end
 
 -- Removes the text of a name card the game made already.
@@ -136,15 +195,27 @@ function M.install(env)
 			pcall(M.drop_card, self, info)
 			return
 		end
+		if state.active and type(health) == "table" and health.is_downed and type(self) == "table" and self.hd_gui then
+			return M.downed_marker(self.hd_gui, health, info, original, self, dt, info, player, unit, health, shield,
+				character, name, remote, ...)
+		end
 		return original(self, dt, info, player, unit, health, shield, character, name, remote, ...)
 	end, env.VIEW)
 
 	-- ViewportProxy.world_to_viewport answers Camera.world_to_screen as it is: x, depth, y. HUD plugins
-	-- call it straight (the "!" over the crew on the ship, the busy box, interact prompts), so a point
-	-- behind the shoulder camera, mirrored in front, goes far off screen here too.
-	local function seen(self, v)
+	-- call it straight (the "!" over the crew on the ship, the busy box, interact prompts, the player name
+	-- cards), so a point behind the shoulder camera, mirrored in front, goes far off screen here too, on
+	-- the side to turn to (M.behind).
+	local function seen(self, v, p)
 		local cm = g("CameraManager")
 		if state.active and v and type(v.y) == "number" and v.y <= 0 and type(cm) == "table" and cm.viewport == self then
+			local view = env.view
+			if p and view and view.position and view.forward then
+				local w, h = self:window()
+				local ok, x, y = pcall(M.behind, M.camera_from(view.position, view.forward, math.rad(view.fov or 70)),
+					{ x = p.x, y = p.y, z = p.z }, w or 1920, h or 1080)
+				if ok then return g("Vector3")(x, v.y, y) end
+			end
 			return g("Vector3")(M.OFF, v.y, M.OFF)
 		end
 		return v
@@ -152,12 +223,13 @@ function M.install(env)
 	obsidian.hook("ViewportProxy", "world_to_viewport", function(original, self, p, ...)
 		if naming and asking == 0 and p then
 			naming = false
-			return seen(self, original(self, g("Vector3")(p.x, p.y, p.z + M.NAME_HEIGHT), ...))
+			local up = g("Vector3")(p.x, p.y, p.z + M.NAME_HEIGHT)
+			return seen(self, original(self, up, ...), up)
 		end
 		local yes, cm = ours(self)
 		if not yes then
 			if asking > 0 then return original(self, p, ...) end
-			return seen(self, original(self, p, ...))
+			return seen(self, original(self, p, ...), p)
 		end
 		local w, h = self:window()
 		local sx, depth, sy = M.project(top_down(cm), { x = p.x, y = p.y, z = p.z }, w, h)
@@ -178,6 +250,15 @@ function M.install(env)
 	local function off_screen(original, self, p, ...)
 		local v = original(self, p, ...)
 		if state.active and asking == 0 and v and type(v.z) == "number" and v.z <= 0 then
+			local view = env.view
+			if p and view and view.position and view.forward and type(self) == "table" and self.viewport then
+				local ok, x, y = pcall(function()
+					local w, h = self.viewport:window()
+					return M.behind(M.camera_from(view.position, view.forward, math.rad(view.fov or 70)),
+						{ x = p.x, y = p.y, z = p.z }, w, h)
+				end)
+				if ok and x then return g("Vector3")(x, y, v.z) end
+			end
 			return g("Vector3")(M.OFF, M.OFF, v.z)
 		end
 		return v

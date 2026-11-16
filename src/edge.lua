@@ -1,12 +1,10 @@
--- Edge markers: in third person, allies, stratagem beacons and objectives out of view show at the edge
--- of the screen, on the side to turn to.
+-- Edge markers: in third person, stratagem beacons and objectives out of view show at the edge of the
+-- screen, on the side to turn to. Allies out of view have the game's own marker (the name card's
+-- "icon_outofscreen_player_01", Hud.draw_player_name_in_world), which src/frustum.lua points the right
+-- way for allies behind the camera and reddens for a downed ally.
 --
 -- Nothing here is drawn in a look of its own. Each marker is the icon the game's map draws for the thing,
 -- in the map's colours, on the HUD gui (Hud.hd_gui) the game draws the "!" over the crew with:
---   ally             "icon_map_player_01", the map's player arrow, in the colour of that player
---                    (GameSettings.player_colors, as on the HUD panel), pointing toward the ally
---   downed ally      the same arrow in the red heartbeat the game gives a downed player's name card
---                    (Hud.draw_player_name_in_world: Color(255, 200, 64 + 136 t, 64 + 136 t))
 --   stratagem beacon the stratagem's own icon (LoadoutSettings.stratagems[id].icon), at the size of the
 --                    countdown list (HudSettings.settings.stratagem_countdown_list.stratagem_icon.size),
 --                    while it counts down
@@ -19,18 +17,16 @@ local frustum = obsidian.module("src/frustum")
 local M = {}
 
 M.INSET = 22          -- design pixels (1280 x 720) between a marker and the screen edge
-M.PLAYER = 24         -- the map's player arrow, design pixels (Hud.draw_map: 24 for oneself, 16 for others)
+M.INSET_BOTTOM = 96   -- at the bottom, above the player panels of the HUD
 M.OBJECTIVE = 32      -- objective icon, design pixels (Hud.draw_map)
 M.BEACON = 32         -- fallback when the HUD settings have no countdown icon size
 M.ARROW = 16          -- icon_arrow_01, design pixels (menu_screen_base: 16 for small arrows)
 M.ARROW_GAP = 2       -- design pixels between an icon and its arrow
 M.LAYER = 98          -- under the "!" (99) and the busy box (99, 100)
-M.ALLY_HEIGHT = 1.0   -- metres above the feet the marker of an ally points at
 -- Rotations, radians, of the art at rotation 0, as the direction it points on screen (x right, y up).
 -- icon_arrow_01 points left at 0 (menu_screen_base draws the left arrow at 0 and the right one at pi).
--- The map's player arrow points up at 0. Both seen in game (2026-11-16).
+-- Seen in game (2026-11-16).
 M.ARROW_ART = math.pi
-M.PLAYER_ART = math.pi / 2
 -- Gui rotations turn clockwise on screen (seen in game: the player arrow at +90 degrees points right).
 M.CLOCKWISE = true
 M.PAUSE = 300         -- frames without markers after an error
@@ -62,9 +58,11 @@ function M.locate(cam, p, w, h, inset)
 	return false, nil, nil, dx, dy
 end
 
--- The point on the edge of the screen, `inset` pixels in, along (dx, dy) from the middle.
-function M.edge(dx, dy, w, h, inset)
-	local hw, hh = w / 2 - inset, h / 2 - inset
+-- The point on the edge of the screen, `inset` pixels in (`bottom` at the bottom), along (dx, dy) from
+-- the middle.
+function M.edge(dx, dy, w, h, inset, bottom)
+	local hw = w / 2 - inset
+	local hh = dy < 0 and h / 2 - (bottom or inset) or h / 2 - inset
 	local t = math.huge
 	if math.abs(dx) > 1e-9 then t = min(t, hw / math.abs(dx)) end
 	if math.abs(dy) > 1e-9 then t = min(t, hh / math.abs(dy)) end
@@ -77,17 +75,6 @@ function M.turn(art, toward)
 	if M.CLOCKWISE then a = -a end
 	a = (a + pi) % (2 * pi) - pi
 	return a
-end
-
--- The red of a downed player's name card: t from 0 to 1 over the heartbeat (Hud.draw_player_name_in_world).
-function M.downed_rgb(health)
-	local t = 1
-	if type(health) == "table" and type(health.downed_heartbeat_interval) == "number"
-		and type(health.downed_heartbeat_timer) == "number" then
-		t = min((health.downed_heartbeat_interval - health.downed_heartbeat_timer) * 2, 1)
-		if t < 0 then t = 0 end
-	end
-	return 200, 64 + 136 * t, 64 + 136 * t
 end
 
 -- Game parts ----------------------------------------------------------------------------------------
@@ -110,33 +97,10 @@ local function size_of(setting, fallback)
 	return fallback, fallback
 end
 
--- The things to mark this frame: calls fn(kind, position, icon, width, height, colour, extra).
--- kind is "ally" or "thing"; for an ally, extra is its HUD index.
+-- The things to mark this frame: calls fn(kind, position, icon, width, height, colour).
 function M.gather(hud, api, fn)
 	local U, EA, C = g("Unit"), g("EntityAux"), g("Color")
 	local me = api.game.my_unit and api.game.my_unit()
-	-- Allies.
-	local GS = g("GameSettings")
-	if type(hud.players) == "table" then
-		for i, player in ipairs(hud.players) do
-			local go = player.player_go
-			local unit = go and go.exists and go:exists() and go:get("avatar_unit")
-			if unit ~= nil and unit ~= me and U.alive(unit) then
-				local health = EA.state(unit, "health")
-				if health and not health.is_dead then
-					local c
-					if health.is_downed then
-						c = C(255, M.downed_rgb(health))
-					else
-						local info = type(hud.hud_info) == "table" and hud.hud_info[i]
-						c = colour(info and info.player_color or (GS and GS.player_colors and GS.player_colors[i]), C(255, 255, 180, 75))
-					end
-					local p = U.world_position(unit, 0)
-					fn("ally", { x = p.x, y = p.y, z = p.z + M.ALLY_HEIGHT }, "icon_map_player_01", M.PLAYER, M.PLAYER, c, i)
-				end
-			end
-		end
-	end
 	-- Stratagem beacons counting down.
 	local em = hud.entity_manager
 	local LS = g("LoadoutSettings")
@@ -197,16 +161,11 @@ function M.draw(hud, env)
 	local arrow = M.ARROW * scale
 	M.gather(hud, env.api, function(kind, p, icon, iw, ih, c)
 		local big = (iw > ih and iw or ih) * scale
-		local room = inset + big / 2 + (kind == "ally" and 0 or arrow + M.ARROW_GAP * scale)
+		local room = big / 2 + arrow + M.ARROW_GAP * scale
 		local on, _, _, dx, dy = M.locate(cam, p, w, h, 0)
 		if on then return end
-		local x, y = M.edge(dx, dy, w, h, room)
+		local x, y = M.edge(dx, dy, w, h, inset + room, M.INSET_BOTTOM * scale + room)
 		local toward = atan2(dy, dx)
-		if kind == "ally" then
-			gui:rotated_image(icon, V3(x - iw * scale / 2, y - ih * scale / 2, M.LAYER), V2(iw, ih),
-				M.turn(M.PLAYER_ART, toward), c)
-			return
-		end
 		gui:image(icon, V3(x - iw * scale / 2, y - ih * scale / 2, M.LAYER), V2(iw, ih), c)
 		local len = sqrt(dx * dx + dy * dy)
 		local ux, uy = dx / len, dy / len

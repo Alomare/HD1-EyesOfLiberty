@@ -2,6 +2,11 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 1.1.1
+
+- Changed: Edge markers leave allies to the off-screen marker of the game, with the name. That marker now points the right way for allies behind the camera, and turns red while the ally is down.
+- Fixed: edge markers at the bottom of the screen sat behind the player panels.
+
 ## 1.1.0
 
 - New: Edge markers, on by default. In third person, allies, stratagem beacons and objectives out of view show at the edge of the screen, with the icons and colours of the map. Allies show as the player arrow in the colour of the player, red while downed.

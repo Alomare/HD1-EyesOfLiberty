@@ -77,15 +77,14 @@ return {
 		near(math.abs(m.turn(math.pi, 0)), math.pi, "left to right is half a turn")
 	end },
 
-	{ "a downed ally's red follows the heartbeat", function()
-		local m = edge()
-		local r, gg, b = m.downed_rgb({ downed_heartbeat_interval = 1, downed_heartbeat_timer = 1 })
-		eq(r, 200) eq(gg, 64) eq(b, 64)
-		r, gg = m.downed_rgb({ downed_heartbeat_interval = 1, downed_heartbeat_timer = 0 })
-		eq(gg, 200, "between beats the name card is grey again")
+	{ "the bottom inset keeps markers above the player panels", function()
+		local _, y = edge().edge(0, -1, 1920, 1080, 40, 150)
+		near(y, 150)
+		local _, top = edge().edge(0, 1, 1920, 1080, 40, 150)
+		near(top, 1040, "the top keeps the plain inset")
 	end },
 
-	{ "allies out of view get the map's player arrow, objectives and beacons get icon and arrow", function()
+	{ "objectives and beacons out of view get icon and arrow; allies are the game's own marker", function()
 		local e, env = setup({ me = { x = 0, y = 0, z = 0 }, ally = { x = 0, y = -20, z = 0 }, near = { x = 0, y = 10, z = 0 },
 			downed = { x = 40, y = 5, z = 0 }, beacon = { x = -40, y = 5, z = 0 } },
 			{ ally = { health = {} }, near = { health = {} }, downed = { health = { is_downed = true } }, me = { health = {} } })
@@ -102,12 +101,9 @@ return {
 			if c[2] == "icon_arrow_01" then arrows = arrows + 1 end
 			if c[2] == "icon_map_player_01" then players = players + 1 end
 		end
-		eq(players, 2, "the ally behind and the downed one; not oneself, not the one in view")
+		eq(players, 0, "no arrows of its own for allies")
 		eq(#images, 2, "the beacon and the pending objective above the view")
 		eq(arrows, 2, "each with an arrow")
-		local downed_colour
-		for _, c in ipairs(rotated) do if c[2] == "icon_map_player_01" and c[6][2] == 200 then downed_colour = c[6] end end
-		assert(downed_colour, "the downed ally is red")
 		eq(calls[#calls][1], "size_scale") eq(calls[#calls - 1][2], false, "the gui scales are given back")
 		E.remove()
 	end },

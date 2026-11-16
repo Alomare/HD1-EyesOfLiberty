@@ -573,7 +573,7 @@ return {
 		frame(e, env, E.player(e, "me"))
 		local w2s = E.hook("CameraManager", "world_to_screen")
 		local v = w2s(function() return E.V3(500, 500, -3) end, CameraManager, E.V3())
-		eq(v.x, -100000) eq(v.z, -3, "depth kept")
+		assert(v.x < 0 or v.x > 1920 or v.y < 0 or v.y > 1080, "off screen") eq(v.z, -3, "depth kept")
 		local front = w2s(function() return E.V3(500, 500, 3) end, CameraManager, E.V3())
 		eq(front.x, 500)
 		E.remove()
@@ -585,7 +585,7 @@ return {
 		local w2v = E.hook("ViewportProxy", "world_to_viewport")
 		-- Camera.world_to_screen as the proxy answers it: x, depth, y.
 		local v = w2v(function() return E.V3(800, -4, 400) end, CameraManager.viewport, E.V3())
-		eq(v.x, -100000) eq(v.z, -100000) eq(v.y, -4, "depth kept")
+		assert(v.x < 0 or v.x > 1920 or v.z < 0 or v.z > 1080, "off screen") eq(v.y, -4, "depth kept")
 		local front = w2v(function() return E.V3(800, 4, 400) end, CameraManager.viewport, E.V3())
 		eq(front.x, 800) eq(front.z, 400)
 		local other = w2v(function() return E.V3(800, -4, 400) end, {}, E.V3())
@@ -659,5 +659,41 @@ return {
 		E.hook("Hud", "update")(function() order[#order + 1] = "hud" end, hud, 0.016, {})
 		eq(order[1], "hud", "in a mission the game's order stays")
 		E.remove()
+	end },
+
+	{ "a name card behind the camera goes off screen on the side to turn to", function()
+		local f = obsidian.module("src/frustum")
+		local cam = f.camera_from({ x = 0, y = 0, z = 0 }, { x = 0, y = 1, z = 0 }, math.rad(60))
+		local x, y = f.behind(cam, { x = 5, y = -10, z = 0 }, 1920, 1080)
+		assert(x > 1920 and x < 2200, "behind and right: just off the right edge") near(y, 540)
+		x, y = f.behind(cam, { x = 0, y = -10, z = 0 }, 1920, 1080)
+		near(x, 960) assert(y < 0, "dead behind: below the screen")
+	end },
+
+	{ "a downed ally's off-screen marker and name take the red of the heartbeat", function()
+		local f = obsidian.module("src/frustum")
+		_G.Color = function(a, r, g2, b) return { a, r, g2, b } end
+		local r, g2 = f.downed_rgb({ downed_heartbeat_interval = 1, downed_heartbeat_timer = 1 })
+		eq(r, 200) eq(g2, 64)
+		local seen = {}
+		local gui = { screen_resolution = { width = 1920, height = 1080 } }
+		local class = {
+			rotated_image = function(_, icon, _, _, _, c) seen[#seen + 1] = { icon, c } end,
+			update_text = function(_, _, _, _, c) seen[#seen + 1] = { "text", c } end,
+			create_text = function(_, _, _, c) seen[#seen + 1] = { "text", c } end,
+		}
+		setmetatable(gui, { __index = class })
+		local health = { downed_heartbeat_interval = 1, downed_heartbeat_timer = 1 }
+		local function card()
+			gui:rotated_image("icon_outofscreen_player_01", nil, nil, 0, "white")
+			gui:rotated_image("other", nil, nil, 0, "white")
+			gui:update_text(1, "Bravo", nil, "grey")
+		end
+		f.downed_marker(gui, health, { screen_pos_immediate = { x = -5, y = 300 } }, card)
+		eq(seen[1][2][2], 200, "marker red") eq(seen[2][2], "white", "other images as they are") eq(seen[3][2][3], 64, "name red")
+		eq(rawget(gui, "rotated_image"), nil, "the gui is given back")
+		seen = {}
+		f.downed_marker(gui, health, { screen_pos_immediate = { x = 500, y = 300 } }, card)
+		eq(seen[1][2], "white", "on screen the game's own colours")
 	end },
 }

@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.eyesofliberty",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "name": {
     "en": "Eyes of Liberty"
   },
@@ -166,7 +166,7 @@
     { "id": "edge_markers", "type": "toggle", "default": true,
       "group": "indicators", "part": "view", "scope": "client",
       "label": { "en": "Edge markers" },
-      "description": { "en": "In third person, allies, stratagem beacons and objectives out of view show at the edge of the screen, with the icons and colours of the map. Allies show as the player arrow in the colour of the player, red while downed." } },
+      "description": { "en": "In third person, stratagem beacons and objectives out of view show at the edge of the screen, with the icons and colours of the map." } },
     { "id": "throw_arc", "type": "toggle", "default": true,
       "group": "indicators", "part": "view", "scope": "client",
       "label": { "en": "Throw arc" },
