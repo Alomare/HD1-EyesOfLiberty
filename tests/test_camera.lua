@@ -22,6 +22,31 @@ local function started(api)
 end
 
 return {
+	{ "a map marker click doesn't fire a vehicle, and the game cursor comes back clean", function()
+		local cam = obsidian.module("src/camera")
+		local st = { output_table = { fire_amount = 1, fire = true, fire_auto = true, throw_amount = 1, throw = true, map = true } }
+		cam.hold_fire(st)
+		local out = st.output_table
+		eq(out.fire_amount, 0) eq(out.fire, false) eq(out.fire_auto, false) eq(out.throw_amount, 0) eq(out.throw, false)
+		eq(out.map, true, "the rest stays")
+		cam.hold_fire({}) cam.hold_fire(nil)
+		eq(cam.map_open({ api = { map = { is_open = function() return true end } } }), true)
+		eq(cam.map_open({ api = { map = { is_open = function() error("x") end } } }), false)
+		eq(cam.map_open({}), false)
+		local calls = {}
+		local cursors = { current_cursor = "hud/cursors/game", next_cursor = "hud/cursors/game_inactive",
+			cursor_transition_timer = 0.035, cursor_transition_index = 2, shown = false }
+		function cursors:set_show_cursor(on)
+			calls[#calls + 1] = on
+			if self.shown ~= on then self.shown = on end
+		end
+		local was = cam.give_cursor_back(cursors)
+		assert(was:find("game_inactive"), "the log names what was there")
+		eq(cursors.current_cursor, "hud/cursors/game_inactive", "the step between cursors is finished")
+		eq(cursors.next_cursor, nil) eq(cursors.cursor_transition_timer, nil)
+		eq(calls[1], false, "hidden through the game's own call") eq(cursors.shown, false)
+	end },
+
 	{ "the Hellpod ride falls, lands on the game's shake, holds and glides into the shoulder view", function()
 		local pod = obsidian.module("src/pod")
 		local e, env = started()
@@ -208,6 +233,9 @@ return {
 		local _, _, sv = r.lens({ distance = 7, fov = 70, side = 0, vehicle = "apc" })
 		eq(sv, 0, "middle")
 		assert(r.height("apc", 1) < r.height("apc", 0), "beside a vehicle the camera comes down")
+		for _, kind in ipairs({ "exosuit", "apc", "tank", "bike", "turret" }) do
+			assert(r.height(kind, 0) >= 3.2, kind .. ": the vehicle camera sits high")
+		end
 		assert(r.height(nil, nil, 1) < r.height(), "a dive brings the pivot down")
 		near(r.height(nil, nil, 0, 1), r.DOWN_HEIGHT, "down: near the ground")
 		near(r.lens({ distance = 4, fov = 70, side = 1, down = 1 }), 4 + r.DOWN_BACK, "down: farther")

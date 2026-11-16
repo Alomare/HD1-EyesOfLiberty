@@ -28,8 +28,8 @@ M.SPRINT_RATE = 6          -- how fast the sprint fade and camera noise come and
 M.MARGIN = 0.25            -- metres kept between the camera and a wall
 M.MIN_LENGTH = 0.35        -- the closest the camera comes to the pivot
 -- Pivot heights in a vehicle, by Obsidian API's vehicle kinds.
-M.VEHICLE_HEIGHT = { exosuit = 3.2, apc = 2.6, tank = 2.8, bike = 1.7, turret = 1.9 }
-M.VEHICLE_HEIGHT_DEFAULT = 2.4
+M.VEHICLE_HEIGHT = { exosuit = 4.7, apc = 4.1, tank = 4.3, bike = 3.2, turret = 3.4 }
+M.VEHICLE_HEIGHT_DEFAULT = 3.9
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 M.clamp = clamp

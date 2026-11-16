@@ -59,11 +59,45 @@ function M.point(unit, lift)
 	return ok and p or nil
 end
 
+M.MAX_NODES = 512     -- scene graph items averaged at most, for the shuttle below
+
+-- The mean world position of a unit's scene graph items, nil when the engine can't tell. The shuttle
+-- leaves by an animation (ObjectiveExtractLZComponent.shuttle_leave plays "landing_takeoff"): the
+-- unit's root stays on the landing pad while its nodes fly off, so the ride follows how far the
+-- nodes moved since boarding.
+function M.nodes_mean(unit)
+	local U = g("Unit")
+	if not (U and U.num_scene_graph_items) then return nil end
+	local ok, p = pcall(function()
+		if not U.alive(unit) then return nil end
+		local n = math.min(U.num_scene_graph_items(unit) or 0, M.MAX_NODES)
+		if n < 1 then return nil end
+		local x, y, z = 0, 0, 0
+		for i = 0, n - 1 do
+			local v = U.world_position(unit, i)
+			x, y, z = x + v.x, y + v.y, z + v.z
+		end
+		return { x = x / n, y = y / n, z = z / n }
+	end)
+	return ok and p or nil
+end
+
+-- The point the ride turns about: above the shuttle's root, moved as far as its nodes moved.
+function M.ride_point(ride)
+	local at = M.point(ride.unit, M.RIDE_LIFT)
+	if not at then return nil end
+	local now = ride.base and M.nodes_mean(ride.unit)
+	if now then
+		at.x, at.y, at.z = at.x + now.x - ride.base.x, at.y + now.y - ride.base.y, at.z + now.z - ride.base.z
+	end
+	return at
+end
+
 -- This player's Helldiver boarded the shuttle `shuttle` in `world`.
 function M.board(avatar, shuttle, world)
 	local mine = M.mine
 	if mine and avatar ~= nil and avatar == mine.unit and shuttle ~= nil then
-		M.shuttle = { unit = shuttle, world = world }
+		M.shuttle = { unit = shuttle, world = world, base = M.nodes_mean(shuttle) }
 	end
 end
 
@@ -131,7 +165,7 @@ function M.update(api, world, dt, step)
 				M.mine = nil
 				return nil
 			end
-			w = { body = ride.unit, at = M.point(ride.unit, M.RIDE_LIFT), t = 0, ally = nil, world = world, ride = true }
+			w = { body = ride.unit, at = M.ride_point(ride), t = 0, ally = nil, world = world, ride = ride }
 			M.watch = w
 		elseif not M.dead_on then
 			return nil
@@ -143,7 +177,7 @@ function M.update(api, world, dt, step)
 	w.t = w.t + math.max(0, dt or 0)
 	-- The ride follows the shuttle up and away; allies left behind don't take the camera.
 	if w.ride then
-		w.at = M.point(w.body, M.RIDE_LIFT) or w.at
+		w.at = M.ride_point(w.ride) or w.at
 		return w
 	end
 	-- The body, while the game keeps it; its last point after.

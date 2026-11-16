@@ -2,6 +2,14 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## Next
+
+- Changed: The vehicle and mech camera sits 1.5 m higher in every view.
+- Fixed: The extraction camera follows the shuttle when it takes off.
+- Fixed: The extraction camera no longer clips into the shuttle while turning.
+- Fixed: Placing a map marker from a mech no longer fires the mech.
+- Fixed: The game crosshair returns when switching from third person to the top-down view.
+
 ## 1.1.1
 
 - Changed: Edge markers leave allies to the off-screen marker of the game, with the name. That marker now points the right way for allies behind the camera, and turns red while the ally is down.

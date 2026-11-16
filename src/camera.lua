@@ -291,6 +291,24 @@ function M.set_mode(env, mode)
 	M.enabled = mode ~= "default"
 end
 
+-- Whether the map is open (Obsidian API), false when the API can't tell.
+function M.map_open(env)
+	local map = env.api and env.api.map
+	if not (map and map.is_open) then return false end
+	local ok, open = pcall(map.is_open)
+	return ok and open and true or false
+end
+
+-- The fire and throw a vehicle reads from its driver's input (VehicleComponent takes the input
+-- component's output_table as input_data), cleared: a click that places a map marker doesn't fire
+-- the vehicle's guns.
+function M.hold_fire(st)
+	local out = type(st) == "table" and st.output_table
+	if type(out) ~= "table" then return end
+	out.fire_amount, out.fire, out.fire_auto = 0, false, false
+	out.throw_amount, out.throw = 0, false
+end
+
 -- The cursors of the game's aim, which the shoulder view keeps out of the window.
 M.GAME_CURSORS = { ["hud/cursors/game"] = true, ["hud/cursors/game_inactive"] = true }
 
@@ -392,7 +410,34 @@ function M.release(env, cm)
 	end
 	saved_near = nil
 	if type(cm) == "table" and cm.viewport then pcall(M.fit_particles, cm, nil) end
+	local cursors = g("CursorManager")
+	if type(cursors) == "table" then
+		local ok, was = pcall(M.give_cursor_back, cursors)
+		if ok and was and M.cursor_logs < 10 then
+			M.cursor_logs = M.cursor_logs + 1
+			env.log("Eyes of Liberty: game cursor given back (" .. was .. ")")
+		end
+	end
 	for _, fn in ipairs(env.on_release) do pcall(fn, cm) end
+end
+
+M.cursor_logs = 0
+
+-- The game's cursor as the top-down view expects it after the shoulder view: no step between two
+-- cursors left half done, and hidden through CursorManager itself, so the game's next
+-- set_cursor/set_show_cursor (input_component.lua, idle and aiming) draws it again. Answers what was
+-- there, for the log.
+function M.give_cursor_back(cursors)
+	local was = tostring(cursors.current_cursor) .. ", next " .. tostring(cursors.next_cursor) .. ", shown " .. tostring(cursors.shown)
+	if cursors.next_cursor ~= nil then
+		cursors.current_cursor = cursors.next_cursor
+		cursors.next_cursor, cursors.cursor_transition_timer, cursors.cursor_transition_index = nil, nil, nil
+	end
+	if cursors.set_show_cursor then
+		cursors.shown = true
+		cursors:set_show_cursor(false)
+	end
+	return was
 end
 
 local function quiet() end
@@ -511,7 +556,10 @@ function M.watch_frame(env, cm, dt, w, look)
 		fov = kind and (config.get("vehicle_fov") or 70) or (config.get("foot_fov") or 70) })
 	local world, proxy = world_of(cm)
 	local _, dir, full = rig.place(smooth.pivot, view.yaw, view.pitch, distance, side)
-	local hit = M.clear_length(g("World").physics_world(world), smooth.pivot, dir, full)
+	-- The ride's pivot sits inside the shuttle, whose own collision would pull the camera in: the ride
+	-- camera stays at full distance, outside it.
+	local hit = nil
+	if not w.ride then hit = M.clear_length(g("World").physics_world(world), smooth.pivot, dir, full) end
 	smooth.length = rig.follow_length(smooth.length, rig.pull_in(full, hit), dt)
 	local position = rig.add(smooth.pivot, dir, smooth.length)
 	local sx, sy = shake.offset(dt, shake.factor(config.get("camera_shake")))
@@ -822,7 +870,9 @@ function M.start(env)
 			local cursors = g("CursorManager")
 			if cursors and cursors.is_shown and cursors:is_shown() then cursors:set_show_cursor(false) end
 		end
-		return scoped.around(enter, leave, original, self, masters, dt, ...)
+		local r = scoped.pack(scoped.around(enter, leave, original, self, masters, dt, ...))
+		if state.vehicle and ctx and M.map_open(env) then M.hold_fire(ctx.state) end
+		return unpack(r, 1, r.n)
 	end, env.VIEW)
 
 	-- W moves where the camera looks: the local player's movement, which the game turned by the top-down

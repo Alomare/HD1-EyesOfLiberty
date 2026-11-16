@@ -147,6 +147,32 @@ return {
 		E.remove()
 	end },
 
+	{ "the ride follows the shuttle's nodes, which the takeoff animation moves while the root stays", function()
+		local e = E.install()
+		local g = game_api(e)
+		local d = D()
+		d.reset()
+		body(e, "me", 0) body(e, "shuttle", 50)
+		-- node 0 the root on the pad, nodes 1 and 2 the body the animation flies off
+		local nodes = { { x = 50, y = 0, z = 0 }, { x = 50, y = 0, z = 2 }, { x = 50, y = 0, z = 4 } }
+		Unit.num_scene_graph_items = function() return #nodes end
+		Unit.world_position = function(u, i)
+			local p = (u == "shuttle" and nodes[(i or 0) + 1]) or e.units[u].position
+			return E.V3(p.x, p.y, p.z)
+		end
+		d.update(g.api, "world", 0.1)
+		d.board("me", "shuttle", "world")
+		g.mine, g.extracted = nil, true
+		local w = d.update(g.api, "world", 0.1)
+		near(w.at.z, d.RIDE_LIFT, "starts over the root")
+		nodes[2].z, nodes[3].z, nodes[2].x, nodes[3].x = 32, 34, 65, 65
+		w = d.update(g.api, "world", 1)
+		near(w.at.z, d.RIDE_LIFT + 20, "up as far as the nodes went on average")
+		near(w.at.x, 60, "and along")
+		d.reset()
+		E.remove()
+	end },
+
 	{ "the camera keeps drawing after a death: farther back, no crosshair, then the ally", function()
 		local e = E.install()
 		local g = game_api(e)
