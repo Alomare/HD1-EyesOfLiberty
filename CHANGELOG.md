@@ -6,7 +6,7 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 
 - Fixed: Shots go where the crosshair points at any height, close or far; aiming straight or up no longer sends them over the target.
 - Changed: Grenades and stratagem balls fly to the crosshair on a low arc instead of a high lob, and the throw arc shows the same path.
-- Changed: The throw arc stands out more: thicker white dashes with a dark edge, and a ball where the throw lands.
+- Changed: The throw arc stands out more: thicker white dashes with a soft shadow, and a see-through ball where the throw lands.
 - Fixed: The red alarm overlay covers the whole screen again instead of a frame in the middle.
 - Fixed: Starting the game while another window is in front no longer holds the mouse in the middle of the screen.
 

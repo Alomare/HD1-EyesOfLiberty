@@ -6,8 +6,8 @@ Usage: python tools/build_hud.py
   eol_idle  the game's idle aim cursor ("hud/cursors/game_inactive", a hardware cursor the shoulder
             view can't show), read from the game through Minediver and kept as it is, 32 by 32
   eol_ring  the ring where a throw lands, white, 256 by 256
-  eol_ball  the ball where a throw lands: a white sphere lit from the top left with a dark rim, so it
-            reads on sand, snow and sky alike, 128 by 128
+  eol_ball  the ball where a throw lands: a see-through white sphere, clear in the middle and bright
+            at the edge, 128 by 128
   eol_hurt  the edges of the screen for Hurt feedback, white, stretched over the whole window
 
 Writes res/hud_*.texture and res/hud.material, and internal/hud_preview.png. Needs Pillow and numpy,
@@ -101,25 +101,20 @@ def ring(size=256, thickness=0.075):
     return white(a)
 
 
-def ball(size=128, rim=0.14):
-    """A shaded sphere: white lit from the top left, a dark rim, soft edges a pixel or two wide."""
+def ball(size=128):
+    """A see-through sphere: clear in the middle, white toward the edge as glass is (alpha grows with
+    the slant of the surface), a soft highlight at the top left, edges a pixel or two wide."""
     y, x = np.mgrid[0:size, 0:size] + 0.5
     u, v = (x - size / 2) / (size / 2), (size / 2 - y) / (size / 2)
     r = np.hypot(u, v)
-    edge = 1.5 / (size / 2)
-    alpha = np.clip((1 - edge - r) / edge + 0.5, 0, 1)
-    inner = 1 - rim
-    nz = np.sqrt(np.clip(1 - (r / inner) ** 2, 0, 1))
-    nu, nv = u / inner, v / inner
-    light = np.array([-0.45, 0.55, 0.70])
-    light = light / np.linalg.norm(light)
-    lambert = np.clip(nu * light[0] + nv * light[1] + nz * light[2], 0, 1)
-    shade = 0.62 + 0.38 * lambert + 0.25 * lambert ** 24
-    body = np.clip((inner - r) / edge + 0.5, 0, 1)
-    level = np.clip(shade, 0, 1) * body + 0.08 * (1 - body)
-    rgb = (np.clip(level, 0, 1) * 255 + 0.5).astype(np.uint8)
-    a = (alpha * 255 + 0.5).astype(np.uint8)
-    return Image.fromarray(np.dstack([rgb, rgb, rgb, a]), "RGBA")
+    edge = 2.0 / (size / 2)
+    inside = np.clip((1 - edge - r) / edge + 0.5, 0, 1)
+    nz = np.sqrt(np.clip(1 - r * r, 0, 1))
+    rim = (1 - nz) ** 2.2
+    hx, hy = u + 0.38, v - 0.42
+    highlight = np.exp(-(hx * hx + hy * hy) / (2 * 0.11 ** 2))
+    alpha = np.clip(0.06 + 0.9 * rim + 0.75 * highlight, 0, 1) * inside
+    return white(alpha)
 
 
 def noise(shape, cells, seed):

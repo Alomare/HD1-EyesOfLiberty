@@ -11,9 +11,10 @@
 --
 -- The look: short white dashes scrolling along the flight like the map's moving line (Hud.draw_map),
 -- drawn as plain bars (Gui.rect_3d, as HdGui.rotated_rect) since the map's dash art carries its own
--- colour, each over a dark bar a little bigger so it reads on snow and sky as on rock; where it lands, a
--- white ball of the mod's own art (src/art.lua, "eol_ball": shaded, dark rim) resting on the ground,
--- sized as a ball of BALL metres would look there, never smaller than BALL_MIN pixels.
+-- colour, each with a soft drop shadow (the same bar, dark, a little down and right) so it reads on snow
+-- and sky as on rock; where it lands, a see-through ball of the mod's own art (src/art.lua, "eol_ball":
+-- clear in the middle, bright at the edge) resting on the ground with the same shadow, sized as a ball of
+-- BALL metres would look there, never smaller than BALL_MIN pixels.
 local frustum = obsidian.module("src/frustum")
 local art = obsidian.module("src/art")
 
@@ -24,14 +25,14 @@ M.STEP = 1 / 30       -- seconds per piece of the flight
 M.MAX_TIME = 4        -- seconds of flight at the most
 M.DASH = 9            -- design pixels (1280 x 720), the length of a dash at 6 m
 M.DASH_WIDTH = 3.2    -- design pixels, how thick a dash is at 6 m
-M.OUTLINE = 1         -- design pixels of dark around each dash, at 6 m
+M.SHADOW = 1.2        -- design pixels the shadow sits down and right, at 6 m (at least 1)
 M.DASH_EVERY = 0.6    -- metres between two dashes along the flight
 M.SCROLL = 1.2        -- metres a second the dashes move along the flight
 M.BALL = 0.35         -- metres, radius of the ball where the throw lands
 M.BALL_MIN = 7        -- design pixels, the smallest radius the ball is drawn at
 M.LAYER = 97
 M.ALPHA = 235         -- the dashes, out of 255
-M.OUTLINE_ALPHA = 150 -- the dark around them, out of 255
+M.SHADOW_ALPHA = 110  -- the drop shadows, out of 255
 M.BALL_ALPHA = 245    -- the ball, out of 255
 -- The dash art lies along screen x at rotation 0; Gui rotations turn clockwise (see src/edge.lua).
 M.DASH_ART = 0
@@ -236,7 +237,8 @@ function M.draw(hud, env, scale, dt)
 	gui:set_ignore_position_scale(true)
 	gui:set_ignore_size_scale(true)
 	local colour = C(M.ALPHA, 255, 255, 255)
-	local dark = C(M.OUTLINE_ALPHA, 0, 0, 0)
+	local dark = C(M.SHADOW_ALPHA, 0, 0, 0)
+	local sh = max(M.SHADOW * s, 1)
 	local function screen(p)
 		local sx, depth, sy = frustum.project(cam, p, w, h)
 		if depth <= 0.3 then return nil end
@@ -249,16 +251,17 @@ function M.draw(hud, env, scale, dt)
 			if x2 then
 				-- Dashes shrink with distance, as if lying in the air, from the map's size at 6 m.
 				local k = s * min(1.5, max(0.35, 6 / depth))
-				local len, wid, o = M.DASH * k, M.DASH_WIDTH * k, M.OUTLINE * k
+				local len, wid = M.DASH * k, M.DASH_WIDTH * k
 				local a = -(atan2(y2 - y, x2 - x) - M.DASH_ART)
 				-- A plain bar turned about its middle, as HdGui.rotated_image turns an image
-				-- (Gui.bitmap_3d_uv), through Gui.rect_3d as HdGui.rotated_rect does: dark, then white.
-				local function bar(l, wd, z, c)
-					local at = V3(x - l / 2, y - wd / 2, 0)
-					G.rect_3d(gui.gui, R2D(at, a, at + V2(l / 2, wd / 2)), V3(0, 0, 0), z, V2(l, wd), c)
+				-- (Gui.bitmap_3d_uv), through Gui.rect_3d as HdGui.rotated_rect does: the shadow, then
+				-- the white bar. y grows up the screen here, so down is minus.
+				local function bar(cx, cy, z, c)
+					local at = V3(cx - len / 2, cy - wid / 2, 0)
+					G.rect_3d(gui.gui, R2D(at, a, at + V2(len / 2, wid / 2)), V3(0, 0, 0), z, V2(len, wid), c)
 				end
-				bar(len + 2 * o, wid + 2 * o, M.LAYER - 1, dark)
-				bar(len, wid, M.LAYER, colour)
+				bar(x + sh, y - sh, M.LAYER - 1, dark)
+				bar(x, y, M.LAYER, colour)
 			end
 		end
 	end
@@ -270,7 +273,11 @@ function M.draw(hud, env, scale, dt)
 		if cx and rx then
 			local r = max(math.abs(rx - cx), M.BALL_MIN * s)
 			local ball_gui = art.gui()
-			if ball_gui then art.draw(ball_gui, "eol_ball", cx - r, cy - r, 2 * r, 2 * r, M.LAYER, M.BALL_ALPHA, 255, 255, 255) end
+			if ball_gui then
+				local d = max(r * 0.12, sh)
+				art.draw(ball_gui, "eol_ball", cx - r + d, cy - r - d, 2 * r, 2 * r, M.LAYER - 1, M.SHADOW_ALPHA, 0, 0, 0)
+				art.draw(ball_gui, "eol_ball", cx - r, cy - r, 2 * r, 2 * r, M.LAYER, M.BALL_ALPHA, 255, 255, 255)
+			end
 		end
 	end
 	gui:set_ignore_position_scale(false)
