@@ -4,6 +4,9 @@
 -- Every tests/test_*.lua file returns a list of { name, fn }. Each test starts with a fresh fake
 -- `obsidian` global; a test file builds the engine fakes it needs itself.
 local passed, failed = 0, 0
+-- The camera asks Windows through FFI whether the game is in front (camera.os_foreground); the test
+-- process never is, so the tests see an FFI that can't tell, and the answer is true.
+package.loaded.ffi = { os = "Tests" }
 
 function fresh_obsidian()
 	local loaded = {}

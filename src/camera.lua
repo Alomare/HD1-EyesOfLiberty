@@ -125,6 +125,50 @@ function M.drop_is_mine(unit, mine, current)
 	return true
 end
 
+-- Whether Windows has the game's window in front. A game started while another window was in front
+-- can answer true to Window.has_focus until it is switched to and away twice, and the view would hold
+-- the mouse in the middle of the screen over the other window. Asked of Windows itself through LuaJIT's
+-- FFI (GetForegroundWindow, its process against this one); true when FFI can't tell.
+local foreground_fn = nil
+function M.os_foreground()
+	if foreground_fn == nil then
+		foreground_fn = false
+		pcall(function()
+			local ok, ffi = pcall(require, "ffi")
+			if not (ok and type(ffi) == "table") then
+				local loaded = package and package.loaded
+				ffi = type(loaded) == "table" and loaded.ffi or nil
+			end
+			if type(ffi) ~= "table" or ffi.os ~= "Windows" then return end
+			pcall(ffi.cdef, [[
+				void *GetForegroundWindow(void);
+				unsigned long GetWindowThreadProcessId(void *window, unsigned long *pid);
+				unsigned long GetCurrentProcessId(void);
+			]])
+			local user32 = ffi.load("user32")
+			local kernel32 = ffi.load("kernel32")
+			local mine = kernel32.GetCurrentProcessId()
+			local pid = ffi.new("unsigned long[1]")
+			foreground_fn = function()
+				local w = user32.GetForegroundWindow()
+				if w == nil then return false end
+				pid[0] = 0
+				user32.GetWindowThreadProcessId(w, pid)
+				return pid[0] == mine
+			end
+		end)
+	end
+	if not foreground_fn then return true end
+	local ok, front = pcall(foreground_fn)
+	return not ok or front
+end
+
+function M.has_focus()
+	local window = g("Window")
+	if window and window.has_focus and not window.has_focus() then return false end
+	return M.os_foreground()
+end
+
 -- Answers the snapshot kept in M.input.
 function M.read_input(self, unit, ctx, shared, dt)
 	local st = ctx.state
@@ -138,8 +182,7 @@ function M.read_input(self, unit, ctx, shared, dt)
 			if ok then hud = h end
 		end
 	end
-	local window = g("Window")
-	local focused = not (window and window.has_focus) or window.has_focus()
+	local focused = M.has_focus()
 	local active = type(data) == "table" and data.is_active and st.has_focus
 	local look = active and focused and not st.character_input_disabled and hud ~= "map" and not st.show_menu_cursor
 		and not st.mouse_aim_disabled and true or false
@@ -366,9 +409,10 @@ end
 -- screen. While the shoulder view draws, each is linked again, widened by how much wider the view is.
 -- name -> { aspect = the game's own x stretch, scale = the scale it was linked at }
 M.particles = {}
--- How far past the edges of the screen the widened ones reach: a full-screen tint drawn a little
--- bigger than the screen shows no border, and one drawn a little smaller does.
-M.PARTICLE_MARGIN = 1.5
+-- How far past the edges of the screen the widened ones reach. 1 draws them as the game draws them in
+-- the top-down view (an alarm's red frame sits just inside the edges there too); 1.5 put the alarm's
+-- frame past the edges or, pulled in, nearer than the near clip, so it didn't show (probe 2026-11-18).
+M.PARTICLE_MARGIN = 1
 
 function M.particle_scale(view_fov, game_fov)
 	if type(view_fov) ~= "number" or type(game_fov) ~= "number" or game_fov <= 0 then return 1 end
@@ -378,13 +422,17 @@ end
 -- How the link widens them: "pull" brings the effect nearer the camera by the scale (y is the camera's
 -- forward), which grows the places and the sprites of the particles alike, as the view would see a
 -- larger effect; "spread" stretches the places across the view only, which leaves each sprite as big
--- as it was, so a tint made of sprites covers less than the screen.
+-- as it was. The alarm sits a few centimetres in front of the camera, so a pull past PULL_MAX takes it
+-- nearer than the near clip (0.05 m): the widening past that is spread.
 M.PARTICLE_FIT = "pull"
+M.PULL_MAX = 1.3
 
 -- The x, y and z scale of the link for a widening of `scale`.
 function M.particle_axes(aspect, scale, fit)
 	if (fit or M.PARTICLE_FIT) == "spread" then return aspect * scale, 1, scale end
-	return aspect, 1 / scale, 1
+	local pull = math.min(scale, M.PULL_MAX)
+	local rest = scale / pull
+	return aspect * rest, 1 / pull, rest
 end
 
 local function relink(cm, name, info, scale)
@@ -505,8 +553,7 @@ function M.watch_look()
 		local ok, alive = pcall(U.alive, input.unit)
 		if ok and alive and not input.look then return false end
 	end
-	local window = g("Window")
-	if window and window.has_focus and not window.has_focus() then return false end
+	if not M.has_focus() then return false end
 	local cursors = g("CursorManager")
 	if type(cursors) == "table" and cursors.is_shown then
 		local ok, shown = pcall(cursors.is_shown, cursors)
@@ -846,7 +893,7 @@ function M.mouse_delta(recenter)
 		skip_cursor = false
 		last_cursor = { x = cursor.x, y = cursor.y }
 		local w, h = g("Application").resolution()
-		if recenter and (math.abs(cursor.x - w / 2) > w * 0.1 or math.abs(cursor.y - h / 2) > h * 0.1) then
+		if recenter and M.has_focus() and (math.abs(cursor.x - w / 2) > w * 0.1 or math.abs(cursor.y - h / 2) > h * 0.1) then
 			local cursors = g("CursorManager")
 			if cursors and cursors.set_cursor_position then
 				cursors:set_cursor_position(g("Vector3")(math.floor(w / 2), math.floor(h / 2), 0))

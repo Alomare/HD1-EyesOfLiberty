@@ -247,6 +247,7 @@
     { "type": "texture", "name": "eyesofliberty/hud/eol_idle", "bundle": "9cf71054ea26dddf", "data": "res/hud_idle.texture", "part": "view" },
     { "type": "texture", "name": "eyesofliberty/hud/eol_ring", "bundle": "9cf71054ea26dddf", "data": "res/hud_ring.texture", "part": "view" },
     { "type": "texture", "name": "eyesofliberty/hud/eol_hurt", "bundle": "9cf71054ea26dddf", "data": "res/hud_hurt.texture", "part": "view" },
+    { "type": "texture", "name": "eyesofliberty/hud/eol_ball", "bundle": "9cf71054ea26dddf", "data": "res/hud_ball.texture", "part": "view" },
     { "type": "material", "name": "eyesofliberty/hud", "bundle": "9cf71054ea26dddf", "data": "res/hud.material", "part": "view" }
   ]
 }

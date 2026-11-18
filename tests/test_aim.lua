@@ -174,6 +174,76 @@ return {
 		E.remove()
 	end },
 
+	{ "the shot's way starts where the game's shot starts: 1.5 m up by default", function()
+		local e = E.install()
+		local aim = obsidian.module("src/aim")
+		e.units.me = { position = { x = 0, y = 0, z = 0 }, forward = { x = 0, y = 1, z = 0 } }
+		e.units.gun = { position = { x = 0, y = 0, z = 0 }, forward = { x = 0, y = 1, z = 0 }, equipment = { wielder = "me" } }
+		-- A head at 1.6 m, 10 m ahead: the shot from 1.5 m rises 0.1 m over 10 m.
+		local slaves = { gun = { state = { attach_node = 0, ray_source_offset = { x = 0, y = 0, z = 1.5 } } } }
+		local list = aim.collect(slaves, { avatar = "me", target = "me" }, { x = 0, y = 10, z = 1.6 }, Quaternion.forward)
+		near(list[1].dir.z / list[1].dir.y, 0.01, "rises from the game's origin")
+		E.remove()
+	end },
+
+	{ "the game's spread around this player's shot is turned to the crosshair way, with no dip", function()
+		local e = E.install()
+		local aim = obsidian.module("src/aim")
+		e.units.me = { position = { x = 0, y = 0, z = 0 }, forward = { x = 0, y = 1, z = 0 } }
+		local s = math.sqrt(0.5)
+		local list = { { f = { x = 0, y = 1, z = 0 }, dir = { x = 0, y = s, z = s } } }
+		local seen
+		-- A spread that leans 0.1 to the right of the level way it is given.
+		WeaponUtility = { get_random_spread = function(offset, f)
+			seen = { f = f, oz = offset.z }
+			local l = math.sqrt(1 + 0.01)
+			return E.V3((f.x + 0.1 * f.y) / l, (f.y - 0.1 * f.x) / l, f.z / l)
+		end }
+		local got
+		aim.redirect(list, function()
+			local f = Quaternion.forward(Unit.world_rotation("me", 0))
+			got = WeaponUtility.get_random_spread(E.V3(0, 0, 1.5), f, 0.01, 30)
+		end)
+		eq(seen.oz, 0, "no dip") near(seen.f.z, 0, "made around the level way")
+		near(got.z, s / math.sqrt(1.01), "pitched up with the crosshair", 1e-6)
+		near(got.x, 0.1 / math.sqrt(1.01), "the spread kept", 1e-6)
+		WeaponUtility = nil
+		E.remove()
+	end },
+
+	{ "turn_to turns a vector as from turns to to", function()
+		local r = rig()
+		local t = r.turn_to({ x = 0, y = 1, z = 0 }, { x = 0, y = 1, z = 0 }, { x = 0, y = 0, z = 1 })
+		near(t.z, 1) near(t.y, 0)
+		local same = r.turn_to({ x = 1, y = 2, z = 3 }, { x = 0, y = 1, z = 0 }, { x = 0, y = 1, z = 0 })
+		eq(same.y, 2)
+	end },
+
+	{ "a throw of this player flies with the aimed velocity, others as the game has them", function()
+		local e, env = started()
+		local masters = E.player(e, "me")
+		e.aim_hit = { pos = { x = 0, y = 6, z = 0 }, unit = "ground" }
+		frame(e, env, masters)
+		e.units.nade = { position = { x = 0, y = 0.3, z = 1.5 }, forward = { x = 0, y = 1, z = 0 } }
+		local sets = {}
+		Actor = { unit = function(a) return a end, set_velocity = function(_, v) sets[#sets + 1] = v end }
+		local do_throw = E.hook("CharacterComponent", "do_throw")
+		local thrown = E.hook("ThrowableComponent", "command_master")
+		local ctx = { settings = { throwable_info = { throw_distance_min = 2, throw_distance_max = 9 } } }
+		local game = function() Actor.set_velocity("actor", E.V3(0, 5, 5)) end
+		thrown(game, {}, "nade", ctx, "thrown", {})
+		eq(sets[1].y, 5, "no throw marked: the game's")
+		do_throw(function() end, {}, "me", { state = { throw_range_multiplier = 1 } }, 0.5)
+		thrown(game, {}, "nade", ctx, "thrown", {})
+		local v = sets[2]
+		local t = 5.7 / v.y
+		near(1.5 + v.z * t - 9 * t * t, 0, "lands on the crosshair point", 1e-4)
+		thrown(game, {}, "nade", ctx, "thrown", {})
+		eq(sets[3].y, 5, "once per throw")
+		Actor = { unit = function(a) return a end }
+		E.remove()
+	end },
+
 	{ "a laser sight on this player's weapon lands on the crosshair point", function()
 		local e = E.install()
 		local aim = obsidian.module("src/aim")

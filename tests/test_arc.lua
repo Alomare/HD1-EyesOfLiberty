@@ -31,6 +31,47 @@ return {
 		eq(d, 4)
 	end },
 
+	{ "an aimed throw lands on the point, near, far, above and below", function()
+		local m = arc()
+		local start = { x = 0, y = 0, z = 1.5 }
+		local top = m.top_speed(grenade, 1)
+		near(top, math.sqrt(9 * 18), "top speed from the longest throw")
+		for _, target in ipairs({ { x = 0, y = 4, z = 0 }, { x = 3, y = 7, z = 0 }, { x = 0, y = 6, z = 3 }, { x = -2, y = 2, z = -2 } }) do
+			local v = m.aimed(start, target, top, { x = 0, y = 1 })
+			local sp = math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
+			assert(sp <= top + 1e-6, "no faster than the top speed")
+			-- Where the flight passes the target's flat distance, it is at the target's height.
+			local flat = math.sqrt(v.x * v.x + v.y * v.y)
+			local d = math.sqrt(target.x * target.x + target.y * target.y)
+			local t = d / flat
+			near(start.z + v.z * t - m.GRAVITY * t * t / 2, target.z, "height at the point", 1e-6)
+			near(v.x * t, target.x, "x", 1e-6) near(v.y * t, target.y, "y", 1e-6)
+		end
+	end },
+
+	{ "an aimed throw flies low: LOB degrees over the line when the top speed allows", function()
+		local m = arc()
+		local v = m.aimed({ x = 0, y = 0, z = 0 }, { x = 0, y = 5, z = 0 }, 100)
+		near(math.deg(math.atan2(v.z, v.y)), m.LOB, "angle", 1e-6)
+	end },
+
+	{ "an aimed throw out of reach goes at 45 degrees at the top speed", function()
+		local m = arc()
+		local v = m.aimed({ x = 0, y = 0, z = 0 }, { x = 0, y = 300, z = 0 }, 10)
+		near(v.y, v.z, "45 degrees", 1e-6)
+		near(math.sqrt(v.y * v.y + v.z * v.z), 10, "top speed", 1e-6)
+	end },
+
+	{ "an aimed throw near the top speed's reach takes the lowest arc it can", function()
+		local m = arc()
+		local top = 12
+		local v = m.aimed({ x = 0, y = 0, z = 0 }, { x = 0, y = 7.5, z = 0 }, top)
+		near(math.sqrt(v.y * v.y + v.z * v.z), top, "top speed", 1e-6)
+		local t = 7.5 / v.y
+		near(v.z * t - m.GRAVITY * t * t / 2, 0, "lands on the point", 1e-6)
+		assert(math.deg(math.atan2(v.z, v.y)) > m.LOB, "steeper than the wanted lob")
+	end },
+
 	{ "dashes are spaced along the flight and scroll", function()
 		local m = arc()
 		local line = { { x = 0, y = 0, z = 0 }, { x = 0, y = 3, z = 0 } }

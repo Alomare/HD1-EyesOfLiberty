@@ -259,6 +259,32 @@ function M.shot_dir(origin, point, forward)
 	return n
 end
 
+-- Turns v by the turn that takes the unit vector `from` to the unit vector `to` (about the axis
+-- across both), so a spread the game made around a level forward lies the same way around a pitched
+-- one. Answers v as it was when the two are the same or opposite.
+function M.turn_to(v, from, to)
+	local c = clamp(M.dot(from, to), -1, 1)
+	local k = { x = from.y * to.z - from.z * to.y, y = from.z * to.x - from.x * to.z, z = from.x * to.y - from.y * to.x }
+	local s = M.length(k)
+	if s < 1e-9 then return { x = v.x, y = v.y, z = v.z } end
+	k = { x = k.x / s, y = k.y / s, z = k.z / s }
+	-- Rodrigues: v cos + (k x v) sin + k (k . v)(1 - cos)
+	local kv = { x = k.y * v.z - k.z * v.y, y = k.z * v.x - k.x * v.z, z = k.x * v.y - k.y * v.x }
+	local d = M.dot(k, v) * (1 - c)
+	return { x = v.x * c + kv.x * s + k.x * d, y = v.y * c + kv.y * s + k.y * d, z = v.z * c + kv.z * s + k.z * d }
+end
+
+-- Where a weapon's shot starts, as the game takes it: the root of `base` (the wielder, or a launcher's
+-- own unit) plus ray_source_offset turned by the weapon's rotation (`rotate`, Quaternion.rotate bound to
+-- it). Without an offset, 1 m above the root, where the arc weapons start.
+function M.shot_origin(base, offset, rotate)
+	if offset then
+		local o = rotate(offset)
+		return { x = base.x + o.x, y = base.y + o.y, z = base.z + o.z }
+	end
+	return { x = base.x, y = base.y, z = base.z + 1 }
+end
+
 -- The flat way from a unit to the crosshair point, for the game's aim input, or nil when the point is
 -- right above or below.
 function M.flat_dir(from, point)

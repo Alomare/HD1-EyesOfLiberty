@@ -1,4 +1,4 @@
-"""Builds the HUD art of Eyes of Liberty: three white images the game tints when it draws, and the
+"""Builds the HUD art of Eyes of Liberty: white images the game tints when it draws, and the
 gui material that names them.
 
 Usage: python tools/build_hud.py
@@ -6,6 +6,8 @@ Usage: python tools/build_hud.py
   eol_idle  the game's idle aim cursor ("hud/cursors/game_inactive", a hardware cursor the shoulder
             view can't show), read from the game through Minediver and kept as it is, 32 by 32
   eol_ring  the ring where a throw lands, white, 256 by 256
+  eol_ball  the ball where a throw lands: a white sphere lit from the top left with a dark rim, so it
+            reads on sand, snow and sky alike, 128 by 128
   eol_hurt  the edges of the screen for Hurt feedback, white, stretched over the whole window
 
 Writes res/hud_*.texture and res/hud.material, and internal/hud_preview.png. Needs Pillow and numpy,
@@ -99,6 +101,27 @@ def ring(size=256, thickness=0.075):
     return white(a)
 
 
+def ball(size=128, rim=0.14):
+    """A shaded sphere: white lit from the top left, a dark rim, soft edges a pixel or two wide."""
+    y, x = np.mgrid[0:size, 0:size] + 0.5
+    u, v = (x - size / 2) / (size / 2), (size / 2 - y) / (size / 2)
+    r = np.hypot(u, v)
+    edge = 1.5 / (size / 2)
+    alpha = np.clip((1 - edge - r) / edge + 0.5, 0, 1)
+    inner = 1 - rim
+    nz = np.sqrt(np.clip(1 - (r / inner) ** 2, 0, 1))
+    nu, nv = u / inner, v / inner
+    light = np.array([-0.45, 0.55, 0.70])
+    light = light / np.linalg.norm(light)
+    lambert = np.clip(nu * light[0] + nv * light[1] + nz * light[2], 0, 1)
+    shade = 0.62 + 0.38 * lambert + 0.25 * lambert ** 24
+    body = np.clip((inner - r) / edge + 0.5, 0, 1)
+    level = np.clip(shade, 0, 1) * body + 0.08 * (1 - body)
+    rgb = (np.clip(level, 0, 1) * 255 + 0.5).astype(np.uint8)
+    a = (alpha * 255 + 0.5).astype(np.uint8)
+    return Image.fromarray(np.dstack([rgb, rgb, rgb, a]), "RGBA")
+
+
 def noise(shape, cells, seed):
     """Smooth value noise, cells across the width."""
     rng = np.random.default_rng(seed)
@@ -146,7 +169,7 @@ def material(names):
 
 
 def main():
-    images = {"eol_idle": idle_cursor(), "eol_ring": ring(), "eol_hurt": hurt()}
+    images = {"eol_idle": idle_cursor(), "eol_ring": ring(), "eol_hurt": hurt(), "eol_ball": ball()}
     RES.mkdir(exist_ok=True)
     for sprite, image in images.items():
         (RES / f"hud_{sprite[4:]}.texture").write_bytes(dds_rgba(image))
@@ -158,6 +181,7 @@ def main():
     preview.alpha_composite(tint, (0, 0))
     preview.alpha_composite(images["eol_ring"], (512 + 16, 16))
     preview.alpha_composite(images["eol_idle"].resize((64, 64), Image.Resampling.NEAREST), (512 + 256 + 24, 16))
+    preview.alpha_composite(images["eol_ball"], (512 + 16, 288 - 128 - 16))
     (ROOT / "internal").mkdir(exist_ok=True)
     preview.save(ROOT / "internal" / "hud_preview.png")
     for sprite in images:

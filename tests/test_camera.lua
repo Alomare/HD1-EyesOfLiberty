@@ -193,8 +193,11 @@ return {
 		local cam = obsidian.module("src/camera")
 		local x, y, z = cam.particle_axes(1.2, 3, "spread")
 		near(x, 3.6, "x") eq(y, 1, "y") eq(z, 3, "z")
+		x, y, z = cam.particle_axes(1.2, 1.2, "pull")
+		eq(x, 1.2, "x") near(y, 1 / 1.2, "y") eq(z, 1, "z")
+		-- Past PULL_MAX the rest is spread, so the effect never comes nearer than the near clip.
 		x, y, z = cam.particle_axes(1.2, 3, "pull")
-		eq(x, 1.2, "x") near(y, 1 / 3, "y") eq(z, 1, "z")
+		near(y, 1 / cam.PULL_MAX, "y") near(z, 3 / cam.PULL_MAX, "z") near(x, 1.2 * 3 / cam.PULL_MAX, "x")
 	end },
 
 	{ "rig places the camera behind the pivot and to the shoulder", function()

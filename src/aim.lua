@@ -9,8 +9,10 @@
 --                                          drops the dip that makes a level shot meet the ground
 --   LauncherComponent.do_fire             the state's z_direction is the crosshair way's
 --   LaserSightComponent.update_slaves     the laser line goes to the crosshair point
---   Character*Throw.update                 CameraManager.screen_to_world answers the crosshair point,
---                                          which sets how far a grenade or a stratagem ball flies
+--   Character*Throw.update                 CameraManager.screen_to_world answers the crosshair point
+--   CharacterComponent.do_throw, ThrowableComponent.command_master "thrown"
+--                                          the grenade or stratagem ball flies to the crosshair point
+--                                          on a low arc (src/arc.lua aimed)
 local rig = obsidian.module("src/rig")
 local scoped = obsidian.module("src/scoped")
 local shake = obsidian.module("src/shake")
@@ -138,8 +140,11 @@ function M.note_flames(masters, view)
 end
 
 -- For each weapon of this player in `slaves` (unit to context), the forward the game will compute and
--- the way to the crosshair point. Answers a list of { f, dir }.
-function M.collect(slaves, view, point, quaternion_forward)
+-- the way to the crosshair point. Answers a list of { f, dir }. The way starts where the game's shot
+-- starts (firearm, beam, flame and launcher components: the root plus ray_source_offset turned by the
+-- weapon's rotation, 1.5 m up by default), so the shot meets the crosshair point and not a spot above
+-- it. from_weapon: the root is the weapon's own (LauncherComponent.do_fire), not the wielder's.
+function M.collect(slaves, view, point, quaternion_forward, from_weapon)
 	local list = {}
 	local U, Q, V3A = g("Unit"), g("Quaternion"), g("Vector3Aux")
 	local mine = own_units(view)
@@ -152,12 +157,9 @@ function M.collect(slaves, view, point, quaternion_forward)
 			for _, node in ipairs({ type(st.attach_node) == "number" and st.attach_node or 0, 0 }) do
 				local rot = U.world_rotation(wielder, node)
 				local f = quaternion_forward(rot)
-				local p = U.world_position(wielder, 0)
-				local origin = { x = p.x, y = p.y, z = p.z + 1 }
-				if node ~= 0 and st.ray_source_offset then
-					local o = Q.rotate(rot, V3A.unbox(st.ray_source_offset))
-					origin = { x = p.x + o.x, y = p.y + o.y, z = p.z + o.z }
-				end
+				local p = U.world_position(from_weapon and unit or wielder, 0)
+				local offset = st.ray_source_offset and V3A.unbox(st.ray_source_offset) or nil
+				local origin = rig.shot_origin({ x = p.x, y = p.y, z = p.z }, offset, function(o) return Q.rotate(rot, o) end)
 				-- A vehicle gun turns slower than the view: it fires the way it points, at the height of the
 				-- crosshair point. On foot the shot goes straight to the crosshair point.
 				local dir
@@ -209,9 +211,20 @@ function M.redirect(list, fn, ...)
 		end
 		return f
 	end
+	-- The game's spread is made for a level shot: it squashes the up and down part against the world's
+	-- up and lowers the shot by offset.z / range so it meets the ground at the end of its range. For
+	-- this player's shot the spread is made around the level way with no lowering, then turned up or
+	-- down to the crosshair way, so the scatter keeps its shape and centres on the crosshair point.
 	local function level_spread(offset, f, ...)
 		for _, o in ipairs(list) do
-			if f and same(f, o.dir) then return spread(V3(offset.x, offset.y, 0), f, ...) end
+			if f and same(f, o.dir) then
+				local flat = rig.normalize({ x = o.dir.x, y = o.dir.y, z = 0 })
+				if not flat then return spread(V3(offset.x, offset.y, 0), f, ...) end
+				local s = spread(V3(offset.x, offset.y, 0), V3(flat.x, flat.y, 0), ...)
+				if s == nil then return s end
+				local t = rig.turn_to({ x = s.x, y = s.y, z = s.z }, flat, o.dir)
+				return V3(t.x, t.y, t.z)
+			end
 		end
 		return spread(offset, f, ...)
 	end
@@ -282,7 +295,7 @@ function M.start(env)
 	-- Launchers fire once per call, and set the height of the shot from z_direction.
 	obsidian.hook("LauncherComponent", "do_fire", function(original, self, unit, st, ...)
 		if not live() or type(st) ~= "table" then return original(self, unit, st, ...) end
-		local ok, list = pcall(M.collect, { [unit] = { state = st } }, env.view, state.aim_point, g("Quaternion").forward)
+		local ok, list = pcall(M.collect, { [unit] = { state = st } }, env.view, state.aim_point, g("Quaternion").forward, true)
 		if not ok or #list == 0 then return original(self, unit, st, ...) end
 		shake.fired(env.view.vehicle)
 		local z = list[1].dir.z
@@ -307,6 +320,55 @@ function M.start(env)
 		if throwing and p then return g("Vector3")(p.x, p.y, p.z) end
 		return original(self, ...)
 	end, env.VIEW)
+
+	-- Aimed throws: CharacterComponent.do_throw of this player's Helldiver marks the throw, and the
+	-- "thrown" command of the throwable that follows (InventoryComponent "throw" queues it) launches it
+	-- with src/arc.lua's aimed velocity toward the crosshair point instead of the game's 45 degree lob.
+	obsidian.hook("CharacterComponent", "do_throw", function(original, self, unit, ctx, ...)
+		if live() and unit == camera.input.unit then
+			local st = type(ctx) == "table" and ctx.state or {}
+			M.pending_throw = { unit = unit, multiplier = st.throw_range_multiplier, frame = env.frame and env.frame() or 0 }
+		end
+		return original(self, unit, ctx, ...)
+	end, env.VIEW)
+	obsidian.hook("ThrowableComponent", "command_master", function(original, self, unit, context, message, ...)
+		local pending = M.pending_throw
+		if message ~= "thrown" or not pending or not live() then return original(self, unit, context, message, ...) end
+		local now = env.frame and env.frame() or 0
+		if now - pending.frame > 30 then
+			M.pending_throw = nil
+			return original(self, unit, context, message, ...)
+		end
+		local ok, set = pcall(M.aimed_setter, unit, context, pending, state.aim_point)
+		if not ok or not set then return original(self, unit, context, message, ...) end
+		M.pending_throw = nil
+		return scoped.swap(g("Actor"), "set_velocity", set, original, self, unit, context, message, ...)
+	end, env.VIEW)
+end
+
+M.pending_throw = nil
+
+-- An Actor.set_velocity that launches the throwable `unit` with the aimed velocity, or nil when the
+-- throw isn't this player's (more than 3 m from the Helldiver) or the settings lack the distances.
+-- The settings are read at the call, after the Increased throw range part has scaled them.
+function M.aimed_setter(unit, context, pending, point)
+	local U, V3, Actor = g("Unit"), g("Vector3"), g("Actor")
+	local arc = obsidian.module("src/arc")
+	if not (point and U.alive(unit) and U.alive(pending.unit)) then return nil end
+	local p, me = U.world_position(unit, 0), U.world_position(pending.unit, 0)
+	local dx, dy, dz = p.x - me.x, p.y - me.y, p.z - me.z
+	if dx * dx + dy * dy + dz * dz > 9 then return nil end
+	local set = Actor.set_velocity
+	return function(actor, v, ...)
+		local settings = type(context) == "table" and context.settings
+		local info = type(settings) == "table" and settings.throwable_info
+		if type(info) ~= "table" or type(info.throw_distance_min) ~= "number" or type(info.throw_distance_max) ~= "number" then
+			return set(actor, v, ...)
+		end
+		local forward = v and { x = v.x, y = v.y } or nil
+		local aimed = arc.aimed({ x = p.x, y = p.y, z = p.z }, point, arc.top_speed(info, pending.multiplier), forward)
+		return set(actor, V3(aimed.x, aimed.y, aimed.z), ...)
+	end
 end
 
 return M

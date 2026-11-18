@@ -2,7 +2,7 @@
 -- world the camera draws, made once per world. The game's guis can't draw these images, as a gui
 -- draws only the materials it was made with.
 --
--- Sprites: "eol_idle" (the game's idle aim cursor), "eol_ring" (a white ring) and "eol_hurt" (the edges
+-- Sprites: "eol_idle" (the game's idle aim cursor), "eol_ring" (a white ring), "eol_ball" (a shaded ball) and "eol_hurt" (the edges
 -- of the screen). Each is drawn whole, tinted by the colour of the draw.
 local M = {}
 

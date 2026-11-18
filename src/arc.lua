@@ -11,8 +11,9 @@
 --
 -- The look: short white dashes scrolling along the flight like the map's moving line (Hud.draw_map),
 -- drawn as plain bars (Gui.rect_3d, as HdGui.rotated_rect) since the map's dash art carries its own
--- colour; the ring is a plain white ring of the mod's own art (src/art.lua), laid flat on the ground in
--- perspective, stronger than the dashes so the landing point reads at a glance.
+-- colour, each over a dark bar a little bigger so it reads on snow and sky as on rock; where it lands, a
+-- white ball of the mod's own art (src/art.lua, "eol_ball": shaded, dark rim) resting on the ground,
+-- sized as a ball of BALL metres would look there, never smaller than BALL_MIN pixels.
 local frustum = obsidian.module("src/frustum")
 local art = obsidian.module("src/art")
 
@@ -21,14 +22,17 @@ local M = {}
 M.GRAVITY = 18        -- m/s^2, PhysicsWorld.set_gravity in state_game
 M.STEP = 1 / 30       -- seconds per piece of the flight
 M.MAX_TIME = 4        -- seconds of flight at the most
-M.DASH = 8            -- design pixels (1280 x 720), the length of a dash at 6 m
-M.DASH_WIDTH = 2.4    -- design pixels, how thick a dash is at 6 m
+M.DASH = 9            -- design pixels (1280 x 720), the length of a dash at 6 m
+M.DASH_WIDTH = 3.2    -- design pixels, how thick a dash is at 6 m
+M.OUTLINE = 1         -- design pixels of dark around each dash, at 6 m
 M.DASH_EVERY = 0.6    -- metres between two dashes along the flight
 M.SCROLL = 1.2        -- metres a second the dashes move along the flight
-M.RING = 0.9          -- metres, radius of the ring on the ground
+M.BALL = 0.35         -- metres, radius of the ball where the throw lands
+M.BALL_MIN = 7        -- design pixels, the smallest radius the ball is drawn at
 M.LAYER = 97
-M.ALPHA = 100         -- the dashes, out of 255
-M.RING_ALPHA = 220    -- the ring, out of 255
+M.ALPHA = 235         -- the dashes, out of 255
+M.OUTLINE_ALPHA = 150 -- the dark around them, out of 255
+M.BALL_ALPHA = 245    -- the ball, out of 255
 -- The dash art lies along screen x at rotation 0; Gui rotations turn clockwise (see src/edge.lua).
 M.DASH_ART = 0
 M.THROW_STATES = { "CharacterStateThrow", "CharacterStateStratagemsThrow", "CharacterStateDownedThrow",
@@ -64,6 +68,55 @@ function M.launch(info, power, dir, scale)
 	local l = sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z)
 	if l < 1e-6 then return nil end
 	return { x = dir.x / l * speed, y = dir.y / l * speed, z = dir.z / l * speed }, distance
+end
+
+-- Aimed throws (third person): the throw flies to the crosshair point on a low arc, LOB degrees above
+-- the straight line to it (LOB_MIN above level at the least), as fast as that needs, at most the throwable's top speed (its longest throw
+-- with the thrower's multiplier). When that arc needs more, the lowest arc the top speed reaches; past
+-- the longest throw, 45 degrees at the top speed toward the point.
+M.LOB = 15            -- degrees above the line to the point
+M.LOB_MIN = 15        -- degrees above level at the least: a throw at the ground nearby lobs, it is not hurled
+M.LOB_MAX = 60        -- degrees, the steepest wanted arc
+
+-- The top speed of a throwable: sqrt(18 * the longest throw), the longest throw being
+-- throw_distance_min + multiplier * (throw_distance_max - throw_distance_min) times scale.
+function M.top_speed(info, multiplier, scale)
+	scale = scale or 1
+	local dmin, dmax = info.throw_distance_min * scale, info.throw_distance_max * scale
+	return sqrt(max(0, dmin + (multiplier or 1) * (dmax - dmin)) * M.GRAVITY)
+end
+
+-- The launch velocity that carries a throw from start to target. forward: a flat way to use when the
+-- target is right above or below.
+function M.aimed(start, target, top, forward)
+	local dx, dy = target.x - start.x, target.y - start.y
+	local d = sqrt(dx * dx + dy * dy)
+	local hx, hy
+	if d > 1e-3 then hx, hy = dx / d, dy / d
+	else
+		local fl = forward and sqrt(forward.x * forward.x + forward.y * forward.y) or 0
+		if fl < 1e-6 then return { x = 0, y = 0, z = 0 } end
+		hx, hy = forward.x / fl, forward.y / fl
+	end
+	d = max(d, 0.3)
+	local dz = target.z - start.z
+	local gr = M.GRAVITY
+	local function along(angle, speed)
+		local c, s = math.cos(angle), math.sin(angle)
+		return { x = hx * c * speed, y = hy * c * speed, z = s * speed }
+	end
+	local line = atan2(dz, d)
+	local angle = min(max(line + math.rad(M.LOB), math.rad(M.LOB_MIN)), math.rad(M.LOB_MAX))
+	local rise = d * math.tan(angle) - dz
+	if rise > 1e-6 then
+		local c = math.cos(angle)
+		local speed = sqrt(gr * d * d / (2 * c * c * rise))
+		if speed <= top then return along(angle, speed) end
+	end
+	local v2 = top * top
+	local disc = v2 * v2 - gr * (gr * d * d + 2 * dz * v2)
+	if disc >= 0 then return along(math.atan((v2 - sqrt(disc)) / (gr * d)), top) end
+	return along(math.pi / 4, top)
 end
 
 -- The flight from p with velocity v: calls hit(a, b) for each piece, which answers the point where
@@ -115,7 +168,8 @@ M.held = nil   -- { unit, ctx, frame } of the local Helldiver's throw this frame
 M.scroll = 0
 
 -- The throw as it would go now, or nil: the start point, the launch velocity and the throwable info.
-function M.throw_now(unit, ctx, scale)
+-- target: the crosshair point, for an aimed throw (src/aim.lua sets the same velocity on release).
+function M.throw_now(unit, ctx, scale, target)
 	local U, EA, Q, V3A, LSM = g("Unit"), g("EntityAux"), g("Quaternion"), g("Vector3Aux"), g("LuaSettingsManager")
 	local st = type(ctx) == "table" and ctx.state
 	if not (st and U.alive(unit)) or st.has_thrown then return nil end
@@ -138,12 +192,16 @@ function M.throw_now(unit, ctx, scale)
 		local mv = V3A.unbox(st.mover_state.velocity)
 		vel = { x = mv.x, y = mv.y }
 	end
+	local node = U.has_node and U.has_node(unit, "r_hand_attach") and U.node(unit, "r_hand_attach") or 0
+	local p = U.world_position(unit, node)
+	local start = { x = p.x, y = p.y, z = p.z }
+	if target then
+		return start, M.aimed(start, target, M.top_speed(info, st.throw_range_multiplier, scale), dir)
+	end
 	local power = M.power(st.grenade_charge or 0, vel, dir, st.throw_range_multiplier)
 	local v = M.launch(info, power, dir, scale)
 	if not v then return nil end
-	local node = U.has_node and U.has_node(unit, "r_hand_attach") and U.node(unit, "r_hand_attach") or 0
-	local p = U.world_position(unit, node)
-	return { x = p.x, y = p.y, z = p.z }, v
+	return start, v
 end
 
 -- Where a piece of the flight meets the rocks and the ground.
@@ -166,7 +224,7 @@ function M.draw(hud, env, scale, dt)
 	local view = env.view
 	local cm = g("CameraManager")
 	if not (held and gui and view and view.world and cm and cm.viewport) then return end
-	local start, v = M.throw_now(held.unit, held.ctx, scale)
+	local start, v = M.throw_now(held.unit, held.ctx, scale, env.state.aim_point)
 	if not start then return end
 	local pw = g("World").physics_world(view.world)
 	local points, land = M.fly(start, v, ground_hit(pw))
@@ -178,6 +236,7 @@ function M.draw(hud, env, scale, dt)
 	gui:set_ignore_position_scale(true)
 	gui:set_ignore_size_scale(true)
 	local colour = C(M.ALPHA, 255, 255, 255)
+	local dark = C(M.OUTLINE_ALPHA, 0, 0, 0)
 	local function screen(p)
 		local sx, depth, sy = frustum.project(cam, p, w, h)
 		if depth <= 0.3 then return nil end
@@ -190,28 +249,28 @@ function M.draw(hud, env, scale, dt)
 			if x2 then
 				-- Dashes shrink with distance, as if lying in the air, from the map's size at 6 m.
 				local k = s * min(1.5, max(0.35, 6 / depth))
-				local len, wid = M.DASH * k, M.DASH_WIDTH * k
+				local len, wid, o = M.DASH * k, M.DASH_WIDTH * k, M.OUTLINE * k
 				local a = -(atan2(y2 - y, x2 - x) - M.DASH_ART)
-				-- A plain white bar turned about its middle, as HdGui.rotated_image turns an image
-				-- (Gui.bitmap_3d_uv), through Gui.rect_3d as HdGui.rotated_rect does.
-				local at = V3(x - len / 2, y - wid / 2, 0)
-				G.rect_3d(gui.gui, R2D(at, a, at + V2(len / 2, wid / 2)), V3(0, 0, 0), M.LAYER, V2(len, wid), colour)
+				-- A plain bar turned about its middle, as HdGui.rotated_image turns an image
+				-- (Gui.bitmap_3d_uv), through Gui.rect_3d as HdGui.rotated_rect does: dark, then white.
+				local function bar(l, wd, z, c)
+					local at = V3(x - l / 2, y - wd / 2, 0)
+					G.rect_3d(gui.gui, R2D(at, a, at + V2(l / 2, wd / 2)), V3(0, 0, 0), z, V2(l, wd), c)
+				end
+				bar(len + 2 * o, wid + 2 * o, M.LAYER - 1, dark)
+				bar(len, wid, M.LAYER, colour)
 			end
 		end
 	end
 	if land then
-		-- The ring, flat on the ground: as wide as its radius across the view, as tall as along it.
-		local cx, cy = screen(land)
-		local rx = screen({ x = land.x + cam.right.x * M.RING, y = land.y + cam.right.y * M.RING, z = land.z })
-		local fl = sqrt(cam.forward.x * cam.forward.x + cam.forward.y * cam.forward.y)
-		local fx, fy = fl > 1e-6 and cam.forward.x / fl or 0, fl > 1e-6 and cam.forward.y / fl or 1
-		local _, ty = screen({ x = land.x + fx * M.RING, y = land.y + fy * M.RING, z = land.z })
-		local _, by = screen({ x = land.x - fx * M.RING, y = land.y - fy * M.RING, z = land.z })
-		if cx and rx and ty and by then
-			local rw = math.abs(rx - cx) * 2
-			local rh = math.max(math.abs(ty - by), 2)
-			local ring_gui = art.gui()
-			if ring_gui then art.draw(ring_gui, "eol_ring", cx - rw / 2, cy - rh / 2, rw, rh, M.LAYER, M.RING_ALPHA, 255, 255, 255) end
+		-- The ball, resting on the ground where the throw first lands.
+		local centre = { x = land.x, y = land.y, z = land.z + M.BALL }
+		local cx, cy = screen(centre)
+		local rx = screen({ x = centre.x + cam.right.x * M.BALL, y = centre.y + cam.right.y * M.BALL, z = centre.z })
+		if cx and rx then
+			local r = max(math.abs(rx - cx), M.BALL_MIN * s)
+			local ball_gui = art.gui()
+			if ball_gui then art.draw(ball_gui, "eol_ball", cx - r, cy - r, 2 * r, 2 * r, M.LAYER, M.BALL_ALPHA, 255, 255, 255) end
 		end
 	end
 	gui:set_ignore_position_scale(false)
