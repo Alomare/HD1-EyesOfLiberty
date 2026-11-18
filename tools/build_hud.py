@@ -6,8 +6,6 @@ Usage: python tools/build_hud.py
   eol_idle  the game's idle aim cursor ("hud/cursors/game_inactive", a hardware cursor the shoulder
             view can't show), read from the game through Minediver and kept as it is, 32 by 32
   eol_ring  the ring where a throw lands, white, 256 by 256
-  eol_ball  the ball where a throw lands: a see-through white sphere, clear in the middle and bright
-            at the edge, 128 by 128
   eol_hurt  the edges of the screen for Hurt feedback, white, stretched over the whole window
 
 Writes res/hud_*.texture and res/hud.material, and internal/hud_preview.png. Needs Pillow and numpy,
@@ -101,22 +99,6 @@ def ring(size=256, thickness=0.075):
     return white(a)
 
 
-def ball(size=128):
-    """A see-through sphere: clear in the middle, white toward the edge as glass is (alpha grows with
-    the slant of the surface), a soft highlight at the top left, edges a pixel or two wide."""
-    y, x = np.mgrid[0:size, 0:size] + 0.5
-    u, v = (x - size / 2) / (size / 2), (size / 2 - y) / (size / 2)
-    r = np.hypot(u, v)
-    edge = 2.0 / (size / 2)
-    inside = np.clip((1 - edge - r) / edge + 0.5, 0, 1)
-    nz = np.sqrt(np.clip(1 - r * r, 0, 1))
-    rim = (1 - nz) ** 2.2
-    hx, hy = u + 0.38, v - 0.42
-    highlight = np.exp(-(hx * hx + hy * hy) / (2 * 0.11 ** 2))
-    alpha = np.clip(0.06 + 0.9 * rim + 0.75 * highlight, 0, 1) * inside
-    return white(alpha)
-
-
 def noise(shape, cells, seed):
     """Smooth value noise, cells across the width."""
     rng = np.random.default_rng(seed)
@@ -164,7 +146,7 @@ def material(names):
 
 
 def main():
-    images = {"eol_idle": idle_cursor(), "eol_ring": ring(), "eol_hurt": hurt(), "eol_ball": ball()}
+    images = {"eol_idle": idle_cursor(), "eol_ring": ring(), "eol_hurt": hurt()}
     RES.mkdir(exist_ok=True)
     for sprite, image in images.items():
         (RES / f"hud_{sprite[4:]}.texture").write_bytes(dds_rgba(image))
@@ -176,7 +158,6 @@ def main():
     preview.alpha_composite(tint, (0, 0))
     preview.alpha_composite(images["eol_ring"], (512 + 16, 16))
     preview.alpha_composite(images["eol_idle"].resize((64, 64), Image.Resampling.NEAREST), (512 + 256 + 24, 16))
-    preview.alpha_composite(images["eol_ball"], (512 + 16, 288 - 128 - 16))
     (ROOT / "internal").mkdir(exist_ok=True)
     preview.save(ROOT / "internal" / "hud_preview.png")
     for sprite in images:

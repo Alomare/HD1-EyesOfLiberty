@@ -12,9 +12,8 @@
 -- The look: short white dashes scrolling along the flight like the map's moving line (Hud.draw_map),
 -- drawn as plain bars (Gui.rect_3d, as HdGui.rotated_rect) since the map's dash art carries its own
 -- colour, each with a soft drop shadow (the same bar, dark, a little down and right) so it reads on snow
--- and sky as on rock; where it lands, a see-through ball of the mod's own art (src/art.lua, "eol_ball":
--- clear in the middle, bright at the edge) resting on the ground with the same shadow, sized as a ball of
--- BALL metres would look there, never smaller than BALL_MIN pixels.
+-- and sky as on rock; where it lands, a plain white ring of the mod's own art (src/art.lua), laid flat
+-- on the ground in perspective, with the same shadow.
 local frustum = obsidian.module("src/frustum")
 local art = obsidian.module("src/art")
 
@@ -28,12 +27,11 @@ M.DASH_WIDTH = 3.2    -- design pixels, how thick a dash is at 6 m
 M.SHADOW = 1.2        -- design pixels the shadow sits down and right, at 6 m (at least 1)
 M.DASH_EVERY = 0.6    -- metres between two dashes along the flight
 M.SCROLL = 1.2        -- metres a second the dashes move along the flight
-M.BALL = 0.35         -- metres, radius of the ball where the throw lands
-M.BALL_MIN = 7        -- design pixels, the smallest radius the ball is drawn at
+M.RING = 0.9          -- metres, radius of the ring on the ground
 M.LAYER = 97
 M.ALPHA = 235         -- the dashes, out of 255
 M.SHADOW_ALPHA = 110  -- the drop shadows, out of 255
-M.BALL_ALPHA = 245    -- the ball, out of 255
+M.RING_ALPHA = 235    -- the ring, out of 255
 -- The dash art lies along screen x at rotation 0; Gui rotations turn clockwise (see src/edge.lua).
 M.DASH_ART = 0
 M.THROW_STATES = { "CharacterStateThrow", "CharacterStateStratagemsThrow", "CharacterStateDownedThrow",
@@ -266,17 +264,20 @@ function M.draw(hud, env, scale, dt)
 		end
 	end
 	if land then
-		-- The ball, resting on the ground where the throw first lands.
-		local centre = { x = land.x, y = land.y, z = land.z + M.BALL }
-		local cx, cy = screen(centre)
-		local rx = screen({ x = centre.x + cam.right.x * M.BALL, y = centre.y + cam.right.y * M.BALL, z = centre.z })
-		if cx and rx then
-			local r = max(math.abs(rx - cx), M.BALL_MIN * s)
-			local ball_gui = art.gui()
-			if ball_gui then
-				local d = max(r * 0.12, sh)
-				art.draw(ball_gui, "eol_ball", cx - r + d, cy - r - d, 2 * r, 2 * r, M.LAYER - 1, M.SHADOW_ALPHA, 0, 0, 0)
-				art.draw(ball_gui, "eol_ball", cx - r, cy - r, 2 * r, 2 * r, M.LAYER, M.BALL_ALPHA, 255, 255, 255)
+		-- The ring, flat on the ground: as wide as its radius across the view, as tall as along it.
+		local cx, cy = screen(land)
+		local rx = screen({ x = land.x + cam.right.x * M.RING, y = land.y + cam.right.y * M.RING, z = land.z })
+		local fl = sqrt(cam.forward.x * cam.forward.x + cam.forward.y * cam.forward.y)
+		local fx, fy = fl > 1e-6 and cam.forward.x / fl or 0, fl > 1e-6 and cam.forward.y / fl or 1
+		local _, ty = screen({ x = land.x + fx * M.RING, y = land.y + fy * M.RING, z = land.z })
+		local _, by = screen({ x = land.x - fx * M.RING, y = land.y - fy * M.RING, z = land.z })
+		if cx and rx and ty and by then
+			local rw = math.abs(rx - cx) * 2
+			local rh = math.max(math.abs(ty - by), 2)
+			local ring_gui = art.gui()
+			if ring_gui then
+				art.draw(ring_gui, "eol_ring", cx - rw / 2 + sh, cy - rh / 2 - sh, rw, rh, M.LAYER - 1, M.SHADOW_ALPHA, 0, 0, 0)
+				art.draw(ring_gui, "eol_ring", cx - rw / 2, cy - rh / 2, rw, rh, M.LAYER, M.RING_ALPHA, 255, 255, 255)
 			end
 		end
 	end
