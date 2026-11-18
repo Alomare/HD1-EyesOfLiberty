@@ -30,7 +30,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "res"
-PHOTO = ROOT.parent / "PhotoMode" / "res"
+PHOTO = ROOT.parent.parent / "Client" / "PhotoMode" / "res"
 SIZE = 2048
 HORIZON_R = 0.44        # the horizon's ring in the texture (0.5 is the edge)
 SKIRT_DEG = 18.0        # degrees below the horizon the edge of the texture stands for
