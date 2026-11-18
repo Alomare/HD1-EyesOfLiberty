@@ -2,6 +2,17 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 0.11.0
+
+- New: Hurt feedback: the edges of the screen flash red and the camera shakes briefly when the Helldiver loses health, stronger for bigger hits.
+- New: Patrols stay in view: patrols within 100 m of a Helldiver are no longer removed off the top-down screen, so they don't arrive again when they come close.
+- New: The camera follows the Helldiver up during a jump pack jump.
+- Changed: Hit direction is now called Hurt indicator.
+- Changed: The throw arc ring is white and more opaque.
+- Changed: The sprint camera sway follows the speed of the Helldiver, smaller and slower when a sprint is slowed, as in water.
+- Changed: Between shots, the crosshair shows the idle cursor of the game when the game keeps the crosshair on screen, and nothing otherwise, as in the top-down view.
+- Fixed: The red alarm overlay covers the whole screen in third person.
+
 ## 0.10.0
 
 - Changed: The vehicle and mech camera sits 1.5 m higher in every view.

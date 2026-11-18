@@ -100,18 +100,55 @@ return {
 		frame(e, env, masters, 0.05)
 		eq(env.state.sprint_fade, 1)
 		e.units.me.character_master.current_state = CharacterStateSprint
-		for _ = 1, 40 do frame(e, env, masters, 0.05) end
+		-- A full sprint: 7 m/s over the ground.
+		for _ = 1, 40 do
+			e.units.me.position.y = e.units.me.position.y + 7 * 0.05
+			frame(e, env, masters, 0.05)
+		end
 		assert(env.state.sprint_fade < 0.01, "faded: " .. env.state.sprint_fade)
 		local shake = obsidian.module("src/shake")
 		assert(shake.sprint.level > 0.99, "sway on")
+		near(shake.sprint.pace, 1, "full pace at a full sprint", 0.02)
 		local x, y = shake.offset(0.1, shake.factor("medium"))
 		assert(x ~= 0 or y ~= 0, "the camera moves")
 		eq(select(1, shake.offset(0.1, shake.factor("off"))), 0, "Camera shake off: no sway")
+		-- Sprinting through water at 2 m/s: a smaller, slower sway.
+		for _ = 1, 40 do
+			e.units.me.position.y = e.units.me.position.y + 2 * 0.05
+			frame(e, env, masters, 0.05)
+		end
+		near(shake.sprint.pace, 2 / 7, "a third of the pace", 0.02)
 		local cross = obsidian.module("src/crosshair")
 		env.camera = obsidian.module("src/camera")
 		env.state.vehicle = true
 		eq(cross.visible(env), false, "no crosshair at full sprint")
 		CharacterStateSprint = nil
+		E.remove()
+	end },
+
+	{ "a jump pack's flight lifts the camera by the height of the hips", function()
+		local e, env = started()
+		CharacterStateJump = { name = "jump" }
+		local hips_z = 1
+		local has, node, pos = Unit.has_node, Unit.node, Unit.world_position
+		Unit.has_node = function(u, name) return name == "hips" or has(u, name) end
+		Unit.node = function(u, name) if name == "hips" then return 9 end return node(u, name) end
+		Unit.world_position = function(u, n)
+			if n == 9 then local p = pos(u) return E.V3(p.x, p.y, p.z + hips_z) end
+			return pos(u, n)
+		end
+		local masters = E.player(e, "me")
+		e.units.me.character_master = { current_state = {} }
+		for _ = 1, 30 do frame(e, env, masters, 0.05) end
+		local ground = env.view.pivot.z
+		e.units.me.character_master = { current_state = CharacterStateJump, jump_state = 4 }
+		hips_z = 5
+		for _ = 1, 30 do frame(e, env, masters, 0.05) end
+		near(env.view.pivot.z, ground + 4, "four metres up with the hips", 0.05)
+		e.units.me.character_master = { current_state = CharacterStateJump, jump_state = 2 }
+		for _ = 1, 30 do frame(e, env, masters, 0.05) end
+		near(env.view.pivot.z, ground, "only in flight", 0.05)
+		CharacterStateJump = nil
 		E.remove()
 	end },
 

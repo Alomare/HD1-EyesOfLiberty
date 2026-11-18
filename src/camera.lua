@@ -270,6 +270,23 @@ function M.sprinting(avatar)
 	return (sprint ~= nil and cs.current_state == sprint) or (sub_sprint ~= nil and cs.current_substate == sub_sprint)
 end
 
+-- How far a jump pack lifts the Helldiver now, in metres, or 0. The jump moves the root along the
+-- ground from start to target (CharacterStateJump.update, jump_state 4) and the height comes only from
+-- the animation "jumppack_jump", so the hips show it: their height over the root, less the height
+-- they have standing (rest, measured while not jumping; nil until then).
+M.JUMP_STATES = { [4] = true, [5] = true }
+function M.jump_lift(avatar, root_z, rest)
+	local EA, U = g("EntityAux"), g("Unit")
+	local ok, cs = pcall(EA.state_master, avatar, "character")
+	local jump = g("CharacterStateJump")
+	local jumping = ok and type(cs) == "table" and jump ~= nil and cs.current_state == jump and M.JUMP_STATES[cs.jump_state]
+	local hips = nil
+	if U.has_node and U.has_node(avatar, "hips") then hips = U.world_position(avatar, U.node(avatar, "hips")).z - root_z end
+	if not jumping then return 0, hips end
+	if not (hips and rest) then return 0, nil end
+	return math.max(0, hips - rest), nil
+end
+
 -- Whether the Helldiver is still in the drop cutscene: the Hellpod holds the aim until they climb out.
 function M.in_pod(avatar)
 	local EA = g("EntityAux")
@@ -358,6 +375,18 @@ function M.particle_scale(view_fov, game_fov)
 	return math.tan(view_fov / 2) / math.tan(game_fov / 2)
 end
 
+-- How the link widens them: "pull" brings the effect nearer the camera by the scale (y is the camera's
+-- forward), which grows the places and the sprites of the particles alike, as the view would see a
+-- larger effect; "spread" stretches the places across the view only, which leaves each sprite as big
+-- as it was, so a tint made of sprites covers less than the screen.
+M.PARTICLE_FIT = "pull"
+
+-- The x, y and z scale of the link for a widening of `scale`.
+function M.particle_axes(aspect, scale, fit)
+	if (fit or M.PARTICLE_FIT) == "spread" then return aspect * scale, 1, scale end
+	return aspect, 1 / scale, 1
+end
+
 local function relink(cm, name, info, scale)
 	local W, M4 = g("World"), g("Matrix4x4")
 	local id = cm.camera_particles and cm.camera_particles[name]
@@ -367,8 +396,10 @@ local function relink(cm, name, info, scale)
 	end
 	local world = world_of(cm)
 	local m = M4.identity()
-	M4.set_element(m, 1, 1, info.aspect * scale)
-	M4.set_element(m, 3, 3, scale)
+	local sx, sy, sz = M.particle_axes(info.aspect, scale)
+	M4.set_element(m, 1, 1, sx)
+	M4.set_element(m, 2, 2, sy)
+	M4.set_element(m, 3, 3, sz)
 	W.link_particles(world, id, cm.viewport.camera_unit, 0, m, "destroy")
 	info.scale = scale
 end
@@ -392,7 +423,7 @@ function M.release(env, cm)
 	state.watching, M.watching = false, false
 	env.view = nil
 	smooth.pivot, smooth.length, smooth.aim, smooth.target, smooth.side, smooth.dive = nil, nil, 0, nil, nil, 0
-	smooth.down, smooth.sprint = 0, 0
+	smooth.down, smooth.sprint, smooth.speed, smooth.last_p = 0, 0, nil, nil
 	state.sprint_fade = 1
 	state.dropping = false
 	shake.clear()
@@ -672,11 +703,31 @@ function M.drive(env, cm, dt)
 	shake.sprint.level = smooth.sprint
 
 	local p = U.world_position(target, 0)
+	-- How fast the Helldiver moves over the ground, eased, for the pace of the sprint sway.
+	local last = smooth.last_p
+	if last and dt > 0 then
+		local dx, dy = p.x - last.x, p.y - last.y
+		local speed = math.sqrt(dx * dx + dy * dy) / dt
+		if speed < 30 then smooth.speed = rig.ease(smooth.speed or speed, speed, 8, dt) end
+	end
+	smooth.last_p = { x = p.x, y = p.y }
+	shake.sprint.pace = shake.pace_of(smooth.speed)
 	local world, proxy = world_of(cm)
 	local position, fov
 	-- Pivot and lens. The ship has a distance of its own: the bridge is small.
 	local lift = tonumber(config.get("camera_height")) or 0
-	local want = { x = p.x, y = p.y, z = p.z + rig.height(kind, smooth.side, smooth.dive, smooth.down) + lift }
+	-- A jump pack's flight lifts the camera with the Helldiver.
+	local jumped = 0
+	if not kind then
+		local ok, up, standing = pcall(M.jump_lift, avatar, p.z, smooth.hips_rest)
+		if ok then
+			jumped = up
+			if standing and smooth.dive < 0.01 and smooth.down < 0.01 then
+				smooth.hips_rest = smooth.hips_rest and rig.ease(smooth.hips_rest, standing, 4, dt) or standing
+			end
+		end
+	end
+	local want = { x = p.x, y = p.y, z = p.z + rig.height(kind, smooth.side, smooth.dive, smooth.down) + lift + jumped }
 	smooth.pivot = rig.follow_pivot(smooth.pivot, want, dt)
 	local distance
 	if kind then distance = config.get("vehicle_distance") or 7

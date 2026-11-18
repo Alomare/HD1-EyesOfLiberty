@@ -1,4 +1,5 @@
--- The session parts: max weapon range, far enemy detection, free movement and throw range.
+-- The session parts: max weapon range, far enemy detection, free movement, throw range and patrols
+-- that stay in view.
 --
 -- Both change the shared game, so each hook is registered with the options of the part. In a lobby
 -- that isn't cleared the loader calls only the original, which is why every change here is made
@@ -254,8 +255,68 @@ local function start_throw_range(env)
 	end, env.part("throw_range"))
 end
 
+-- Patrols stay in view (part keep_patrols) ----------------------------------------------------------
+
+-- PatrolManager.update_host despawns a patrol after 5 seconds with none of the patrol units inside the
+-- top-down screen (is_position_inside_frustum with margins of -0.1, patrol_manager.lua 324), and spawns
+-- it again, climbing out of the ground or dropping in, once the patrol place comes back inside the screen
+-- (margins -0.5, line 304). The third-person view sees much farther than that screen, so a patrol in
+-- plain view vanished and played the arrival again on coming close. While update_host runs, a unit
+-- within KEEP_RANGE of a living Helldiver counts as on screen for that despawn check only; spawning
+-- still waits for the top-down screen, so no more patrols come than in the game.
+M.KEEP_RANGE = 100
+M.KEEP_MARGIN = -0.1
+
+-- Whether (x, y) lies within KEEP_RANGE of one of the places in `players` ({ x, y } each).
+function M.near_players(players, x, y)
+	local r2 = M.KEEP_RANGE * M.KEEP_RANGE
+	for i = 1, #players do
+		local p = players[i]
+		local dx, dy = x - p.x, y - p.y
+		if dx * dx + dy * dy <= r2 then return true end
+	end
+	return false
+end
+
+-- The places of the living Helldivers, from the patrol manager's own entity list.
+function M.player_places(manager)
+	local out = {}
+	local em = type(manager) == "table" and manager.entity_manager
+	if not em then return out end
+	local EA, U = rawget(_G, "EntityAux"), rawget(_G, "Unit")
+	for unit in pairs(em:get_slave_entities("character")) do
+		local ok, health = pcall(EA.state, unit, "health")
+		if not (ok and type(health) == "table" and health.is_dead) then
+			local p = U.world_position(unit, 0)
+			out[#out + 1] = { x = p.x, y = p.y }
+		end
+	end
+	return out
+end
+
+local function start_keep_patrols(env)
+	local opts = env.part("keep_patrols")
+	local players = nil
+	hook("PatrolManager", "update_host", function(original, self, ...)
+		local ok, places = pcall(M.player_places, self)
+		players = ok and places or nil
+		local results = { pcall(original, self, ...) }
+		players = nil
+		if not results[1] then error(results[2], 0) end
+		return unpack(results, 2, table.maxn(results))
+	end, opts)
+	hook("CameraManager", "is_position_inside_frustum", function(original, self, position, left, ...)
+		if not players or left ~= M.KEEP_MARGIN then return original(self, position, left, ...) end
+		local a, b, c, d = original(self, position, left, ...)
+		if a then return a, b, c, d end
+		if position and M.near_players(players, position.x, position.y) then return true, b, c, d end
+		return a, b, c, d
+	end, opts)
+end
+
 function M.start(env)
 	env_ref = env
+	if env.config.get("keep_patrols") ~= false then start_keep_patrols(env) end
 	if env.config.get("throw_range") ~= false then start_throw_range(env) end
 	if env.config.get("max_weapon_range") ~= false then start_weapon_range(env) end
 	if env.config.get("far_detection") ~= false then start_enemy_detection(env) end

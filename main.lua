@@ -54,7 +54,7 @@ local env = {
 config.start(env)
 
 local started = {}
-for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/look", "src/edge", "src/arc", "src/session" }) do
+for _, name in ipairs({ "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/hurt", "src/look", "src/edge", "src/arc", "src/session" }) do
 	local ok, err = pcall(function()
 		local m = obsidian.module(name)
 		if m and m.start then m.start(env) end
@@ -83,7 +83,7 @@ end
 if type(obsidian.after_startup) == "function" then obsidian.after_startup(old_one) else old_one() end
 
 -- What other mods get from obsidian.import("alomare.eyesofliberty").
-local export = { version = "0.10.0" }
+local export = { version = "0.11.0" }
 
 -- Where shots go on screen while third person steers the view: { x, y, aiming, firing, vehicle }, in
 -- pixels from the bottom left (the coordinates of obsidian.ui.canvas). aiming: the aim button is held;

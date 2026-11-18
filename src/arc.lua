@@ -11,8 +11,10 @@
 --
 -- The look: short white dashes scrolling along the flight like the map's moving line (Hud.draw_map),
 -- drawn as plain bars (Gui.rect_3d, as HdGui.rotated_rect) since the map's dash art carries its own
--- colour; the ring is "distractor_ping", the map's ping, laid flat on the ground in perspective.
+-- colour; the ring is a plain white ring of the mod's own art (src/art.lua), laid flat on the ground in
+-- perspective, stronger than the dashes so the landing point reads at a glance.
 local frustum = obsidian.module("src/frustum")
+local art = obsidian.module("src/art")
 
 local M = {}
 
@@ -25,7 +27,8 @@ M.DASH_EVERY = 0.6    -- metres between two dashes along the flight
 M.SCROLL = 1.2        -- metres a second the dashes move along the flight
 M.RING = 0.9          -- metres, radius of the ring on the ground
 M.LAYER = 97
-M.ALPHA = 100         -- the dashes and the ring, out of 255
+M.ALPHA = 100         -- the dashes, out of 255
+M.RING_ALPHA = 220    -- the ring, out of 255
 -- The dash art lies along screen x at rotation 0; Gui rotations turn clockwise (see src/edge.lua).
 M.DASH_ART = 0
 M.THROW_STATES = { "CharacterStateThrow", "CharacterStateStratagemsThrow", "CharacterStateDownedThrow",
@@ -207,7 +210,8 @@ function M.draw(hud, env, scale, dt)
 		if cx and rx and ty and by then
 			local rw = math.abs(rx - cx) * 2
 			local rh = math.max(math.abs(ty - by), 2)
-			gui:image("distractor_ping", V3(cx - rw / 2, cy - rh / 2, M.LAYER), V2(rw, rh), colour)
+			local ring_gui = art.gui()
+			if ring_gui then art.draw(ring_gui, "eol_ring", cx - rw / 2, cy - rh / 2, rw, rh, M.LAYER, M.RING_ALPHA, 255, 255, 255) end
 		end
 	end
 	gui:set_ignore_position_scale(false)

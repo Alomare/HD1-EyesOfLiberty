@@ -196,4 +196,34 @@ return {
 		hook.fn(function(_, _, ctx) seen = ctx.settings.throwable_info.throw_distance_max end, {}, "grenade", context, "other", {})
 		eq(seen, 12, "only the launch")
 	end },
+
+	{ "a patrol near a Helldiver counts as on screen for the despawn check only", function()
+		vec_engine()
+		local session = obsidian.module("src/session")
+		OPTIONS = { keep_patrols = true, throw_range = false, max_weapon_range = false, far_detection = false, free_movement = false }
+		local env = { config = { get = function(id) return OPTIONS[id] end }, part = function(id) return { part = id } end, state = {} }
+		POSITIONS = { me = { x = 0, y = 0, z = 0 } }
+		EntityAux = { state = function() return { is_dead = false } end }
+		session.start(env)
+		local update, inside
+		for _, h in ipairs(HOOKS) do
+			if h.target == "PatrolManager" and h.method == "update_host" then update = h end
+			if h.target == "CameraManager" and h.method == "is_position_inside_frustum" then inside = h end
+		end
+		assert(update and inside, "both hooks")
+		eq(update.opts.part, "keep_patrols", "the part")
+		local function off_screen() return false, 1, 2, 3 end
+		local manager = { entity_manager = { get_slave_entities = function() return { me = {} } end } }
+		local answers = {}
+		update.fn(function()
+			answers.near = inside.fn(off_screen, {}, { x = 60, y = 0 }, -0.1, -0.1, -0.1, -0.1)
+			answers.far = inside.fn(off_screen, {}, { x = 160, y = 0 }, -0.1, -0.1, -0.1, -0.1)
+			answers.spawn = inside.fn(off_screen, {}, { x = 10, y = 0 }, -0.5, -0.5, -0.5, -0.5)
+		end, manager, 0.016)
+		eq(answers.near, true, "60 m away stays")
+		eq(answers.far, false, "160 m away goes as in the game")
+		eq(answers.spawn, false, "spawning still waits for the top-down screen")
+		eq(inside.fn(off_screen, {}, { x = 0, y = 0 }, -0.1, -0.1, -0.1, -0.1), false, "outside the patrol update: the game's answer")
+		EntityAux = nil
+	end },
 }

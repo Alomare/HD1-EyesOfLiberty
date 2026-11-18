@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.eyesofliberty",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "name": {
     "en": "Eyes of Liberty"
   },
@@ -49,11 +49,20 @@
       "option": "throw_range",
       "name": { "en": "Increased throw range" },
       "description": { "en": "Grenades and stratagem balls fly twice as far. Off in lobbies with players who don't run it." }
+    },
+    {
+      "id": "keep_patrols",
+      "scope": "session",
+      "option": "keep_patrols",
+      "name": { "en": "Patrols stay in view" },
+      "description": { "en": "Patrols near the squad are no longer removed off the top-down screen, so they don't arrive again when they come close. Off in lobbies with players who don't run it." }
     }
   ],
   "entry": "main.lua",
   "modules": [
     "src/config.lua",
+    "src/art.lua",
+    "src/hurt.lua",
     "src/scoped.lua",
     "src/rig.lua",
     "src/pod.lua",
@@ -161,8 +170,12 @@
       "description": { "en": "Enemies closer than this show on the ring; within half of it, the segment is stronger." } },
     { "id": "hit_indicators", "type": "toggle", "default": true,
       "group": "indicators", "part": "view", "scope": "client",
-      "label": { "en": "Hit direction" },
+      "label": { "en": "Hurt indicator" },
       "description": { "en": "A bar near the crosshair points toward where a hit came from and fades within 2 seconds: red when health is lost, yellow when the personal shield takes it, white when the vehicle does. A bar for an enemy follows the enemy." } },
+    { "id": "hurt_feedback", "type": "toggle", "default": true,
+      "group": "indicators", "part": "view", "scope": "client",
+      "label": { "en": "Hurt feedback" },
+      "description": { "en": "When the Helldiver loses health, the edges of the screen flash red and the camera shakes briefly, both stronger for a bigger hit. The shake follows the Camera shake option and shows in third person only." } },
     { "id": "edge_markers", "type": "toggle", "default": true,
       "group": "indicators", "part": "view", "scope": "client",
       "label": { "en": "Edge markers" },
@@ -207,7 +220,11 @@
     { "id": "throw_range", "type": "toggle", "default": true,
       "group": "lobby", "part": "throw_range",
       "label": { "en": "Increased throw range" },
-      "description": { "en": "Grenades and stratagem balls fly twice as far, on top of the Strong Arm perk. Changes the shared game: off in lobbies with players who don't run it." } }
+      "description": { "en": "Grenades and stratagem balls fly twice as far, on top of the Strong Arm perk. Changes the shared game: off in lobbies with players who don't run it." } },
+    { "id": "keep_patrols", "type": "toggle", "default": true,
+      "group": "lobby", "part": "keep_patrols",
+      "label": { "en": "Patrols stay in view" },
+      "description": { "en": "The game removes a patrol a few seconds after it leaves the top-down screen and brings it back, climbing out of the ground or dropping in, when it comes close again. Patrols within 100 m of a Helldiver now stay. New patrols still arrive only at the edge of the top-down screen, as in the game. Changes the shared game: off in lobbies with players who don't run it." } }
   ],
   "keybinds": [
     { "id": "toggle_view", "default": "f8", "label": { "en": "Switch the camera: top-down or third person" } },
@@ -226,6 +243,10 @@
     { "type": "unit", "name": "eyesofliberty/sky/dusk", "bundle": "9cf71054ea26dddf", "data": "res/sky_dusk.unit", "part": "view", "when": { "fix_sky": true } },
     { "type": "texture", "name": "eyesofliberty/sky/night_map", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.texture", "part": "view", "when": { "fix_sky": true } },
     { "type": "material", "name": "eyesofliberty/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.material", "part": "view", "when": { "fix_sky": true } },
-    { "type": "unit", "name": "eyesofliberty/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.unit", "part": "view", "when": { "fix_sky": true } }
+    { "type": "unit", "name": "eyesofliberty/sky/night", "bundle": "9cf71054ea26dddf", "data": "res/sky_night.unit", "part": "view", "when": { "fix_sky": true } },
+    { "type": "texture", "name": "eyesofliberty/hud/eol_idle", "bundle": "9cf71054ea26dddf", "data": "res/hud_idle.texture", "part": "view" },
+    { "type": "texture", "name": "eyesofliberty/hud/eol_ring", "bundle": "9cf71054ea26dddf", "data": "res/hud_ring.texture", "part": "view" },
+    { "type": "texture", "name": "eyesofliberty/hud/eol_hurt", "bundle": "9cf71054ea26dddf", "data": "res/hud_hurt.texture", "part": "view" },
+    { "type": "material", "name": "eyesofliberty/hud", "bundle": "9cf71054ea26dddf", "data": "res/hud.material", "part": "view" }
   ]
 }

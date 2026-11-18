@@ -215,8 +215,10 @@ return {
 			api = { capture = { busy = function() return busy end }, map = { is_open = function() return false end } } }
 		eq(cross.visible(env), false, "on foot between shots")
 		eq(cross.visible(env, true), true, "the game option keeps it up")
+		eq(cross.look(env, true), "idle", "between shots: the game's idle cursor")
 		env.state.firing = true
 		eq(cross.visible(env), true, "firing")
+		eq(cross.look(env, true), "aim", "firing: the aiming cursor")
 		env.state.firing, env.state.vehicle = false, true
 		eq(cross.visible(env), true, "in a vehicle")
 		busy = true

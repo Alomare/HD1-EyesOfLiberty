@@ -170,7 +170,7 @@ return {
 		local e, env = started()
 		local links = {}
 		_G.Matrix4x4 = { identity = function() return {} end, set_element = function(m, r, c, v) m[r .. "," .. c] = v end }
-		World.link_particles = function(_, id, unit, node, m) links[#links + 1] = { id = id, x = m["1,1"], z = m["3,3"] } end
+		World.link_particles = function(_, id, unit, node, m) links[#links + 1] = { id = id, x = m["1,1"], y = m["2,2"], z = m["3,3"] } end
 		CameraManager.camera_particles = {}
 		local add = E.hook("CameraManager", "add_camera_particle")
 		add(function(self, name) self.camera_particles[name] = "fx" .. name end, CameraManager, "alarm", "fx/alarm", true)
@@ -178,14 +178,23 @@ return {
 		local want = math.tan(math.rad(70) / 2) / math.tan(math.rad(60) / 2) * obsidian.module("src/camera").PARTICLE_MARGIN
 		local last = links[#links]
 		eq(last.id, "fxalarm")
-		near(last.z, want, "as much wider as the view", 1e-6)
-		near(last.x, want * (1920 / 1080) / 1.777778, "with the game's own stretch", 1e-4)
+		near(last.y, 1 / want, "pulled nearer by as much as the view is wider", 1e-6)
+		near(last.z, 1, "height kept: nearness does the widening", 1e-9)
+		near(last.x, (1920 / 1080) / 1.777778, "with the game's own stretch", 1e-4)
 		local n = #links
 		frame(e, env, E.player(e, "me"))
 		eq(#links, n, "linked once while the view keeps its width")
 		obsidian.module("src/camera").release(env, CameraManager)
-		near(links[#links].z, 1, "back to the game's size", 1e-9)
+		near(links[#links].y, 1, "back to the game's size", 1e-9)
 		E.remove()
+	end },
+
+	{ "a spread fit stretches the places instead of pulling the effect in", function()
+		local cam = obsidian.module("src/camera")
+		local x, y, z = cam.particle_axes(1.2, 3, "spread")
+		near(x, 3.6, "x") eq(y, 1, "y") eq(z, 3, "z")
+		x, y, z = cam.particle_axes(1.2, 3, "pull")
+		eq(x, 1.2, "x") near(y, 1 / 3, "y") eq(z, 1, "z")
 	end },
 
 	{ "rig places the camera behind the pivot and to the shoulder", function()

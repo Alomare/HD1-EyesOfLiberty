@@ -17,10 +17,21 @@ M.fire = { level = 0, phase = 0, vehicle = false }
 -- (a mod with blasts on every kill) shook it all the time.
 M.GAME_MOST = 0.12
 M.game = { x = 0, y = 0 } -- the game's offset this frame, in metres right and up of the view
--- A slow, uneven sway while sprinting: metres and swings a second. level (0 to 1) is set each frame
--- by src/camera.lua, eased in and out.
+-- A slow, uneven sway while sprinting: metres and swings a second at full sprint speed. level (0 to
+-- 1) is set each frame by src/camera.lua, eased in and out, and pace by how fast the Helldiver moves
+-- over the ground against a full sprint (water and slowing hits make a sprint slower): both how far
+-- and how fast it swings follow the pace, the speed of the swings no lower than PACE_MIN of theirs.
 M.SPRINT = { amp = 0.036, freq = 1.4 }
-M.sprint = { level = 0, phase = 0 }
+M.SPRINT_SPEED = 7     -- m/s, move_speed_sprint_max of the Helldiver (characters/helldiver_private_01)
+M.PACE_MIN = 0.35
+M.PACE_MAX = 1.3
+M.sprint = { level = 0, phase = 0, pace = 1 }
+
+-- The pace for a speed over the ground in m/s.
+function M.pace_of(speed)
+	if type(speed) ~= "number" or speed ~= speed then return 1 end
+	return math.max(0, math.min(M.PACE_MAX, speed / M.SPRINT_SPEED))
+end
 -- While a flamethrower of this player fires (on foot, or the Lumberer's), every shake is cut to FLAME
 -- of its strength: the game shakes the camera on each puff of flame. Seconds the cut holds after the
 -- last frame of fire, and how fast it eases in and out.
@@ -69,9 +80,10 @@ function M.offset(dt, factor)
 	end
 	local sp = M.sprint
 	if sp.level > 0 then
-		sp.phase = sp.phase + dt
+		local pace = sp.pace or 1
+		sp.phase = sp.phase + dt * math.max(M.PACE_MIN, pace)
 		local w = sp.phase * M.SPRINT.freq * 2 * math.pi
-		local a = M.SPRINT.amp * sp.level
+		local a = M.SPRINT.amp * sp.level * pace
 		-- Two swings that never line up, so the sway doesn't read as a loop.
 		x = x + a * (0.7 * math.sin(w) + 0.3 * math.sin(w * 2.37 + 1.1))
 		y = y + a * (0.6 * math.sin(w * 2 + 0.4) + 0.4 * math.sin(w * 3.13))
@@ -104,7 +116,7 @@ function M.clear()
 	M.list = {}
 	M.fire.level, M.fire.phase = 0, 0
 	M.game.x, M.game.y = 0, 0
-	M.sprint.level, M.sprint.phase = 0, 0
+	M.sprint.level, M.sprint.phase, M.sprint.pace = 0, 0, 1
 	M.flame.left, M.flame.mix = 0, 0
 end
 

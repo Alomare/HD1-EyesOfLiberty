@@ -36,7 +36,9 @@ return {
 			local t = h.target
 			if t == "CameraManager" or t == "InputComponent" or t == "ViewportProxy" or t == "CursorManager" or t == "Hud"
 				or t == "CharacterStateThrow" then
-				eq(h.opts.part, "view", tostring(t) .. "." .. tostring(h.method))
+				-- Patrols stay in view asks the frustum too, as a session part.
+				local want = (t == "CameraManager" and h.opts.part == "keep_patrols") and "keep_patrols" or "view"
+				eq(h.opts.part, want, tostring(t) .. "." .. tostring(h.method))
 			end
 		end
 		E.remove()
