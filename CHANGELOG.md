@@ -2,7 +2,7 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
-## Next
+## 0.13.0
 
 - Fixed: A crash a few seconds into the second mission of a session, when the hurt flash, the throw ring or the idle cursor drew on screen.
 - Fixed: The hurt flash no longer shows in the game's top-down view.
