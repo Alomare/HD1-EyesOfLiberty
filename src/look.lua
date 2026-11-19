@@ -1,13 +1,12 @@
 -- The look of a mission: fog and depth of field, through Obsidian API's shading (unguarded,
 -- this player's picture alone).
 --
---   reduce_fog      Reduce fog, a multiplier from 0.1 to 1 on how fast the fog builds up with distance
---                   (0.2: five times slower), in either view. The game's fog shader has no strength of its own: it thickens with distance
---                   at 1 / (end - start) of fog_depth_range, from the start on (an exponential fog,
---                   which also thins with height at the same rate). So the start stays and the span
---                   from start to end is 1 / the multiplier times as long. 1 leaves the game's fog.
---   far_view        the fog pushed out by FOG_SCALE (start and end) while third person steers the
---                   view, before Reduce fog stretches the span
+--   reduce_fog      Reduce fog, the only option that changes the fog: a multiplier from 0.1 to 1 on
+--                   how fast it builds up with distance (0.5 by default: half as fast), in either view. The
+--                   game's fog shader has no strength of its own: it thickens with distance at
+--                   1 / (end - start) of fog_depth_range, from the start on (an exponential fog, which
+--                   also thins with height at the same rate). So the start stays and the span from
+--                   start to end is 1 / the multiplier times as long. 1 leaves the game's fog.
 --   depth_of_field  "game" leaves the planet's, "off" takes it away, "helldiver" keeps the Helldiver
 --                   sharp and blurs what is nearer or farther, as Photo Mode's focus on the player does
 --
@@ -19,8 +18,7 @@ local rig = obsidian.module("src/rig")
 local M = {}
 
 M.FOG_LEAST = 0.1             -- the thinnest Reduce fog: a tenth
-M.FOG_DEFAULT = 0.2
-M.FOG_SCALE = 2.5             -- the long view: the planet's fog range times this
+M.FOG_DEFAULT = 0.5
 -- Photo Mode keeps 6 m sharp around a player about 12 m off; with the shoulder camera 3 m off, that
 -- left nothing nearer than 9 m blurred, and the option looked like it did nothing.
 M.DOF_BLUR = 1                -- the strongest blur Photo Mode offers
@@ -36,16 +34,14 @@ M.KIND = { fog_depth_range = "vector2", dof_amount = "scalar",
 local function g(name) return rawget(_G, name) end
 
 -- What the options ask of the shading now, by name: a value, or false for the planet's own.
--- o: fog (Reduce fog, FOG_LEAST to 1), far (the long view with third person on), planet_fog,
+-- o: fog (Reduce fog, FOG_LEAST to 1), planet_fog,
 -- dof ("game", "off" or "helldiver"), focus (metres to the Helldiver, nil when unknown).
 function M.wanted(o)
 	local out = {}
 	local planet = type(o.planet_fog) == "table" and tonumber(o.planet_fog[1]) and tonumber(o.planet_fog[2]) and o.planet_fog
-	local far = o.far and M.FOG_SCALE or 1
 	local thin = 1 / math.max(M.FOG_LEAST, math.min(1, tonumber(o.fog) or 1))
-	if planet and (far > 1 or thin > 1) then
-		local start = planet[1] * far
-		out.fog_depth_range = { start, start + (planet[2] - planet[1]) * far * thin }
+	if planet and thin > 1 then
+		out.fog_depth_range = { planet[1], planet[1] + (planet[2] - planet[1]) * thin }
 	else
 		out.fog_depth_range = false
 	end
@@ -162,7 +158,6 @@ function M.frame(env)
 	local dof = config.get("depth_of_field") or "off"
 	M.apply(world.shading, M.wanted({
 		fog = tonumber(config.get("reduce_fog")) or M.FOG_DEFAULT,
-		far = config.get("far_view") ~= false and env.state.active,
 		planet_fog = planet.fog,
 		dof = dof,
 		focus = dof == "helldiver" and M.focus(env, api) or nil,

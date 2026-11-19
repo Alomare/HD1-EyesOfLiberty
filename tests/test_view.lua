@@ -33,11 +33,8 @@ local function api(calls, in_mission)
 end
 
 return {
-	{ "fog range, sky choice and sky brightness", function()
+	{ "sky choice and sky brightness", function()
 		local v = view()
-		local r = v.fog_range({ 20, 120 }, 2.5)
-		eq(r[1], 50) eq(r[2], 300)
-		eq(v.fog_range(nil, 2), nil)
 		for _, t in ipairs({ "dawn", "day", "dusk", "night" }) do eq(v.sky_name(t), t, t) end
 		eq(v.sky_name("ghost_town"), "day", "another time: day")
 		eq(v.sky_name(nil), "day", "unknown: day")

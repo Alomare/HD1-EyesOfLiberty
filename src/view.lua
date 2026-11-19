@@ -2,7 +2,7 @@
 -- only while third person steers the view, and goes back with it.
 --
 --   far_view    the camera's far range and distant models keeping their detail (API detail, the
---               lod_object_multiplier setting); the fog is pushed out in src/look.lua
+--               lod_object_multiplier setting). The fog is left to Reduce fog (src/look.lua).
 --   fix_sky     a sky around the camera for the time of the mission: dawn, day, dusk or night
 --               (res/sky_*, drawn by tools/build_sky.py), turned so its sun stands where the level's
 --               sun is, added when the option is on at launch, with the render config that clears the
@@ -13,7 +13,6 @@ local M = {}
 local function g(name) return rawget(_G, name) end
 
 M.FAR = 2400          -- metres the camera sees with the long view
-M.FOG_SCALE = 2.5     -- the planet's fog range times this
 M.DETAIL = 2          -- distant models keep detail this many times further
 M.SKY_RADIUS = 1800   -- metres
 M.SKY_MADE = 500      -- the dome's own radius
@@ -23,12 +22,6 @@ M.SKY_UNIT = "eyesofliberty/sky/"
 -- Photo Mode draws its skies at intensity 1, as made. Before 0.8.0 the planet-coloured domes of this
 -- mod went to 2 and more, and every sky glowed.
 M.SKY_INTENSITY = 1
-
--- The fog range pushed out: { start, end } times scale.
-function M.fog_range(planet, scale)
-	if type(planet) ~= "table" or type(planet[1]) ~= "number" or type(planet[2]) ~= "number" then return nil end
-	return { planet[1] * scale, planet[2] * scale }
-end
 
 -- The sky for a mission's time of day, day when unknown. The proving grounds keep their own times,
 -- which fall back to day.
