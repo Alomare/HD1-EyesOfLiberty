@@ -1,10 +1,13 @@
 -- The look of a mission: fog and depth of field, through Obsidian API's shading (unguarded,
 -- this player's picture alone).
 --
---   no_fog          Reduce fog: the planet's fog range (fog_depth_range) stretched REDUCE times, so the
---                   fog at any distance is a fifth of the game's, in either view
---   far_view        the fog pushed out by FOG_SCALE while third person steers the view; with no_fog the
---                   farther of the two
+--   no_fog          Reduce fog: the fog thins to a fifth, in either view. The game's fog shader has no
+--                   strength of its own: it thickens with distance at 1 / (end - start) of
+--                   fog_depth_range, from the start on (an exponential fog, which also thins with
+--                   height at the same rate). So the start stays and the span from start to end is
+--                   REDUCE times as long: the fog begins where it did and builds up a fifth as fast.
+--   far_view        the fog pushed out by FOG_SCALE (start and end) while third person steers the
+--                   view, before Reduce fog stretches the span
 --   depth_of_field  "game" leaves the planet's, "off" takes it away, "helldiver" keeps the Helldiver
 --                   sharp and blurs what is nearer or farther, as Photo Mode's focus on the player does
 --
@@ -15,7 +18,7 @@ local rig = obsidian.module("src/rig")
 
 local M = {}
 
-M.REDUCE = 5                  -- Reduce fog: the fog at 20% of the game's
+M.REDUCE = 5                  -- Reduce fog: the fog builds up at 20% of the game's rate
 M.FOG_SCALE = 2.5             -- the long view: the planet's fog range times this
 -- Photo Mode keeps 6 m sharp around a player about 12 m off; with the shoulder camera 3 m off, that
 -- left nothing nearer than 9 m blurred, and the option looked like it did nothing.
@@ -37,9 +40,11 @@ local function g(name) return rawget(_G, name) end
 function M.wanted(o)
 	local out = {}
 	local planet = type(o.planet_fog) == "table" and tonumber(o.planet_fog[1]) and tonumber(o.planet_fog[2]) and o.planet_fog
-	local scale = math.max(o.no_fog and M.REDUCE or 1, o.far and M.FOG_SCALE or 1)
-	if planet and scale > 1 then
-		out.fog_depth_range = { planet[1] * scale, planet[2] * scale }
+	local far = o.far and M.FOG_SCALE or 1
+	local thin = o.no_fog and M.REDUCE or 1
+	if planet and (far > 1 or thin > 1) then
+		local start = planet[1] * far
+		out.fog_depth_range = { start, start + (planet[2] - planet[1]) * far * thin }
 	else
 		out.fog_depth_range = false
 	end
