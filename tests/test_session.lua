@@ -227,16 +227,16 @@ return {
 		EntityAux = nil
 	end },
 
-	{ "bullets lose damage past their weapon's range, to a quarter over 30 m, armor taken into account", function()
+	{ "bullets lose damage past their weapon's range, to a fifth over 15 m, armor taken into account", function()
 		local session = obsidian.module("src/session")
 		eq(session.falloff(10, 40), 1, "inside the range")
 		eq(session.falloff(40, 40), 1, "at the range")
-		near(session.falloff(55, 40), 0.625, "halfway through the span")
-		eq(session.falloff(70, 40), 0.25, "the end of the span")
-		eq(session.falloff(300, 40), 0.25, "and beyond")
+		near(session.falloff(47.5, 40), 0.6, "halfway through the span")
+		eq(session.falloff(55, 40), 0.2, "the end of the span")
+		eq(session.falloff(300, 40), 0.2, "and beyond")
 		eq(session.falloff(50, 2), 1, "melee reach stays")
-		-- power 100 against armor 40 deals 60; a quarter of it is 15, so power 55.
-		eq(session.lowered_power(100, 60, 0.25), 55)
+		-- power 100 against armor 40 deals 60; a fifth of it is 12, so power 52.
+		eq(session.lowered_power(100, 60, 0.2), 52)
 		eq(session.lowered_power(100, 0, 0.25), 100, "a hit that does nothing stays")
 	end },
 
@@ -270,7 +270,7 @@ return {
 		callback(20)
 		callback(100)
 		eq(queued[2], 100, "inside the range")
-		eq(queued[3], 55, "past the span: a quarter of the 60 that got through the armor")
+		eq(queued[3], 52, "past the span: a fifth of the 60 that got through the armor")
 		eq(type(EntityAux.queue_command_interface), "function", "the command function is put back")
 		st.weapon_info.effect_hit = "fx/laser_hit"
 		callback(100)

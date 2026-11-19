@@ -24,7 +24,7 @@ return {
 		eq(p.title("BILE SPEWER"), "Bile Spewer")
 	end },
 
-	{ "the chat line fits what was pinged", function()
+	{ "the words fit what was pinged", function()
 		local p = ping()
 		eq(p.message("ground"), "Look here")
 		eq(p.message("enemy", "Scout", 31.6), "Scout, 32 m")
@@ -40,23 +40,6 @@ return {
 		eq(p.label("objective", "Raise the flag", "Raise the flag here"), "Raise the flag")
 		local c = p.lighter({ 235, 45, 35 }, 0.2)
 		eq(c[1], 239) eq(c[2], 87) eq(c[3], 79)
-	end },
-
-	{ "a ping's chat line takes the ping's colour, once, and only that line", function()
-		local p = ping()
-		GAME_TIME = 100
-		local history = {
-			{ text = "Alomare: Scout, 32 m", time_stamp = 99.5, player_color = { 1, 2, 3 } },
-			{ text = "Alomare: hello", time_stamp = 99, player_color = { 1, 2, 3 } },
-		}
-		local api = { game = { state = function() return { text_chat = { history = history } } end } }
-		local tints = { { words = "Scout, 32 m", color = p.COLORS.enemy, left = 3 }, { words = "Look here", color = p.COLORS.ground, left = 0.01 } }
-		p.tint(api, tints, 0.016)
-		eq(history[1].player_color[1], p.COLORS.enemy[1], "the ping's red")
-		eq(history[2].player_color[1], 1, "the other line keeps the player's colour")
-		eq(#tints, 0, "done, and the one never seen dropped after its wait")
-		eq(p.chat_line(history, "Scout, 32 m", 0), nil, "not tinted twice")
-		GAME_TIME = nil
 	end },
 
 	{ "a shared ping reads back as sent, and junk reads as nothing", function()
@@ -113,14 +96,15 @@ return {
 		E.remove()
 	end },
 
-	{ "the key pings once per cooldown, says it in chat, shares it and draws the marker", function()
+	{ "the key pings once per cooldown, plays the chat sound here only, shares it and draws the marker", function()
 		local e = E.install()
 		local kit, calls = recorder()
 		obsidian.ui = { canvas = function() return kit end }
 		e.units.me = { position = { x = 0, y = 0, z = 0 } }
-		local chat, shared = {}, {}
+		local chat, shared, sounds = {}, {}, 0
+		local text_chat = { play_chat_sound = function() sounds = sounds + 1 end }
 		local api = {
-			game = { in_mission = function() return true end, my_unit = function() return "me" end, state = function() return {} end },
+			game = { in_mission = function() return true end, my_unit = function() return "me" end, state = function() return { text_chat = text_chat } end },
 			enemies = { near = function() return {} end },
 			ui = { chat = function(t) chat[#chat + 1] = t return true end },
 			lobby = { share = function(k, v) shared[k] = v return true end, shared = function() return {} end },
@@ -133,13 +117,13 @@ return {
 		local key = KEYS.ping
 		assert(key and key.opts.part == "view", "the ping key, in the view part")
 		key.fn()
-		eq(#chat, 0, "top-down: no ping")
+		eq(sounds, 0, "top-down: no ping")
 		env.state.active = true
 		env.state.aim_point = { x = 0, y = 20, z = 0 }
 		key.fn()
 		key.fn()
-		eq(#chat, 1, "once per cooldown")
-		eq(chat[1], "Look here")
+		eq(sounds, 1, "once per cooldown")
+		eq(#chat, 0, "nothing in the game's chat, which players without the mod read")
 		eq(ping().decode(shared.ping).kind, "ground")
 		for _, f in ipairs(FRAMES) do f.fn() end
 		local polys = 0

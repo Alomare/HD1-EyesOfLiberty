@@ -99,8 +99,8 @@ end
 -- that share from an armored target, or all of it. So while the wrapped callback runs, the "do_damage"
 -- command it queues gets the power that leaves exactly the share of the damage: power - (1 - share) *
 -- damage, with damage worked out as the target's machine will.
-M.FALLOFF_SPAN = 30
-M.FALLOFF_LEAST = 0.25
+M.FALLOFF_SPAN = 15
+M.FALLOFF_LEAST = 0.2
 M.LIVE_FOR = 1
 
 -- The share of damage left `distance` metres from the muzzle, for a weapon of `range` metres.

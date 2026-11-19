@@ -14,7 +14,7 @@ Third Person Camera replaces 28 game scripts, so mods that change the same parts
 
 The camera and everything on screen work in any lobby. Five session features change the game for the whole lobby: Ballistics revamp (every weapon reaches far, with damage falling off past the weapon's own range), Far enemy detection, Free movement, Increased throw range and Patrols stay in view. They run only when every player runs Obsidian with the same mods, and switch off when anyone else joins. With all five off, the mod counts as a client mod.
 
-Pings say what was marked in the game's chat, so every player reads it; the marker itself shows for teammates who run the mod. Chat lines need Obsidian API 1.55.0 or later.
+Pings show only for teammates who run the mod; nothing goes to the game's chat.
 
 ## Known issues
 

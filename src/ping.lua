@@ -3,19 +3,17 @@
 -- over the level; one out of view sits at the edge of the screen. Aiming near a marker shows what it
 -- marks above it and how far it is below it. Each player has one marker at a time: a new ping replaces the last.
 --
--- What the crosshair is on decides the marker and the line said in the game's chat under the player's
--- name (api.ui.chat, Obsidian API 1.55.0; without it the marker still shows):
+-- What the crosshair is on decides the marker and its words:
 --   enemy                  red, above the enemy and following it      "<enemy>, <metres from the caller> m"
 --   objective (found)      yellow, over the objective                 "<objective> here"
 --   support weapon, pack   blue line, the stratagem's icon on top     "<stratagem, without its code> here"
 --   anything else          white, on the spot                         "Look here"
 --
--- On machines with the mod, the chat line of a ping takes the ping's colour in place of the player's
--- (TextChat draws each line in history[i].player_color): this player's at once, a teammate's once the
--- shared ping arrives. Players without the mod see it in the player's colour.
---
--- Teammates with the mod see the marker through lobby member data (api.lobby.share, about a second
--- late): "<count>|<kind>|<x>|<y>|<z>|<icon>|<words>". Players without it see the chat line.
+-- Nothing goes through the game's chat, which players without the mod would read with no marker to
+-- go with it. Teammates with the mod get the marker through lobby member data (api.lobby.share, about
+-- a second late): "<count>|<kind>|<x>|<y>|<z>|<icon>|<words>". Each machine with the mod plays the
+-- chat's sound (TextChat.play_chat_sound, "ui_radio_chat") as a ping comes up, its own or a teammate's;
+-- players without the mod hear and see nothing.
 local frustum = obsidian.module("src/frustum")
 local edge = obsidian.module("src/edge")
 local compass = obsidian.module("src/compass")
@@ -69,7 +67,7 @@ function M.title(name)
 	return (name:lower():gsub("(%a)([%w']*)", function(a, b) return a:upper() .. b end))
 end
 
--- The chat line for a ping.
+-- The words of a ping.
 function M.message(kind, name, metres)
 	if kind == "enemy" then return string.format("%s, %d m", name or "Enemy", floor((metres or 0) + 0.5)) end
 	if kind == "objective" or kind == "support" then return (name or "Objective") .. " here" end
@@ -124,7 +122,7 @@ function M.nearest(list, p, reach, at, flat)
 	return best, best and best_d or nil
 end
 
--- The name over a marker: what was pinged, from its own name or from the chat line. Nothing for the
+-- The name over a marker: what was pinged, from its own name or from its words. Nothing for the
 -- ground.
 function M.label(kind, name, words)
 	if kind == "ground" then return nil end
@@ -137,20 +135,6 @@ end
 -- A colour this share of the way toward white.
 function M.lighter(c, share)
 	return { c[1] + (255 - c[1]) * share, c[2] + (255 - c[2]) * share, c[3] + (255 - c[3]) * share }
-end
-
--- The newest line of a chat history that says `words` (as "<name>: <words>"), from GAME_TIME `since`
--- on, and not tinted yet.
-function M.chat_line(history, words, since)
-	local tail = ": " .. words
-	for _, entry in ipairs(history or {}) do
-		if type(entry) == "table" and type(entry.text) == "string" and not entry.eol_tinted
-			and (type(entry.time_stamp) ~= "number" or entry.time_stamp >= since)
-			and entry.text:sub(-#tail) == tail then
-			return entry
-		end
-	end
-	return nil
 end
 
 -- The game -----------------------------------------------------------------------------------------
@@ -240,25 +224,12 @@ function M.target(env)
 	return { kind = "ground", pos = { x = point.x, y = point.y, z = point.z } }
 end
 
--- Colours the chat lines in `tints` that have come in, and drops those done or waited for too long.
-function M.tint(api, tints, dt)
+-- The chat's sound, on this machine only, through the game's own call. Answers whether it played.
+function M.sound(api)
 	local st = api.game.state and api.game.state()
 	local chat = type(st) == "table" and st.text_chat
-	local history = type(chat) == "table" and chat.history
-	local now = g("GAME_TIME")
-	now = type(now) == "number" and now or 0
-	for i = #tints, 1, -1 do
-		local t = tints[i]
-		t.left = t.left - dt
-		local entry = history and M.chat_line(history, t.words, now - 6)
-		if entry and t.color then
-			entry.player_color = { t.color[1], t.color[2], t.color[3] }
-			entry.eol_tinted = true
-			table.remove(tints, i)
-		elseif t.left <= 0 then
-			table.remove(tints, i)
-		end
-	end
+	if type(chat) ~= "table" or type(chat.play_chat_sound) ~= "function" then return false end
+	return (pcall(chat.play_chat_sound, chat))
 end
 
 function M.start(env)
@@ -269,7 +240,6 @@ function M.start(env)
 	local on = env.config.get("pings") ~= false
 	if env.config.on_change then env.config.on_change("pings", function(v) on = v ~= false end) end
 
-	local tints = {}        -- chat lines to colour: { words, color, left }
 	local markers = {}      -- by peer ("me" for this machine): { kind, pos, unit, icon, words, age }
 	local seen = {}         -- peer -> the last count read
 	local primed = false    -- the first look of a mission only notes what was already there
@@ -307,9 +277,7 @@ function M.start(env)
 		markers.me = { kind = t.kind, pos = t.pos, unit = t.kind == "enemy" and t.unit or nil, icon = t.icon, words = words,
 			name = t.name, age = 0 }
 		count = count + 1
-		if api.ui and api.ui.chat and pcall(api.ui.chat, words) then
-			tints[#tints + 1] = { words = words, color = M.COLORS[t.kind], left = 3 }
-		end
+		M.sound(api)
 		if api.lobby and api.lobby.share then pcall(api.lobby.share, M.SHARE, M.encode(count, t.kind, t.pos, t.icon, words)) end
 	end, env.KEY_VIEW or env.VIEW)
 
@@ -330,7 +298,7 @@ function M.start(env)
 					m.unit = got and type(near) == "table" and near[1] or nil
 				end
 				markers[peer] = m
-				tints[#tints + 1] = { words = p.words, color = M.COLORS[p.kind], left = 3 }
+				M.sound(api)
 			end
 		end
 		primed = true
@@ -460,7 +428,6 @@ function M.start(env)
 		end
 		local dt = g("ENGINE_DT")
 		dt = type(dt) == "number" and dt > 0 and min(dt, 0.1) or 1 / 60
-		if #tints > 0 then pcall(M.tint, api, tints, dt) end
 		poll = poll - dt
 		if on and poll <= 0 then
 			poll = M.POLL
