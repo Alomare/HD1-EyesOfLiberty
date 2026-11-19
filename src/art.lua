@@ -10,11 +10,11 @@ M.MATERIAL = "eyesofliberty/hud"
 
 local function g(name) return rawget(_G, name) end
 
--- The gui is kept for one mission only. A world is a bare pointer to the engine, so the world of the
--- next level can sit at the same address and compare equal to the old one, whose gui the engine freed
--- with it: drawing on that gui ends the game (crash in Gui.bitmap_uv, 0.12.0). So the gui is dropped
--- as soon as the game leaves the mission, and is also keyed on the game state object, a Lua table
--- held here, which can't be reused while held.
+-- The gui is kept for one mission only. Kept by world alone (0.12.0), the gui of the level before came
+-- back in a later level after the engine had freed it with its world, and drawing on it ended the game
+-- (crash in Gui.bitmap_uv). The world handle of the next level can compare equal to the old one. So
+-- the gui is dropped as soon as the game leaves the mission, and is also keyed on the game state
+-- object, a Lua table held here, which can't be reused while held.
 local held = { state = nil, world = nil, gui = nil }
 local env_of = nil
 
