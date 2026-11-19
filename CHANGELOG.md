@@ -6,6 +6,11 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 
 - Changed: The line of an enemy ping starts at the middle of the enemy's body again, not at the ground.
 - Changed: An enemy ping shows the enemy's name after the crosshair stays on it for one second.
+- New: Blocked shot mark. A small red X marks where shots would land when something between the weapon and the crosshair would stop them.
+- New: Ammo bar. A quarter circle by the crosshair shows the magazine, laser heat or arc charge, in the style of the Better HUD ammo circle, with options for position, shape and scale. The Better HUD ammo circle stays hidden while the bar is on.
+- New: Scroll camera distance option, off by default. The mouse wheel moves the camera closer or farther on foot instead of switching weapons.
+- New: The Helldiver is hidden while the camera is pressed against it, by a wall or in a tight corner.
+- Fixed: The Helldiver no longer disappears high in a jump pack flight while the backpack and weapons stay.
 
 ## 0.13.1
 

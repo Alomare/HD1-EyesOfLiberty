@@ -738,6 +738,7 @@ function M.drive(env, cm, dt)
 	end
 	local wanted_side = kind and M.ride.side or view.side
 	smooth.side = smooth.side and rig.ease(smooth.side, wanted_side, rig.SWAP_RATE, dt) or wanted_side
+	M.side_now = smooth.side -- the shoulder, easing from -1 to 1 during a swap (src/ammobar.lua)
 	local diving = not kind and config.get("dive_camera") ~= false and M.diving(avatar)
 	smooth.dive = rig.ease(smooth.dive, diving and 1 or 0, diving and rig.DIVE_IN or rig.DIVE_OUT, dt)
 	-- Down and crawling: the camera comes low, near the ground, and backs away.
@@ -779,7 +780,16 @@ function M.drive(env, cm, dt)
 	local distance
 	if kind then distance = config.get("vehicle_distance") or 7
 	elseif cm.state == "follow_menu" then distance = config.get("ship_distance") or 2
-	else distance = config.get("foot_distance") or 3 end
+	else
+		distance = config.get("foot_distance") or 3
+		-- Scroll camera distance: the wheel sets the distance on foot, eased toward it.
+		if config.get("scroll_distance") == true then
+			local wheel = (input.look and input.kbm) and M.wheel() or 0
+			M.zoom.want = M.zoom_step(M.zoom.want or distance, wheel)
+			M.zoom.now = M.zoom.now and rig.ease(M.zoom.now, M.zoom.want, M.ZOOM_RATE, dt) or M.zoom.want
+			distance = M.zoom.now
+		end
+	end
 	local side
 	distance, fov, side = rig.lens({
 		distance = distance,
@@ -870,6 +880,33 @@ function M.apply(env, cm, dt, pose)
 	return true
 end
 
+-- Scroll camera distance. M.zoom: want, the distance the wheel asks for; now, the eased one. Both
+-- start from the On-foot camera distance option and go back to it when that option changes.
+M.ZOOM_STEP = 0.5     -- metres a wheel notch moves the camera
+M.ZOOM_MIN, M.ZOOM_MAX = 1, 10
+M.ZOOM_RATE = 14      -- ease rate toward the wanted distance: fast, without a jump
+M.zoom = { want = nil, now = nil }
+
+-- The distance after `wheel` notches (up, positive, brings the camera closer), within ZOOM_MIN and
+-- ZOOM_MAX. Wheels that report 120 a notch count as one.
+function M.zoom_step(current, wheel)
+	if type(wheel) ~= "number" or wheel == 0 then return current end
+	local notches = math.abs(wheel) >= 60 and wheel / 120 or wheel
+	return math.max(M.ZOOM_MIN, math.min(M.ZOOM_MAX, current - notches * M.ZOOM_STEP))
+end
+
+-- The mouse wheel this frame, up positive, or 0.
+local wheel_id = nil
+function M.wheel()
+	local mouse = g("Mouse")
+	if not mouse then return 0 end
+	local ok, y = pcall(function()
+		wheel_id = wheel_id or mouse.axis_index("wheel")
+		return mouse.axis(wheel_id).y
+	end)
+	return ok and type(y) == "number" and y or 0
+end
+
 -- Mouse movement since the last frame: { x right, y down the screen } in counts. The cursor is kept near
 -- the middle of the window, so it never reaches the edge of a windowed game.
 local mouse_ids, last_cursor, skip_cursor = nil, nil, false
@@ -920,6 +957,7 @@ function M.start(env)
 	M.set_mode(env, mode)
 	M.view.side = env.config.get("shoulder") == "left" and -1 or 1
 	env.config.on_change("shoulder", function(v) M.view.side = v == "left" and -1 or 1 end)
+	env.config.on_change("foot_distance", function() M.zoom.want, M.zoom.now = nil, nil end)
 
 	frustum.install(env)
 

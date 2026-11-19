@@ -90,6 +90,18 @@ function M.steer(data, input, view, point)
 	return false
 end
 
+-- Scroll camera distance: on foot with the mouse, a wheel turn moves the camera, so it doesn't switch
+-- weapons too. The game turns the wheel into switch_weapon in the character's input
+-- (input_component.lua, switch_weapon_next and switch_weapon_previous from the wheel axis); number keys
+-- still switch, unless pressed on the same frame as a wheel turn.
+function M.gate_wheel(data, input, env, camera)
+	if type(data) ~= "table" or data.switch_weapon == nil then return false end
+	if env.config.get("scroll_distance") ~= true or env.state.vehicle or not (input.kbm and input.look) then return false end
+	if camera.wheel() == 0 then return false end
+	data.switch_weapon = nil
+	return true
+end
+
 -- This player's units that fire: the avatar and, in a vehicle, the seat and the guns of that seat.
 -- Every weapon update of every frame asks, so the set is made once per view (a new view each frame).
 local own_cache = setmetatable({}, { __mode = "k" })
@@ -160,6 +172,12 @@ function M.collect(slaves, view, point, quaternion_forward, from_weapon)
 				local p = U.world_position(from_weapon and unit or wielder, 0)
 				local offset = st.ray_source_offset and V3A.unbox(st.ray_source_offset) or nil
 				local origin = rig.shot_origin({ x = p.x, y = p.y, z = p.z }, offset, function(o) return Q.rotate(rot, o) end)
+				-- Where this player's shots start, from the Helldiver's root, for the blocked shot mark
+				-- (src/blocked.lua).
+				if not view.vehicle and wielder == view.avatar then
+					local w = U.world_position(wielder, 0)
+					M.shot_offset = { x = origin.x - w.x, y = origin.y - w.y, z = origin.z - w.z }
+				end
 				-- A vehicle gun turns slower than the view: it fires the way it points, at the height of the
 				-- crosshair point. On foot the shot goes straight to the crosshair point.
 				local dir
@@ -262,6 +280,7 @@ function M.start(env)
 		if component == "character" and command == "input" and live() and unit == camera.input.unit then
 			pcall(camera.pad_buttons, data, camera.input)
 			pcall(M.steer, data, camera.input, env.view, state.aim_point)
+			pcall(M.gate_wheel, data, camera.input, env, camera)
 		end
 		return original(self, unit, component, command, data, ...)
 	end, env.VIEW)

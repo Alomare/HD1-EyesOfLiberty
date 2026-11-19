@@ -56,7 +56,7 @@ local env = {
 config.start(env)
 
 local started = {}
-for _, name in ipairs({ "src/art", "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/hurt", "src/look", "src/edge", "src/compass", "src/ping", "src/arc", "src/session" }) do
+for _, name in ipairs({ "src/art", "src/camera", "src/aim", "src/blocked", "src/body", "src/crosshair", "src/view", "src/radar", "src/hits", "src/hurt", "src/look", "src/edge", "src/compass", "src/ping", "src/arc", "src/ammobar", "src/session" }) do
 	local ok, err = pcall(function()
 		local m = obsidian.module(name)
 		if m and m.start then m.start(env) end
@@ -85,7 +85,7 @@ end
 if type(obsidian.after_startup) == "function" then obsidian.after_startup(old_one) else old_one() end
 
 -- What other mods get from obsidian.import("alomare.eyesofliberty").
-local export = { version = "0.13.0" }
+local export = { version = obsidian.version or "0.13.1" }
 
 -- Where shots go on screen while third person steers the view: { x, y, aiming, firing, vehicle }, in
 -- pixels from the bottom left (the coordinates of obsidian.ui.canvas). aiming: the aim button is held;
@@ -125,6 +125,13 @@ function export.shoulder()
 	if state.vehicle and camera and camera.ride and camera.ride.kind then return camera.ride.side end
 	local side = camera and camera.view and camera.view.side
 	return side == -1 and -1 or 1
+end
+
+-- Whether the ammo bar (since 0.14.0) shows in place of an ammo circle now: the option is on and third
+-- person steers the view on foot. Better HUD hides its ammo circle while this is true.
+function export.ammo_bar()
+	local bar = started["src/ammobar"]
+	return bar ~= nil and bar.wanted(env) == true
 end
 
 return export
