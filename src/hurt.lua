@@ -1,6 +1,7 @@
 -- Hurt feedback: when the Helldiver loses health, the edges of the screen flash red ("eol_hurt" of the
 -- mod's art, src/art.lua) and, in third person, the camera shakes briefly (src/shake.lua, so the
--- Camera shake option sizes it). A bigger share of health lost makes both stronger.
+-- Camera shake option sizes it). A bigger share of health lost makes both stronger. Nothing shows in the
+-- game's own top-down view.
 --
 -- The loss is seen as src/hits.lua sees it: HealthComponent.command_master runs every damage command
 -- ("do_damage", "request_do_damage", "set_hitpoints") on the machine that runs the unit, and the hit
@@ -72,14 +73,14 @@ function M.start(env)
 	local me = nil
 
 	obsidian.hook("HealthComponent", "command_master", function(original, self, unit, ctx, command, data, ...)
-		if not (on and me ~= nil and unit == me and M.DAMAGE[command]) then return original(self, unit, ctx, command, data, ...) end
+		if not (on and env.state.active and me ~= nil and unit == me and M.DAMAGE[command]) then return original(self, unit, ctx, command, data, ...) end
 		local st = type(ctx) == "table" and ctx.state
 		local before = type(st) == "table" and st.hitpoints_real or nil
 		local r = scoped.pack(original(self, unit, ctx, command, data, ...))
 		if type(before) == "number" then
 			local after = st.hitpoints_real
 			if type(after) == "number" and after < before then
-				pcall(M.hurt, M.strength(before - after, st.max_hitpoints), env.state.active and not env.state.watching)
+				pcall(M.hurt, M.strength(before - after, st.max_hitpoints), not env.state.watching)
 			end
 		end
 		return unpack(r, 1, r.n)
@@ -125,7 +126,7 @@ function M.start(env)
 
 	local warned = false
 	obsidian.on_frame(function()
-		if not on then return M.clear() end
+		if not on or not env.state.active then return M.clear() end
 		local ok, err = pcall(frame)
 		if not ok then
 			M.clear()

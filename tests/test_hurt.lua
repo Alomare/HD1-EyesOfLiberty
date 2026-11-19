@@ -39,4 +39,43 @@ return {
 		eq(#shake.list, 2, "after the gap")
 		near(shake.list[2].amp, h.SHAKE.most, "a full hit shakes the most")
 	end },
+
+	{ "in the game's top-down view a hit neither counts nor flashes", function()
+		local E = dofile("tests/engine.lua")
+		E.install()
+		local drawn = 0
+		Gui = { bitmap_uv = function() drawn = drawn + 1 end }
+		World.create_screen_gui = function() return {} end
+		Vector2 = function(x, y) return { x = x, y = y } end
+		Vector3 = Vector3 or function(x, y, z) return { x = x, y = y, z = z } end
+		Color = function(...) return { ... } end
+		local state_obj = {}
+		local game = { in_mission = function() return true end, state = function() return state_obj, "game" end, my_unit = function() return "me" end }
+		local env = E.env({ game = game })
+		env.config.get = function() return nil end
+		obsidian.module("src/art").start(env)
+		local h = hurt()
+		h.clear()
+		h.start(env)
+		local function frame() for _, f in ipairs(FRAMES) do f.fn() end end
+		local hook = E.hook("HealthComponent", "command_master")
+		local function hit()
+			local ctx = { state = { hitpoints_real = 100, max_hitpoints = 100 } }
+			hook(function(_, _, c) c.state.hitpoints_real = 50 end, nil, "me", ctx, "do_damage", nil)
+		end
+		env.state.active = false
+		frame()
+		hit()
+		frame()
+		eq(h.flash.level, 0, "top-down: the hit is not counted")
+		eq(drawn, 0, "top-down: nothing drawn")
+		env.state.active = true
+		frame()
+		hit()
+		frame()
+		assert(h.flash.level > 0, "third person: the hit counts")
+		assert(drawn > 0, "third person: the flash is drawn")
+		Gui, Vector2, Color = nil, nil, nil
+		E.remove()
+	end },
 }

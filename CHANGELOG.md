@@ -2,6 +2,11 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## Next
+
+- Fixed: A crash a few seconds into the second mission of a session, when the hurt flash, the throw ring or the idle cursor drew on screen.
+- Fixed: The hurt flash no longer shows in the game's top-down view.
+
 ## 0.12.0
 
 - Fixed: Shots go where the crosshair points at any height, close or far; aiming straight or up no longer sends them over the target.
