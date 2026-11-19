@@ -40,8 +40,9 @@ return {
 		for _, m in ipairs(c.marks(90)) do east[m[1]] = m end
 		eq(east[90][3], "E")
 		eq(east[135][2], "long")
-		eq(c.heading_text(359.7), "0\194\186", "whole degrees, 360 is 0")
-		eq(c.heading_text(87.2), "87\194\186")
+		eq(c.heading_text(359.7), "0", "whole degrees, 360 is 0")
+		eq(c.heading_text(87.2), "87")
+		eq(by[5][2], "tick", "a short line every 5 degrees")
 		local x, inside = c.place(0, 30, 480)
 		eq(x, 120, "30 degrees right is a quarter of the trough right of the middle")
 		eq(inside, true)
@@ -84,7 +85,7 @@ return {
 		local icon = compass().icons[1]
 		assert(icon and icon.icon == "icon_obj", "the objective's map icon, for the HUD to draw")
 		near(icon.x, 960, "east of the Helldiver while facing east: the middle of the screen")
-		assert(letters.E and letters["90\194\186"], "E, and the heading under the strip")
+		assert(letters.E and letters["90"], "E, and the heading under the strip")
 		assert(not letters["45"], "no numbers on the strip")
 		local drawn = {}
 		local gui = setmetatable({}, { __index = function(_, name) return function(_, ...) drawn[#drawn + 1] = { name, ... } end end })
@@ -93,6 +94,7 @@ return {
 		local image
 		for _, d in ipairs(drawn) do if d[1] == "image" then image = d end end
 		eq(image[2], "icon_obj", "on the HUD's gui")
+		eq(drawn[3][1], "image") eq(drawn[3][2], "basicbox_01", "the panel first, under the icons")
 		eq(drawn[#drawn][1], "set_ignore_size_scale", "the gui's scales are given back")
 		Vector2, Color = nil, nil
 		obsidian.ui = nil

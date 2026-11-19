@@ -10,6 +10,10 @@
 --   support weapon, pack   blue line, the stratagem's icon on top     "<stratagem, without its code> here"
 --   anything else          white, on the spot                         "Look here"
 --
+-- On machines with the mod, the chat line of a ping takes the ping's colour in place of the player's
+-- (TextChat draws each line in history[i].player_color): this player's at once, a teammate's once the
+-- shared ping arrives. Players without the mod see it in the player's colour.
+--
 -- Teammates with the mod see the marker through lobby member data (api.lobby.share, about a second
 -- late): "<count>|<kind>|<x>|<y>|<z>|<icon>|<words>". Players without it see the chat line.
 local frustum = obsidian.module("src/frustum")
@@ -32,7 +36,7 @@ M.DIAMOND = 13          -- design pixels from the middle of the diamond to a cor
 M.ICON = 30             -- design pixels, a stratagem icon
 M.HOVER = 70            -- design pixels from the crosshair that bring up the words
 M.TEXT = 20             -- design pixels, the words' size
-M.ENEMY_TEXT = { 255, 140, 130 } -- an enemy's name: light red
+M.ENEMY_TEXT = { 255, 178, 170 } -- an enemy's name: light red
 M.PULSE_LIGHT = 0.2     -- the dash up the line: the marker's colour this much toward white
 M.INSET = 30            -- design pixels from the screen edge for a marker out of view
 M.POLL = 0.25           -- seconds between two looks at what teammates share
@@ -135,6 +139,20 @@ function M.lighter(c, share)
 	return { c[1] + (255 - c[1]) * share, c[2] + (255 - c[2]) * share, c[3] + (255 - c[3]) * share }
 end
 
+-- The newest line of a chat history that says `words` (as "<name>: <words>"), from GAME_TIME `since`
+-- on, and not tinted yet.
+function M.chat_line(history, words, since)
+	local tail = ": " .. words
+	for _, entry in ipairs(history or {}) do
+		if type(entry) == "table" and type(entry.text) == "string" and not entry.eol_tinted
+			and (type(entry.time_stamp) ~= "number" or entry.time_stamp >= since)
+			and entry.text:sub(-#tail) == tail then
+			return entry
+		end
+	end
+	return nil
+end
+
 -- The game -----------------------------------------------------------------------------------------
 
 local function g(name) return rawget(_G, name) end
@@ -222,6 +240,27 @@ function M.target(env)
 	return { kind = "ground", pos = { x = point.x, y = point.y, z = point.z } }
 end
 
+-- Colours the chat lines in `tints` that have come in, and drops those done or waited for too long.
+function M.tint(api, tints, dt)
+	local st = api.game.state and api.game.state()
+	local chat = type(st) == "table" and st.text_chat
+	local history = type(chat) == "table" and chat.history
+	local now = g("GAME_TIME")
+	now = type(now) == "number" and now or 0
+	for i = #tints, 1, -1 do
+		local t = tints[i]
+		t.left = t.left - dt
+		local entry = history and M.chat_line(history, t.words, now - 6)
+		if entry and t.color then
+			entry.player_color = { t.color[1], t.color[2], t.color[3] }
+			entry.eol_tinted = true
+			table.remove(tints, i)
+		elseif t.left <= 0 then
+			table.remove(tints, i)
+		end
+	end
+end
+
 function M.start(env)
 	local ui = obsidian.ui
 	if type(ui) ~= "table" or type(ui.canvas) ~= "function" then return end
@@ -230,6 +269,7 @@ function M.start(env)
 	local on = env.config.get("pings") ~= false
 	if env.config.on_change then env.config.on_change("pings", function(v) on = v ~= false end) end
 
+	local tints = {}        -- chat lines to colour: { words, color, left }
 	local markers = {}      -- by peer ("me" for this machine): { kind, pos, unit, icon, words, age }
 	local seen = {}         -- peer -> the last count read
 	local primed = false    -- the first look of a mission only notes what was already there
@@ -267,7 +307,9 @@ function M.start(env)
 		markers.me = { kind = t.kind, pos = t.pos, unit = t.kind == "enemy" and t.unit or nil, icon = t.icon, words = words,
 			name = t.name, age = 0 }
 		count = count + 1
-		if api.ui and api.ui.chat then pcall(api.ui.chat, words) end
+		if api.ui and api.ui.chat and pcall(api.ui.chat, words) then
+			tints[#tints + 1] = { words = words, color = M.COLORS[t.kind], left = 3 }
+		end
 		if api.lobby and api.lobby.share then pcall(api.lobby.share, M.SHARE, M.encode(count, t.kind, t.pos, t.icon, words)) end
 	end, env.KEY_VIEW or env.VIEW)
 
@@ -288,6 +330,7 @@ function M.start(env)
 					m.unit = got and type(near) == "table" and near[1] or nil
 				end
 				markers[peer] = m
+				tints[#tints + 1] = { words = p.words, color = M.COLORS[p.kind], left = 3 }
 			end
 		end
 		primed = true
@@ -417,6 +460,7 @@ function M.start(env)
 		end
 		local dt = g("ENGINE_DT")
 		dt = type(dt) == "number" and dt > 0 and min(dt, 0.1) or 1 / 60
+		if #tints > 0 then pcall(M.tint, api, tints, dt) end
 		poll = poll - dt
 		if on and poll <= 0 then
 			poll = M.POLL

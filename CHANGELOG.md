@@ -6,8 +6,8 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 
 - Fixed: A crash a few seconds into the second mission of a session, when the hurt flash, the throw ring or the idle cursor drew on screen.
 - Fixed: The hurt flash no longer shows in the game's top-down view.
-- New: Pings. The ping key (middle mouse button) marks what the crosshair is on: the ground, an enemy, an objective, or a dropped support weapon or pack. The chat says what was marked, and teammates with the mod see the marker.
-- New: A compass at the top of the screen in third person, with the heading in degrees, pointing to every objective found on the map with the map icon.
+- New: Pings. The ping key (middle mouse button) marks what the crosshair is on: the ground, an enemy, an objective, or a dropped support weapon or pack. The chat says what was marked, in the colour of the marker for players with the mod, and teammates with the mod see the marker.
+- New: A compass at the top of the screen in third person, with the heading in degrees, pointing to every objective found on the map with the white map icon.
 - New: The screen tints red after a death and fades back over two seconds.
 - Changed: Max weapon range is now Ballistics revamp: past a weapon's own range, bullets lose damage over 30 m, down to a quarter. Lasers keep their damage.
 - Changed: Objectives out of view no longer show at the edge of the screen; the compass shows them.

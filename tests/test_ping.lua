@@ -42,6 +42,23 @@ return {
 		eq(c[1], 239) eq(c[2], 87) eq(c[3], 79)
 	end },
 
+	{ "a ping's chat line takes the ping's colour, once, and only that line", function()
+		local p = ping()
+		GAME_TIME = 100
+		local history = {
+			{ text = "Alomare: Scout, 32 m", time_stamp = 99.5, player_color = { 1, 2, 3 } },
+			{ text = "Alomare: hello", time_stamp = 99, player_color = { 1, 2, 3 } },
+		}
+		local api = { game = { state = function() return { text_chat = { history = history } } end } }
+		local tints = { { words = "Scout, 32 m", color = p.COLORS.enemy, left = 3 }, { words = "Look here", color = p.COLORS.ground, left = 0.01 } }
+		p.tint(api, tints, 0.016)
+		eq(history[1].player_color[1], p.COLORS.enemy[1], "the ping's red")
+		eq(history[2].player_color[1], 1, "the other line keeps the player's colour")
+		eq(#tints, 0, "done, and the one never seen dropped after its wait")
+		eq(p.chat_line(history, "Scout, 32 m", 0), nil, "not tinted twice")
+		GAME_TIME = nil
+	end },
+
 	{ "a shared ping reads back as sent, and junk reads as nothing", function()
 		local p = ping()
 		local s = p.encode(4, "support", { x = 1.25, y = -2, z = 3 }, "stratagem_machinegun", "Machine Gun | here")
