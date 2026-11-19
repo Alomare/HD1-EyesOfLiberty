@@ -17,6 +17,7 @@
 local frustum = obsidian.module("src/frustum")
 local edge = obsidian.module("src/edge")
 local compass = obsidian.module("src/compass")
+local art = obsidian.module("src/art")
 
 local M = {}
 
@@ -26,7 +27,12 @@ M.COOLDOWN = 3          -- seconds between two pings of this player
 M.GROW = 0.3            -- seconds for the line to rise
 M.POP = 0.25            -- seconds for the diamond to settle
 M.LINE = 2.5            -- metres of line over the spot
-M.ABOVE_ENEMY = 2.2     -- metres over an enemy's root for its diamond
+M.ABOVE_ENEMY = 2.2     -- metres over an enemy's root for its diamond, when its box can't be read
+M.OVER_BOX = 0.15       -- metres over the top of an enemy's bounding box for its diamond
+M.PUSH = 1.5            -- metres an enemy's line sits behind it, from each viewer, so the enemy covers it
+M.PUSH_SPOT = 0.25      -- the same for other pings: more would sink the line into the ground behind the spot
+M.LINE_PX = 3           -- design pixels, the line's width
+M.PULSE_PX = 5          -- the dash running up it
 M.ENEMY_REACH = 4       -- metres from the crosshair point an enemy counts as aimed at
 M.PICKUP_REACH = 2.5    -- the same for a weapon or pack on the ground
 M.OBJECTIVE_REACH = 12  -- the same, over the ground, for an objective
@@ -137,11 +143,39 @@ function M.lighter(c, share)
 	return { c[1] + (255 - c[1]) * share, c[2] + (255 - c[2]) * share, c[3] + (255 - c[3]) * share }
 end
 
+-- A line from `base` straight up to `top`, moved back from the camera at `eye` by `push` metres. Scaled
+-- about the eye, so it stays upright and covers the same place on screen. Answers the new base, the
+-- scale and the height.
+function M.pushed(eye, base, top, push)
+	local dx, dy, dz = base.x - eye.x, base.y - eye.y, base.z - eye.z
+	local d = sqrt(dx * dx + dy * dy + dz * dz)
+	if d < 0.01 then return nil end
+	local f = (d + push) / d
+	return { x = eye.x + dx * f, y = eye.y + dy * f, z = eye.z + dz * f }, f, (top.z - base.z) * f
+end
+
 -- The game -----------------------------------------------------------------------------------------
 
 local function g(name) return rawget(_G, name) end
 
 local function v3(p) return g("Vector3")(p.x, p.y, p.z) end
+
+-- How far over its root an enemy's diamond sits: just over the top of its bounding box, read once.
+local tops = setmetatable({}, { __mode = "k" })
+local function top_of(unit)
+	local z = tops[unit]
+	if z then return z end
+	local U = g("Unit")
+	local ok, pose, extents = pcall(U.box, unit)
+	if ok and pose and extents then
+		local okt, at = pcall(g("Matrix4x4").translation, pose)
+		local root = U.world_position(unit, 0)
+		if okt and at then z = at.z + extents.z - root.z + M.OVER_BOX end
+	end
+	if type(z) ~= "number" or z ~= z or z < 0.3 then z = M.ABOVE_ENEMY end
+	tops[unit] = z
+	return z
+end
 local function plain(v) return { x = v.x, y = v.y, z = v.z } end
 
 local function is_enemy(unit)
@@ -338,6 +372,24 @@ function M.start(env)
 		local cross = env.state.crosshair
 		local me = api.game.my_unit()
 		local mine = me and plain(g("Unit").world_position(me, 0))
+		local world_gui = art.world_gui and art.world_gui()
+		-- The line in the level, on the world gui: a strip facing the camera, moved PUSH metres back so
+		-- what it marks stands in front of it. depth: metres along the view to the base, for its width.
+		local pixel = 2 * math.tan(math.rad(view.fov or 70) / 2) / h
+		local right_yaw = math.atan2(-view.forward.x, view.forward.y)
+		local function world_line(gui, base, top, depth, color, pulse, alpha, t, push)
+			local at, f, height = M.pushed(view.position, base, top, push)
+			if not at or height <= 0 then error("no line") end
+			local V2, V3, C, Q, M4 = g("Vector2"), g("Vector3"), g("Color"), g("Quaternion"), g("Matrix4x4")
+			local tm = M4.from_quaternion_position(Q(V3(0, 0, 1), right_yaw), V3(at.x, at.y, at.z))
+			local wide = M.LINE_PX * s * pixel * depth * f
+			g("Gui").rect_3d(gui, tm, V3(-wide / 2, 0, 0), 1, V2(wide, height),
+				C(floor(220 * alpha), color[1], color[2], color[3]))
+			local pw = M.PULSE_PX * s * pixel * depth * f
+			tm = M4.from_quaternion_position(Q(V3(0, 0, 1), right_yaw), V3(at.x, at.y, at.z))
+			g("Gui").rect_3d(gui, tm, V3(-pw / 2, 0, height * t), 2, V2(pw, height * min(0.15, 1 - t)),
+				C(floor(255 * alpha), pulse[1], pulse[2], pulse[3]))
+		end
 		kit:layer(M.LAYER)
 		for peer, m in pairs(markers) do
 			m.age = m.age + dt
@@ -351,26 +403,23 @@ function M.start(env)
 					if okp and p then m.pos = plain(p) else m.unit = nil end
 				end
 				local c = M.COLORS[m.kind] or M.COLORS.ground
-				local base, top
-				if m.kind == "enemy" then
-					base = { x = m.pos.x, y = m.pos.y, z = m.pos.z + M.ABOVE_ENEMY - 0.8 }
-					top = { x = m.pos.x, y = m.pos.y, z = m.pos.z + M.ABOVE_ENEMY }
-				else
-					base = m.pos
-					top = { x = m.pos.x, y = m.pos.y, z = m.pos.z + M.LINE * M.rise(m.age) }
-				end
+				if m.unit then m.lift = top_of(m.unit) end
+				local lift = m.kind == "enemy" and (m.lift or M.ABOVE_ENEMY) or M.LINE
+				local base = m.pos
+				local top = { x = m.pos.x, y = m.pos.y, z = m.pos.z + lift * M.rise(m.age) }
 				local inset = M.INSET * s
 				local on_top, tx, ty, dx, dy = edge.locate(cam, top, w, h, inset)
 				local r = M.DIAMOND * s * M.pop(m.age)
 				if on_top then
 					local bx, depth, by = frustum.project(cam, base, w, h)
-					if depth > 0.1 then
+					local t = (m.age % 1)
+					local pulse = M.lighter(c, M.PULSE_LIGHT)
+					if depth > 0.1 and not (world_gui and pcall(world_line, world_gui, base, top, depth, c, pulse, a, t, m.kind == "enemy" and M.PUSH or M.PUSH_SPOT)) then
 						quad(x0 + bx, y0 + by, x0 + tx, y0 + ty, 1.5 * s, rgba(c, 0.85 * a))
 						-- A dash, a little lighter than the line and thicker, running up it once a second.
-						local t = (m.age % 1)
 						local px, py = bx + (tx - bx) * t, by + (ty - by) * t
 						local qx, qy = bx + (tx - bx) * min(1, t + 0.15), by + (ty - by) * min(1, t + 0.15)
-						quad(x0 + px, y0 + py, x0 + qx, y0 + qy, 2.5 * s, rgba(M.lighter(c, M.PULSE_LIGHT), a))
+						quad(x0 + px, y0 + py, x0 + qx, y0 + qy, 2.5 * s, rgba(pulse, a))
 					end
 				else
 					tx, ty = edge.edge(dx, dy, w, h, inset, inset)

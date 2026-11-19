@@ -12,7 +12,7 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - Changed: Max weapon range is now Ballistics revamp: past a weapon's own range, bullets lose damage over 15 m, down to a fifth. Lasers keep their damage.
 - Changed: Objectives out of view no longer show at the edge of the screen; the compass shows them.
 - Changed: Weapon fire and hurt feedback shake the camera half as much.
-- Changed: Remove fog is now Reduce fog, which thins the fog to a tenth instead of taking it away.
+- Changed: Remove fog is now Reduce fog, a slider from 1x to 10x: the fog builds up that many times slower instead of being taken away.
 
 ## 0.12.0
 

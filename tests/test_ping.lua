@@ -56,6 +56,15 @@ return {
 		eq(p.decode("1|laser|0|0|0||x"), nil, "an unknown kind")
 	end },
 
+	{ "the line moves back from the viewer and stays upright over the same place", function()
+		local p = ping()
+		local at, f, height = p.pushed({ x = 0, y = 0, z = 2 }, { x = 0, y = 10, z = 2 }, { x = 0, y = 10, z = 4 }, 1.5)
+		near(at.y, 11.5) eq(at.z, 2)
+		near(f, 1.15)
+		near(height, 2.3, "taller by the same scale, so the top lines up with the diamond on screen")
+		eq(p.pushed({ x = 0, y = 0, z = 0 }, { x = 0, y = 0, z = 0 }, { x = 0, y = 0, z = 1 }, 1.5), nil)
+	end },
+
 	{ "a marker rises, pops and fades out", function()
 		local p = ping()
 		eq(p.alpha(0), 1)

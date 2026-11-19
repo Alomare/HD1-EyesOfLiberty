@@ -24,7 +24,7 @@ M.TICK_LONG = 11        -- on the 45s
 M.ICON_LAYER = 470      -- the map icons on the HUD's gui, over the panel (PANEL_LAYER)
 M.PANEL_LAYER = 466
 M.ARROW = 12.25         -- design pixels, half the arrow's width
-M.HEADING_SIZE = 54     -- design pixels
+M.HEADING_SIZE = 22     -- design pixels
 M.TICK_COLOR = "#ffffff58"
 M.LONG_COLOR = "#ffffffb0"
 M.LAYER = 465           -- under the hurt indicator (470)
@@ -217,8 +217,11 @@ function M.start(env)
 
 		-- The middle: a white arrow pointing down into the strip, with a thin soft outline.
 		kit:layer(M.LAYER + 4)
+		-- Equal sides: as tall as sqrt(3) / 2 of its width.
 		local n = M.ARROW * s
-		tri[1], tri[2], tri[3], tri[4], tri[5], tri[6] = mid - n, y + bh + n, mid + n, y + bh + n, mid, y + bh - 2 * s
+		local tip = y + bh - 2 * s
+		local base = tip + n * math.sqrt(3)
+		tri[1], tri[2], tri[3], tri[4], tri[5], tri[6] = mid - n, base, mid + n, base, mid, tip
 		kit:poly(tri, M.WHITE)
 		kit:outline(tri, M.OUTLINE, 1.5 * s)
 		-- The heading under the strip.

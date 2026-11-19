@@ -275,6 +275,17 @@ return {
 		st.weapon_info.effect_hit = "fx/laser_hit"
 		callback(100)
 		eq(queued[4], 100, "laser bolts keep their damage")
+		-- A weapon whose settings name no range (the exosuit's guns): the game gives it 20 m.
+		local st2 = { range = 20, weapon_info = {}, last_ray_from = { x = 0, y = 0, z = 0 } }
+		local context2 = { state = st2 }
+		local callback2 = make.fn(function(unit, ctx)
+			return function(distance)
+				EntityAux.queue_command_interface("enemy", "damageable", "do_damage", { power = 100, position = { x = distance, y = 0, z = 0 } })
+			end
+		end, "mech_gun", context2)
+		update.fn(function() end, {}, { mech_gun = context2 })
+		callback2(60)
+		eq(queued[5], 52, "past 35 m: a fifth of the 60 that got through")
 		EntityAux, Vector3Aux, HealthComponent = nil, nil, nil
 	end },
 }

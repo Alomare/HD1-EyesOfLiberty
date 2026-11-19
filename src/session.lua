@@ -83,8 +83,9 @@ end
 -- Damage falloff (part weapon_range, with the range) --------------------------------------------------
 --
 -- With every bullet reaching MAX_RANGE, a bullet weapon hits as hard far past its own range as next to
--- it. So past the weapon's own range (weapon_info.range, which the game keeps as it is: only the state's
--- copy is raised) a hit loses damage, down to FALLOFF_LEAST at FALLOFF_SPAN metres past it, and stays
+-- it. So past the weapon's own range (the state's range as the game set it up: weapon_info.range, or 20
+-- m for a weapon whose settings have none, such as the exosuit's guns; read before this part raises it)
+-- a hit loses damage, down to FALLOFF_LEAST at FALLOFF_SPAN metres past it, and stays
 -- there. One rule for every bullet weapon, custom ones included, as each carries its own range.
 --
 -- A firearm's shots deal damage in the callback of its raycast (WeaponUtility.shoot_ray_callback), made
@@ -118,7 +119,7 @@ function M.lowered_power(power, damage, share)
 	return power - (1 - share) * damage
 end
 
-local live = setmetatable({}, { __mode = "k" }) -- weapon state -> clock when the part last saw it
+local live = setmetatable({}, { __mode = "k" }) -- weapon state -> { at = clock, range = the game's range }
 local clock = os and os.clock or function() return 0 end
 
 -- Whether laser bolts: a weapon whose hit or tracer effect names a laser keeps its damage.
@@ -134,16 +135,20 @@ end
 function M.with_falloff(context, fn, ...)
 	local st = type(context) == "table" and context.state
 	local seen = type(st) == "table" and live[st]
-	local info = seen and st.weapon_info
-	if not (seen and clock() - seen <= M.LIVE_FOR and type(info) == "table" and type(info.range) == "number"
-		and info.range >= M.MIN_RANGE and info.range < M.MAX_RANGE and not is_laser(info)) then
+	local info = type(st) == "table" and st.weapon_info
+	if not (seen and clock() - seen.at <= M.LIVE_FOR and raised(seen.range)
+		and not (type(info) == "table" and is_laser(info))) then
 		return fn(...)
 	end
 	local EA, V3A, HC = rawget(_G, "EntityAux"), rawget(_G, "Vector3Aux"), rawget(_G, "HealthComponent")
 	local from = st.last_ray_from
 	if not (EA and V3A and HC and from) then return fn(...) end
 	local queue = EA.queue_command_interface
-	local range = info.range
+	local range = seen.range
+	if not M.falloff_logged and env_ref and env_ref.log then
+		M.falloff_logged = true
+		pcall(env_ref.log, "Eyes of Liberty: damage falloff on, from " .. tostring(range) .. " m")
+	end
 	EA.queue_command_interface = function(unit, interface, command, data, ...)
 		if command == "do_damage" and interface == "damageable" and type(data) == "table" and type(data.power) == "number" and data.position then
 			pcall(function()
@@ -170,7 +175,10 @@ function M.note_live(entities)
 	local now = clock()
 	for _, context in pairs(entities) do
 		local st = type(context) == "table" and context.state
-		if type(st) == "table" and raised(st.range) then live[st] = now end
+		if type(st) == "table" and raised(st.range) then
+			local rec = live[st]
+			if rec then rec.at, rec.range = now, st.range else live[st] = { at = now, range = st.range } end
+		end
 	end
 end
 
