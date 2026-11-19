@@ -56,13 +56,17 @@ return {
 		eq(p.decode("1|laser|0|0|0||x"), nil, "an unknown kind")
 	end },
 
-	{ "the line moves back from the viewer and stays upright over the same place", function()
+	{ "three pings in a row, then a wait of 2.5 s; a quiet 2.5 s starts a new burst", function()
 		local p = ping()
-		local at, f, height = p.pushed({ x = 0, y = 0, z = 2 }, { x = 0, y = 10, z = 2 }, { x = 0, y = 10, z = 4 }, 1.5)
-		near(at.y, 11.5) eq(at.z, 2)
-		near(f, 1.15)
-		near(height, 2.3, "taller by the same scale, so the top lines up with the diamond on screen")
-		eq(p.pushed({ x = 0, y = 0, z = 0 }, { x = 0, y = 0, z = 0 }, { x = 0, y = 0, z = 1 }, 1.5), nil)
+		local b = {}
+		eq(p.allow(b, 0), true) eq(p.allow(b, 0.1), true) eq(p.allow(b, 0.2), true)
+		eq(p.allow(b, 0.3), false, "the fourth waits")
+		eq(p.allow(b, 2.6), false, "still waiting")
+		eq(p.allow(b, 2.7), true, "the wait is over")
+		eq(p.allow(b, 2.8), true)
+		eq(p.allow(b, 6), true, "a quiet spell starts a new burst")
+		eq(p.allow(b, 6.1), true) eq(p.allow(b, 6.2), true)
+		eq(p.allow(b, 6.3), false)
 	end },
 
 	{ "a marker rises, pops and fades out", function()
@@ -105,7 +109,7 @@ return {
 		E.remove()
 	end },
 
-	{ "the key pings once per cooldown, plays the chat sound here only, shares it and draws the marker", function()
+	{ "the key pings three times per burst, plays the chat sound here only, shares it and draws the marker", function()
 		local e = E.install()
 		local kit, calls = recorder()
 		obsidian.ui = { canvas = function() return kit end }
@@ -129,9 +133,8 @@ return {
 		eq(sounds, 0, "top-down: no ping")
 		env.state.active = true
 		env.state.aim_point = { x = 0, y = 20, z = 0 }
-		key.fn()
-		key.fn()
-		eq(sounds, 1, "once per cooldown")
+		for _ = 1, 4 do key.fn() end
+		eq(sounds, 3, "three in a row, then the cooldown")
 		eq(#chat, 0, "nothing in the game's chat, which players without the mod read")
 		eq(ping().decode(shared.ping).kind, "ground")
 		for _, f in ipairs(FRAMES) do f.fn() end

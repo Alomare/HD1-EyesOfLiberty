@@ -1,7 +1,7 @@
 -- Compass: in third person, a strip at the top of the screen in the look of Helldivers Arcade's level
 -- bar (the HUD's basicbox_01 panel, 560 design pixels wide), thinner. It scrolls with the camera's
 -- heading: the letters N, E, S and W on the cardinal points and a faint short line every TICK degrees,
--- a longer, brighter one on the 45s. A short white line across the top border marks the middle, and the heading in degrees shows
+-- a longer, brighter one on the 45s. A short white line with a thin black outline across the top border marks the middle, and the heading in degrees shows
 -- under the strip in the game's body font. Objectives found on the map show at their bearing from the Helldiver, at any distance, with
 -- their map icon; one still hidden in a search zone doesn't show. Bearings run clockwise from north
 -- (+y), east being +x, as on the game's map.
@@ -23,7 +23,8 @@ M.TICK_SHORT = 6        -- design pixels, a line
 M.TICK_LONG = 11        -- on the 45s
 M.ICON_LAYER = 470      -- the map icons on the HUD's gui, over the panel (PANEL_LAYER)
 M.PANEL_LAYER = 466
-M.MARK_W, M.MARK_H = 3, 16 -- design pixels, the line marking the middle
+M.MARK_W, M.MARK_H = 3, 8  -- design pixels, the line marking the middle
+M.MARK_EDGE = 1         -- design pixels, its black outline
 M.HEADING_SIZE = 22     -- design pixels
 M.TICK_COLOR = "#ffffff58"
 M.LONG_COLOR = "#ffffffb0"
@@ -215,7 +216,8 @@ function M.start(env)
 
 		-- The middle: a short white line across the top border, half in the strip and half over it.
 		kit:layer(M.LAYER + 4)
-		local mw, mh = M.MARK_W * s, M.MARK_H * s
+		local mw, mh, ow = M.MARK_W * s, M.MARK_H * s, math.max(1, M.MARK_EDGE * s)
+		kit:rect(mid - mw / 2 - ow, y + bh - mh / 2 - ow, mw + 2 * ow, mh + 2 * ow, "#000000ff")
 		kit:rect(mid - mw / 2, y + bh - mh / 2, mw, mh, M.WHITE)
 		-- The heading under the strip.
 		local hs = M.HEADING_SIZE * s

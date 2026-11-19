@@ -1,5 +1,5 @@
--- Pings: in third person, the ping key marks what the crosshair is on, for LIFE seconds, with a
--- COOLDOWN between two pings of this player. A marker is a vertical line with a diamond on top, drawn
+-- Pings: in third person, the ping key marks what the crosshair is on, for LIFE seconds. A player
+-- can ping BURST times in a row, then waits COOLDOWN seconds; COOLDOWN without a ping starts a new burst. A marker is a vertical line with a diamond on top, drawn
 -- over the level; one out of view sits at the edge of the screen. Aiming near a marker shows what it
 -- marks above it and how far it is below it. Each player has one marker at a time: a new ping replaces the last.
 --
@@ -17,26 +17,22 @@
 local frustum = obsidian.module("src/frustum")
 local edge = obsidian.module("src/edge")
 local compass = obsidian.module("src/compass")
-local art = obsidian.module("src/art")
 
 local M = {}
 
 M.LIFE = 7              -- seconds a marker shows
 M.FADE = 1              -- its last second fades out
-M.COOLDOWN = 3          -- seconds between two pings of this player
+M.BURST = 3             -- pings in a row before the cooldown
+M.COOLDOWN = 2.5        -- seconds of wait after a burst
 M.GROW = 0.3            -- seconds for the line to rise
 M.POP = 0.25            -- seconds for the diamond to settle
 M.LINE = 2.5            -- metres of line over the spot
 M.ABOVE_ENEMY = 2.2     -- metres over an enemy's root for its diamond, when its box can't be read
 M.OVER_BOX = 0.15       -- metres over the top of an enemy's bounding box for its diamond
-M.PUSH = 1.5            -- metres an enemy's line sits behind it, from each viewer, so the enemy covers it
-M.PUSH_SPOT = 0.25      -- the same for other pings: more would sink the line into the ground behind the spot
-M.LINE_PX = 3           -- design pixels, the line's width
-M.PULSE_PX = 5          -- the dash running up it
 M.ENEMY_REACH = 4       -- metres from the crosshair point an enemy counts as aimed at
 M.PICKUP_REACH = 2.5    -- the same for a weapon or pack on the ground
 M.OBJECTIVE_REACH = 12  -- the same, over the ground, for an objective
-M.DIAMOND = 13          -- design pixels from the middle of the diamond to a corner
+M.DIAMOND = 10.4        -- design pixels from the middle of the diamond to a corner
 M.ICON = 30             -- design pixels, a stratagem icon
 M.HOVER = 70            -- design pixels from the crosshair that bring up the words
 M.TEXT = 20             -- design pixels, the words' size
@@ -101,6 +97,16 @@ function M.alpha(age)
 	return 1
 end
 
+-- Whether a ping may go out at `now`, for the burst state `b` ({ count, last, until }), which it
+-- updates: BURST pings in a row, then COOLDOWN seconds of wait.
+function M.allow(b, now)
+	if b.wait and now < b.wait then return false end
+	if not b.last or now - b.last >= M.COOLDOWN then b.count = 0 end
+	b.count, b.last = (b.count or 0) + 1, now
+	if b.count >= M.BURST then b.count, b.wait = 0, now + M.COOLDOWN end
+	return true
+end
+
 -- How far up the line has risen at `age`, 0 to 1, easing out.
 function M.rise(age)
 	local t = min(1, max(0, age / M.GROW))
@@ -141,17 +147,6 @@ end
 -- A colour this share of the way toward white.
 function M.lighter(c, share)
 	return { c[1] + (255 - c[1]) * share, c[2] + (255 - c[2]) * share, c[3] + (255 - c[3]) * share }
-end
-
--- A line from `base` straight up to `top`, moved back from the camera at `eye` by `push` metres. Scaled
--- about the eye, so it stays upright and covers the same place on screen. Answers the new base, the
--- scale and the height.
-function M.pushed(eye, base, top, push)
-	local dx, dy, dz = base.x - eye.x, base.y - eye.y, base.z - eye.z
-	local d = sqrt(dx * dx + dy * dy + dz * dz)
-	if d < 0.01 then return nil end
-	local f = (d + push) / d
-	return { x = eye.x + dx * f, y = eye.y + dy * f, z = eye.z + dz * f }, f, (top.z - base.z) * f
 end
 
 -- The game -----------------------------------------------------------------------------------------
@@ -277,7 +272,7 @@ function M.start(env)
 	local markers = {}      -- by peer ("me" for this machine): { kind, pos, unit, icon, words, age }
 	local seen = {}         -- peer -> the last count read
 	local primed = false    -- the first look of a mission only notes what was already there
-	local count, last_ping = 0, -math.huge
+	local count, burst = 0, {}
 	local poll = 0
 	local clock = os and os.clock or function() return 0 end
 
@@ -290,14 +285,12 @@ function M.start(env)
 		local api = env.api
 		if not in_mission(api) then return end
 		local now = clock()
-		if now - last_ping < M.COOLDOWN then return end
 		local ok, t = pcall(M.target, env)
 		if not ok then
 			env.log("Eyes of Liberty: ping: " .. tostring(t))
 			return
 		end
-		if not t then return end
-		last_ping = now
+		if not t or not M.allow(burst, now) then return end
 		local metres = nil
 		if t.kind == "enemy" then
 			local me = api.game.my_unit()
@@ -372,24 +365,6 @@ function M.start(env)
 		local cross = env.state.crosshair
 		local me = api.game.my_unit()
 		local mine = me and plain(g("Unit").world_position(me, 0))
-		local world_gui = art.world_gui and art.world_gui()
-		-- The line in the level, on the world gui: a strip facing the camera, moved PUSH metres back so
-		-- what it marks stands in front of it. depth: metres along the view to the base, for its width.
-		local pixel = 2 * math.tan(math.rad(view.fov or 70) / 2) / h
-		local right_yaw = math.atan2(-view.forward.x, view.forward.y)
-		local function world_line(gui, base, top, depth, color, pulse, alpha, t, push)
-			local at, f, height = M.pushed(view.position, base, top, push)
-			if not at or height <= 0 then error("no line") end
-			local V2, V3, C, Q, M4 = g("Vector2"), g("Vector3"), g("Color"), g("Quaternion"), g("Matrix4x4")
-			local tm = M4.from_quaternion_position(Q(V3(0, 0, 1), right_yaw), V3(at.x, at.y, at.z))
-			local wide = M.LINE_PX * s * pixel * depth * f
-			g("Gui").rect_3d(gui, tm, V3(-wide / 2, 0, 0), 1, V2(wide, height),
-				C(floor(220 * alpha), color[1], color[2], color[3]))
-			local pw = M.PULSE_PX * s * pixel * depth * f
-			tm = M4.from_quaternion_position(Q(V3(0, 0, 1), right_yaw), V3(at.x, at.y, at.z))
-			g("Gui").rect_3d(gui, tm, V3(-pw / 2, 0, height * t), 2, V2(pw, height * min(0.15, 1 - t)),
-				C(floor(255 * alpha), pulse[1], pulse[2], pulse[3]))
-		end
 		kit:layer(M.LAYER)
 		for peer, m in pairs(markers) do
 			m.age = m.age + dt
@@ -414,7 +389,7 @@ function M.start(env)
 					local bx, depth, by = frustum.project(cam, base, w, h)
 					local t = (m.age % 1)
 					local pulse = M.lighter(c, M.PULSE_LIGHT)
-					if depth > 0.1 and not (world_gui and pcall(world_line, world_gui, base, top, depth, c, pulse, a, t, m.kind == "enemy" and M.PUSH or M.PUSH_SPOT)) then
+					if depth > 0.1 then
 						quad(x0 + bx, y0 + by, x0 + tx, y0 + ty, 1.5 * s, rgba(c, 0.85 * a))
 						-- A dash, a little lighter than the line and thicker, running up it once a second.
 						local px, py = bx + (tx - bx) * t, by + (ty - by) * t

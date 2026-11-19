@@ -16,14 +16,10 @@ local function g(name) return rawget(_G, name) end
 -- the gui is dropped as soon as the game leaves the mission, and is also keyed on the game state
 -- object, a Lua table held here, which can't be reused while held.
 local held = { state = nil, world = nil, gui = nil }
--- The gui in the 3D world (World.create_world_gui), for marks that sit among the level's things and are
--- hidden behind them (the ping line). Kept and dropped the same way.
-local held3d = { state = nil, world = nil, gui = nil }
 local env_of = nil
 
 function M.forget()
 	held.state, held.world, held.gui = nil, nil, nil
-	held3d.state, held3d.world, held3d.gui = nil, nil, nil
 end
 
 -- The game state object while in a mission, or nil.
@@ -52,27 +48,10 @@ function M.gui()
 	return gui
 end
 
--- The world gui for the world the camera draws now, or nil outside a mission.
-function M.world_gui()
-	local state = mission(env_of)
-	if state == nil then M.forget() return nil end
-	local cm = g("CameraManager")
-	if type(cm) ~= "table" or not cm.viewport then return nil end
-	local ok, world = pcall(function() return cm.viewport:get_world_proxy():get_world() end)
-	if not ok or world == nil then return nil end
-	if held3d.gui and held3d.state == state and held3d.world == world then return held3d.gui end
-	local made, gui = pcall(function()
-		return g("World").create_world_gui(world, g("Matrix4x4").identity(), 1, 1, "immediate", "material", M.MATERIAL)
-	end)
-	if not made or gui == nil then return nil end
-	held3d.state, held3d.world, held3d.gui = state, world, gui
-	return gui
-end
-
 function M.start(env)
 	env_of = env
 	obsidian.on_frame(function()
-		if (held.gui or held3d.gui) and mission(env) ~= (held.state or held3d.state) then M.forget() end
+		if held.gui and mission(env) ~= held.state then M.forget() end
 	end, env.VIEW)
 end
 
