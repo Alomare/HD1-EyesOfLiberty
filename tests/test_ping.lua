@@ -48,7 +48,7 @@ return {
 		local d = p.decode(s)
 		eq(d.count, 4)
 		eq(d.kind, "support")
-		near(d.pos.x, 1.2, nil, 0.06)
+		near(d.pos.x, 1.25, nil, 0.06) -- 1.2 or 1.3: printf rounds the half either way by platform
 		eq(d.pos.y, -2)
 		eq(d.icon, "stratagem_machinegun")
 		eq(d.words, "Machine Gun / here", "the separator can't come through in words")
