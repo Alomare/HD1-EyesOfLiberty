@@ -2,6 +2,11 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 0.13.1
+
+- Changed: Reduce fog goes down to 0, which removes the fog.
+- Fixed: Fog facing the sun no longer shows as a bright, near solid wall. Below 1, Reduce fog also thins the sunlit side of the fog and keeps it close to the brightness of the rest.
+
 ## 0.13.0
 
 - Fixed: A crash a few seconds into the second mission of a session, when the hurt flash, the throw ring or the idle cursor drew on screen.

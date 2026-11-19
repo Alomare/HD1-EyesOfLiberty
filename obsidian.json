@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.eyesofliberty",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "name": {
     "en": "Eyes of Liberty"
   },
@@ -198,10 +198,10 @@
       "group": "indicators", "part": "view", "scope": "client",
       "label": { "en": "Names above heads" },
       "description": { "en": "In third person, the name cards of players show above their heads instead of at their feet." } },
-    { "id": "reduce_fog", "type": "number", "default": 0.5, "min": 0.1, "max": 1, "step": 0.1,
+    { "id": "reduce_fog", "type": "number", "default": 0.5, "min": 0, "max": 1, "step": 0.1,
       "group": "picture", "part": "view", "scope": "client",
       "label": { "en": "Reduce fog" },
-      "description": { "en": "How fast the fog of the level builds up with distance: 1 is the game's fog, 0.5 half as fast, 0.1 a tenth. The fog still starts where it did. In third person and in the top-down view. Photo Mode shows the full fog while it is open." } },
+      "description": { "en": "How fast the fog of the level builds up with distance: 1 is the game's fog, 0.5 half as fast, 0 no fog at all. The fog still starts where it did, and the sun side of it is kept from glaring. In third person and in the top-down view. Photo Mode shows the full fog while it is open." } },
     { "id": "depth_of_field", "type": "choice", "default": "off",
       "choices": [ { "id": "game", "label": { "en": "Game default" } }, { "id": "helldiver", "label": { "en": "Focus on the Helldiver" } }, { "id": "off", "label": { "en": "Off" } } ],
       "group": "picture", "part": "view", "scope": "client",
