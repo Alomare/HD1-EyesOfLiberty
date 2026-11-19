@@ -150,9 +150,12 @@ function M.with_falloff(context, fn, ...)
 		pcall(env_ref.log, "Eyes of Liberty: damage falloff on, from " .. tostring(range) .. " m")
 	end
 	EA.queue_command_interface = function(unit, interface, command, data, ...)
-		if command == "do_damage" and interface == "damageable" and type(data) == "table" and type(data.power) == "number" and data.position then
+		-- Where the hit landed: the shot callback boxes it into surface_effect_info.position (the
+		-- command itself carries no position).
+		local where = type(data) == "table" and (data.position or (type(data.surface_effect_info) == "table" and data.surface_effect_info.position))
+		if command == "do_damage" and interface == "damageable" and type(data.power) == "number" and where then
 			pcall(function()
-				local a, b = V3A.unbox(from), V3A.unbox(data.position)
+				local a, b = V3A.unbox(from), V3A.unbox(where)
 				local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
 				local share = M.falloff(math.sqrt(dx * dx + dy * dy + dz * dz), range)
 				if share < 1 then

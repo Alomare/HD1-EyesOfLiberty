@@ -44,15 +44,16 @@ end
 return {
 	{ "what each option asks of the shading", function()
 		local l = look()
-		local w = l.wanted({ thin = 10, planet_fog = { 20, 120 }, dof = "off" })
+		local w = l.wanted({ fog = 0.1, planet_fog = { 20, 120 }, dof = "off" })
 		eq(w.fog_depth_range[1], 20, "the fog starts where it did")
 		eq(w.fog_depth_range[2], 1020, "and thickens a tenth as fast: the span ten times as long")
-		eq(l.wanted({ thin = 3, planet_fog = { 20, 120 } }).fog_depth_range[2], 320, "three times slower")
-		eq(l.wanted({ thin = 1, planet_fog = { 20, 120 } }).fog_depth_range, false, "1x: the game's fog")
-		local both = l.wanted({ thin = 10, far = true, planet_fog = { 20, 120 } }).fog_depth_range
+		near(l.wanted({ fog = 0.2, planet_fog = { 20, 120 } }).fog_depth_range[2], 520, "0.2: five times slower")
+		eq(l.wanted({ fog = 1, planet_fog = { 20, 120 } }).fog_depth_range, false, "1: the game's fog")
+		near(l.wanted({ fog = 0.01, planet_fog = { 20, 120 } }).fog_depth_range[2], 1020, "never below a tenth")
+		local both = l.wanted({ fog = 0.1, far = true, planet_fog = { 20, 120 } }).fog_depth_range
 		eq(both[1], 50, "the long view pushes the start out")
 		eq(both[2], 2550, "and Reduce fog stretches the longer span")
-		eq(l.wanted({ thin = 10 }).fog_depth_range, false, "the planet's fog not read yet: left alone")
+		eq(l.wanted({ fog = 0.1 }).fog_depth_range, false, "the planet's fog not read yet: left alone")
 		eq(w.bloom_threshold_offset, nil, "bloom left to the game")
 		eq(w.dof_amount, 0) eq(w.dof_near_setting, false)
 		w = l.wanted({ far = true, planet_fog = { 20, 120 }, dof = "game" })
@@ -69,7 +70,7 @@ return {
 		local calls = {}
 		started(calls, {})
 		frame()
-		eq(last(calls, "fog_depth_range")[3][2], 20 + 100 * look().REDUCE_MAX)
+		near(last(calls, "fog_depth_range")[3][2], 20 + 100 / look().FOG_DEFAULT)
 		eq(count(calls, "bloom_threshold_offset"), 0, "bloom untouched")
 		eq(last(calls, "dof_amount")[3], 0)
 		local n = #calls
@@ -92,7 +93,7 @@ return {
 		eq(count(calls, "fog_depth_range"), 2, "nothing more while it holds the camera")
 		opts.taken = false
 		frame()
-		eq(last(calls, "fog_depth_range")[3][2], 20 + 100 * look().REDUCE_MAX, "reduced fog again")
+		near(last(calls, "fog_depth_range")[3][2], 20 + 100 / look().FOG_DEFAULT, "reduced fog again")
 		eq(count(calls, "dof_amount"), 2, "the depth of field sent again")
 		E.remove()
 	end },

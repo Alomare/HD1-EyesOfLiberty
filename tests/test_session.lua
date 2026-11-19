@@ -261,7 +261,8 @@ return {
 		local context = { state = st }
 		local callback = make.fn(function(unit, ctx)
 			return function(distance)
-				EntityAux.queue_command_interface("enemy", "damageable", "do_damage", { power = 100, position = { x = distance, y = 0, z = 0 } })
+				-- As the game sends it: the hit's place inside surface_effect_info.
+				EntityAux.queue_command_interface("enemy", "damageable", "do_damage", { power = 100, surface_effect_info = { position = { x = distance, y = 0, z = 0 } } })
 			end
 		end, "rifle", context)
 		callback(100)

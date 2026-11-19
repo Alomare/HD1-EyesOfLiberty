@@ -1,7 +1,7 @@
 -- Compass: in third person, a strip at the top of the screen in the look of Helldivers Arcade's level
 -- bar (the HUD's basicbox_01 panel, 560 design pixels wide), thinner. It scrolls with the camera's
 -- heading: the letters N, E, S and W on the cardinal points and a faint short line every TICK degrees,
--- a longer, brighter one on the 45s. A white arrow marks the middle, and the heading in degrees shows
+-- a longer, brighter one on the 45s. A short white line across the top border marks the middle, and the heading in degrees shows
 -- under the strip in the game's body font. Objectives found on the map show at their bearing from the Helldiver, at any distance, with
 -- their map icon; one still hidden in a search zone doesn't show. Bearings run clockwise from north
 -- (+y), east being +x, as on the game's map.
@@ -23,7 +23,7 @@ M.TICK_SHORT = 6        -- design pixels, a line
 M.TICK_LONG = 11        -- on the 45s
 M.ICON_LAYER = 470      -- the map icons on the HUD's gui, over the panel (PANEL_LAYER)
 M.PANEL_LAYER = 466
-M.ARROW = 12.25         -- design pixels, half the arrow's width
+M.MARK_W, M.MARK_H = 3, 16 -- design pixels, the line marking the middle
 M.HEADING_SIZE = 22     -- design pixels
 M.TICK_COLOR = "#ffffff58"
 M.LONG_COLOR = "#ffffffb0"
@@ -32,7 +32,6 @@ M.TINT = "#ffffffcc"    -- the box, as the Arcade bar
 M.FRAME = "#5d5c56"
 M.GOLD = "#ffc433"
 M.WHITE = "#ffffffff"
-M.OUTLINE = "#000000ff"
 M.LETTERS = { [0] = "N", [90] = "E", [180] = "S", [270] = "W" }
 M.BOX_UV = { 0.25, 0.01, 0.75, 0.99 }
 
@@ -165,7 +164,6 @@ function M.start(env)
 		kit:text(str, x, y, { font = "body_large", size = size, align = "center", color = color })
 	end
 
-	local tri = { 0, 0, 0, 0, 0, 0 }
 
 	local function draw(api)
 		local view = env.view
@@ -215,15 +213,10 @@ function M.start(env)
 		end
 		M.icons = icons
 
-		-- The middle: a white arrow pointing down into the strip, with a thin soft outline.
+		-- The middle: a short white line across the top border, half in the strip and half over it.
 		kit:layer(M.LAYER + 4)
-		-- Equal sides: as tall as sqrt(3) / 2 of its width.
-		local n = M.ARROW * s
-		local tip = y + bh - 2 * s
-		local base = tip + n * math.sqrt(3)
-		tri[1], tri[2], tri[3], tri[4], tri[5], tri[6] = mid - n, base, mid + n, base, mid, tip
-		kit:poly(tri, M.WHITE)
-		kit:outline(tri, M.OUTLINE, 1.5 * s)
+		local mw, mh = M.MARK_W * s, M.MARK_H * s
+		kit:rect(mid - mw / 2, y + bh - mh / 2, mw, mh, M.WHITE)
 		-- The heading under the strip.
 		local hs = M.HEADING_SIZE * s
 		local d = math.max(1, floor(hs / 20))
