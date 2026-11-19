@@ -107,14 +107,15 @@ return {
 		near(body.distance_to_body({ x = 0, y = 0, z = 3 }, { x = 0, y = 0, z = 0 }), 3 - body.BODY[2], "over the head")
 	end },
 
-	{ "the ammo bar is a quarter circle on the chosen side, filling up or across", function()
+	{ "the ammo bar is an arc on the chosen side, filling up or across", function()
 		local a = m("src/ammobar")
 		local R = 100
 		local f = a.shape("oppose", 1, true, 0, 0, R)
 		local x0, y0 = f(0, R)
 		local x1, y1 = f(1, R)
-		near(x0, R * math.sin(math.rad(135))) near(y0, R * math.cos(math.rad(135)), "starts at the bottom right")
-		near(x1, R * math.sin(math.rad(45))) near(y1, R * math.cos(math.rad(45)), "fills up to the top right")
+		local lo, hi = math.pi / 2 + a.SPAN / 2, math.pi / 2 - a.SPAN / 2
+		near(x0, R * math.sin(lo)) near(y0, R * math.cos(lo), "starts at the bottom right")
+		near(x1, R * math.sin(hi)) near(y1, R * math.cos(hi), "fills up to the top right")
 		local xl = a.shape("oppose", -1, true, 0, 0, R)(0.5, R)
 		near(xl, -R, "over the left shoulder the bar goes left")
 		near(a.shape("same", 1, true, 0, 0, R)(0.5, R), -R, "same side as the Helldiver: left with the right shoulder")
@@ -126,7 +127,7 @@ return {
 		local sx0, sy0 = a.shape("oppose", 1, false, 0, 0, R)(0, R)
 		local sx1, sy1 = a.shape("oppose", 1, false, 0, 0, R)(1, R)
 		near(sx0, R) near(sx1, R, "straight: upright at R")
-		near(sy1 - sy0, 2 * R * math.sin(math.pi / 4), "as long as the curved bar's chord")
+		near(sy1 - sy0, 2 * R * math.sin(a.SPAN / 2), "as long as the curved bar's chord")
 		eq(#a.dividers(30), 29, "30 rounds: a line between each")
 		eq(#a.dividers(45), 0, "over 40: none")
 		eq(a.progress({ reload_time = 1, reload_duration = 2 }), 0.5)

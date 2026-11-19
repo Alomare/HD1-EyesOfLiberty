@@ -1,4 +1,4 @@
--- The ammo bar: Better HUD's ammo circle (src/ammo_look.lua) as a quarter of a circle around the
+-- The ammo bar: Better HUD's ammo circle (src/ammo_look.lua) as a sixth of a circle around the
 -- crosshair, in third person on foot. Same colours, warnings, shakes, laser heat, arc charge, empty
 -- flash and reload button; shows from a shot, hides while and after a reload, fades out 8 seconds after
 -- the last shot. A weapon of 40 rounds or fewer has a faint line between rounds.
@@ -18,9 +18,10 @@ local M = {}
 local function g(name) return rawget(_G, name) end
 
 M.RADIUS = 0.135      -- of the screen height, from the crosshair to the middle of the band
-M.WIDTH, M.EDGE = 3.5, 1.5 -- design units: the band, and the dark border around it
+M.WIDTH, M.EDGE = 4.2, 1.5 -- design units: the band (Better HUD's 3.5, a fifth thicker), and the dark
+                           -- border around it, past the ends too
 M.SIZE = 1.5          -- Better HUD's ring size in the shoulder view
-M.SPAN = math.pi / 2  -- a quarter of a circle
+M.SPAN = math.pi / 3  -- a sixth of a circle: two thirds of a quarter
 M.PIECES = 24         -- pieces a curved bar is drawn in
 M.ROUNDS = 40         -- magazines up to this many rounds show a line between rounds
 M.LINE = { 0, 0, 0, 110 } -- those lines: faded
@@ -28,6 +29,7 @@ M.LINE_WIDTH = 0.5    -- design units
 M.BUTTON_GAP = 4      -- design units between the band and the reload button
 M.TRACK, M.BORDER = { 30, 30, 30, 85 }, { 0, 0, 0, 100 }
 M.SHADOW = 0.2
+M.OPACITY = 0.9       -- the whole bar at most this opaque
 M.KINDS = { "firearm", "flameweapon", "launcher", "beamweapon", "arcweapon" }
 local NEAR_END = 0.85 -- a reload that stops past this far counts as finished, not cancelled
 
@@ -175,9 +177,9 @@ function M.start(env)
 		local r1, r2 = R - half, R + half
 		local fill, ccw, color, track = 1, false, look.WHITE, nil
 		if discharge then
-			kit:opacity(discharge)
+			kit:opacity(discharge * M.OPACITY)
 		else
-			kit:opacity(alpha)
+			kit:opacity(alpha * M.OPACITY)
 			fill, ccw, color = look.look(kind, share, rounds, empty, size, ready)
 			if kind == "beamweapon" then
 				if empty then track = look.burn_track(t, clock) else color = look.heat_color(1 - share, t.phase) end
@@ -185,8 +187,10 @@ function M.start(env)
 				track = look.flash(clock)
 			end
 		end
+		-- The border reaches e past both ends, so the tips aren't bare.
+		local over = e / (curved and R * M.SPAN or 2 * R * math.sin(M.SPAN / 2))
 		kit:layer(419)
-		band(f, 0, 1, r1 - e, r2 + e, M.BORDER, cx, cy, false, curved)
+		band(f, -over, 1 + over, r1 - e, r2 + e, M.BORDER, cx, cy, false, curved)
 		kit:layer(420)
 		band(f, 0, 1, r1, r2, track or M.TRACK, cx, cy, false, curved)
 		if fill > 0 then
