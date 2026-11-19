@@ -1,11 +1,11 @@
 -- The look of a mission: fog and depth of field, through Obsidian API's shading (unguarded,
 -- this player's picture alone).
 --
---   no_fog          Reduce fog: the fog thins to a fifth, in either view. The game's fog shader has no
+--   no_fog          Reduce fog: the fog thins to a tenth, in either view. The game's fog shader has no
 --                   strength of its own: it thickens with distance at 1 / (end - start) of
 --                   fog_depth_range, from the start on (an exponential fog, which also thins with
 --                   height at the same rate). So the start stays and the span from start to end is
---                   REDUCE times as long: the fog begins where it did and builds up a fifth as fast.
+--                   REDUCE times as long: the fog begins where it did and builds up a tenth as fast.
 --   far_view        the fog pushed out by FOG_SCALE (start and end) while third person steers the
 --                   view, before Reduce fog stretches the span
 --   depth_of_field  "game" leaves the planet's, "off" takes it away, "helldiver" keeps the Helldiver
@@ -18,7 +18,7 @@ local rig = obsidian.module("src/rig")
 
 local M = {}
 
-M.REDUCE = 5                  -- Reduce fog: the fog builds up at 20% of the game's rate
+M.REDUCE = 10                 -- Reduce fog: the fog builds up at 10% of the game's rate
 M.FOG_SCALE = 2.5             -- the long view: the planet's fog range times this
 -- Photo Mode keeps 6 m sharp around a player about 12 m off; with the shoulder camera 3 m off, that
 -- left nothing nearer than 9 m blurred, and the option looked like it did nothing.

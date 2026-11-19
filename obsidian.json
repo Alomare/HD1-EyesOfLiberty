@@ -201,7 +201,7 @@
     { "id": "no_fog", "type": "toggle", "default": true,
       "group": "picture", "part": "view", "scope": "client",
       "label": { "en": "Reduce fog" },
-      "description": { "en": "Thins the fog of the level to a fifth: it starts where it did and builds up a fifth as fast, in third person and in the top-down view. Photo Mode shows the full fog while it is open." } },
+      "description": { "en": "Thins the fog of the level to a tenth: it starts where it did and builds up a tenth as fast, in third person and in the top-down view. Photo Mode shows the full fog while it is open." } },
     { "id": "depth_of_field", "type": "choice", "default": "off",
       "choices": [ { "id": "game", "label": { "en": "Game default" } }, { "id": "helldiver", "label": { "en": "Focus on the Helldiver" } }, { "id": "off", "label": { "en": "Off" } } ],
       "group": "picture", "part": "view", "scope": "client",

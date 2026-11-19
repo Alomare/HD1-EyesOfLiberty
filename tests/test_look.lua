@@ -46,10 +46,10 @@ return {
 		local l = look()
 		local w = l.wanted({ no_fog = true, planet_fog = { 20, 120 }, dof = "off" })
 		eq(w.fog_depth_range[1], 20, "the fog starts where it did")
-		eq(w.fog_depth_range[2], 520, "and thickens a fifth as fast: the span five times as long")
+		eq(w.fog_depth_range[2], 1020, "and thickens a tenth as fast: the span ten times as long")
 		local both = l.wanted({ no_fog = true, far = true, planet_fog = { 20, 120 } }).fog_depth_range
 		eq(both[1], 50, "the long view pushes the start out")
-		eq(both[2], 1300, "and Reduce fog stretches the longer span")
+		eq(both[2], 2550, "and Reduce fog stretches the longer span")
 		eq(l.wanted({ no_fog = true }).fog_depth_range, false, "the planet's fog not read yet: left alone")
 		eq(w.bloom_threshold_offset, nil, "bloom left to the game")
 		eq(w.dof_amount, 0) eq(w.dof_near_setting, false)
