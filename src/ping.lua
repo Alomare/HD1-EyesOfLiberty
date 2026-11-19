@@ -35,6 +35,8 @@ M.OBJECTIVE_REACH = 12  -- the same, over the ground, for an objective
 M.DIAMOND = 10.4        -- design pixels from the middle of the diamond to a corner
 M.ICON = 30             -- design pixels, a stratagem icon
 M.HOVER = 70            -- design pixels from the crosshair that bring up the words
+M.NAME_AFTER = 1        -- seconds of the crosshair on an enemy's marker before its name shows
+M.NAME_FADE = 0.15      -- seconds for that name to fade in
 M.TEXT = 20             -- design pixels, the words' size
 M.ENEMY_TEXT = { 255, 178, 170 } -- an enemy's name: light red
 M.PULSE_LIGHT = 0.2     -- the dash up the line: the marker's colour this much toward white
@@ -142,6 +144,19 @@ function M.label(kind, name, words)
 	if type(words) ~= "string" then return nil end
 	if kind == "enemy" then return words:match("^(.-), %d+ m$") end
 	return words:match("^(.-) here$") or words
+end
+
+-- Metres over an enemy's root where its line starts: the middle of its body, half way up to the
+-- top of its box (`lift` less OVER_BOX).
+function M.body(lift)
+	return max(0, (lift or M.ABOVE_ENEMY) - M.OVER_BOX) / 2
+end
+
+-- How strongly a marker's name shows after `hover` seconds with the crosshair on it, 0 to 1: an
+-- enemy's only after NAME_AFTER seconds, fading in; anything else at once.
+function M.name_alpha(kind, hover)
+	if kind ~= "enemy" then return 1 end
+	return min(1, max(0, ((hover or 0) - M.NAME_AFTER) / M.NAME_FADE))
 end
 
 -- A colour this share of the way toward white.
@@ -380,8 +395,10 @@ function M.start(env)
 				local c = M.COLORS[m.kind] or M.COLORS.ground
 				if m.unit then m.lift = top_of(m.unit) end
 				local lift = m.kind == "enemy" and (m.lift or M.ABOVE_ENEMY) or M.LINE
-				local base = m.pos
-				local top = { x = m.pos.x, y = m.pos.y, z = m.pos.z + lift * M.rise(m.age) }
+				-- An enemy's line rises from the middle of its body, anything else's from the ground.
+				local from = m.kind == "enemy" and M.body(lift) or 0
+				local base = { x = m.pos.x, y = m.pos.y, z = m.pos.z + from }
+				local top = { x = m.pos.x, y = m.pos.y, z = m.pos.z + from + (lift - from) * M.rise(m.age) }
 				local inset = M.INSET * s
 				local on_top, tx, ty, dx, dy = edge.locate(cam, top, w, h, inset)
 				local r = M.DIAMOND * s * M.pop(m.age)
@@ -409,17 +426,23 @@ function M.start(env)
 					draw_diamond(cx, cy, r, c, a)
 				end
 				-- While the crosshair is near the marker: the name above it on a see-through black box (light
-				-- red for an enemy), the distance from this player below it.
+				-- red for an enemy, after NAME_AFTER seconds there), the distance from this player below it.
+				local hovered = false
 				if cross and on_top then
 					local hx, hy = cx - cross.x, cy - cross.y
-					if hx * hx + hy * hy <= (M.HOVER * s) ^ 2 then
+					hovered = hx * hx + hy * hy <= (M.HOVER * s) ^ 2
+				end
+				m.hover = hovered and (m.hover or 0) + dt or 0
+				if hovered then
+					do
 						local size = M.TEXT * s
 						local d = max(1, floor(size / 14))
 						local half = (m.kind == "support" and m.icon) and M.ICON * s / 2 or r
 						local name = M.label(m.kind, m.name, m.words)
-						if name then
+						local na = a * M.name_alpha(m.kind, m.hover)
+						if name and na > 0 then
 							local opts = { font = "body_large", size = size, align = "center",
-								color = rgba(m.kind == "enemy" and M.ENEMY_TEXT or { 255, 255, 255 }, a) }
+								color = rgba(m.kind == "enemy" and M.ENEMY_TEXT or { 255, 255, 255 }, na) }
 							local tw = size * 0.55 * #name
 							if kit.measure then
 								local okm, mw = pcall(kit.measure, kit, name, opts)
@@ -427,7 +450,7 @@ function M.start(env)
 							end
 							local pad = 6 * s
 							local y = cy + half + 8 * s
-							kit:rect(cx - tw / 2 - pad, y - pad * 0.6, tw + 2 * pad, size + pad * 0.8, { 0, 0, 0, floor(150 * a) })
+							kit:rect(cx - tw / 2 - pad, y - pad * 0.6, tw + 2 * pad, size + pad * 0.8, { 0, 0, 0, floor(150 * na) })
 							kit:text(name, cx, y + size * 0.15, opts)
 						end
 						if mine then

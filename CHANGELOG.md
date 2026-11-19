@@ -2,6 +2,11 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## Next
+
+- Changed: The line of an enemy ping starts at the middle of the enemy's body again, not at the ground.
+- Changed: An enemy ping shows the enemy's name after the crosshair stays on it for one second.
+
 ## 0.13.1
 
 - Changed: Reduce fog goes down to 0, which removes the fog.
