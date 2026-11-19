@@ -1,8 +1,10 @@
 -- The look of a mission: fog and depth of field, through Obsidian API's shading (unguarded,
 -- this player's picture alone).
 --
---   no_fog          the planet's fog pushed out of sight (fog_depth_range), in either view
---   far_view        without no_fog, the fog pushed out by FOG_SCALE while third person steers the view
+--   no_fog          Reduce fog: the planet's fog range (fog_depth_range) stretched REDUCE times, so the
+--                   fog at any distance is a fifth of the game's, in either view
+--   far_view        the fog pushed out by FOG_SCALE while third person steers the view; with no_fog the
+--                   farther of the two
 --   depth_of_field  "game" leaves the planet's, "off" takes it away, "helldiver" keeps the Helldiver
 --                   sharp and blurs what is nearer or farther, as Photo Mode's focus on the player does
 --
@@ -13,7 +15,7 @@ local rig = obsidian.module("src/rig")
 
 local M = {}
 
-M.NO_FOG = { 5000, 5001 }     -- fog that starts past anything the camera draws, as Photo Mode's None
+M.REDUCE = 5                  -- Reduce fog: the fog at 20% of the game's
 M.FOG_SCALE = 2.5             -- the long view: the planet's fog range times this
 -- Photo Mode keeps 6 m sharp around a player about 12 m off; with the shoulder camera 3 m off, that
 -- left nothing nearer than 9 m blurred, and the option looked like it did nothing.
@@ -34,10 +36,10 @@ local function g(name) return rawget(_G, name) end
 -- dof ("game", "off" or "helldiver"), focus (metres to the Helldiver, nil when unknown).
 function M.wanted(o)
 	local out = {}
-	if o.no_fog then
-		out.fog_depth_range = { M.NO_FOG[1], M.NO_FOG[2] }
-	elseif o.far and type(o.planet_fog) == "table" and tonumber(o.planet_fog[1]) and tonumber(o.planet_fog[2]) then
-		out.fog_depth_range = { o.planet_fog[1] * M.FOG_SCALE, o.planet_fog[2] * M.FOG_SCALE }
+	local planet = type(o.planet_fog) == "table" and tonumber(o.planet_fog[1]) and tonumber(o.planet_fog[2]) and o.planet_fog
+	local scale = math.max(o.no_fog and M.REDUCE or 1, o.far and M.FOG_SCALE or 1)
+	if planet and scale > 1 then
+		out.fog_depth_range = { planet[1] * scale, planet[2] * scale }
 	else
 		out.fog_depth_range = false
 	end

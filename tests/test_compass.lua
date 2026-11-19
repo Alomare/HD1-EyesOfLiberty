@@ -27,19 +27,21 @@ return {
 		eq(c.gap(10, 350), -20, "past north to the left")
 	end },
 
-	{ "letters on the cardinal points, numbers on the 45s between, ticks on the rest", function()
+	{ "letters on the cardinal points, longer lines on the 45s between, short ones on the rest", function()
 		local c = compass()
 		local by = {}
 		for _, m in ipairs(c.marks(0)) do by[m[1]] = m end
 		eq(by[0][3], "N")
-		eq(by[45][3], "45")
-		eq(by[315][3], "315")
+		eq(by[45][2], "long")
+		eq(by[315][2], "long")
 		eq(by[15][2], "tick")
 		eq(by[90], nil, "east is past the edge of a 120 degree span")
 		local east = {}
 		for _, m in ipairs(c.marks(90)) do east[m[1]] = m end
 		eq(east[90][3], "E")
-		eq(east[135][3], "135")
+		eq(east[135][2], "long")
+		eq(c.heading_text(359.7), "0\194\186", "whole degrees, 360 is 0")
+		eq(c.heading_text(87.2), "87\194\186")
 		local x, inside = c.place(0, 30, 480)
 		eq(x, 120, "30 degrees right is a quarter of the trough right of the middle")
 		eq(inside, true)
@@ -75,14 +77,24 @@ return {
 		eq(#calls, 0, "top-down: nothing")
 		env.state.active = true
 		frame()
-		local icon, letters = nil, {}
+		local letters = {}
 		for _, call in ipairs(calls) do
-			if call[1] == "icon" and call[2] == "icon_obj" then icon = call end
 			if call[1] == "text" then letters[call[2]] = true end
 		end
-		assert(icon, "the objective's icon")
-		near(icon[3] + icon[5] / 2, 960, "east of the Helldiver while facing east: the middle of the screen")
-		assert(letters.E and letters["45"] and letters["135"], "E with 45 and 135 beside it")
+		local icon = compass().icons[1]
+		assert(icon and icon.icon == "icon_obj", "the objective's map icon, for the HUD to draw")
+		near(icon.x, 960, "east of the Helldiver while facing east: the middle of the screen")
+		assert(letters.E and letters["90\194\186"], "E, and the heading under the strip")
+		assert(not letters["45"], "no numbers on the strip")
+		local drawn = {}
+		local gui = setmetatable({}, { __index = function(_, name) return function(_, ...) drawn[#drawn + 1] = { name, ... } end end })
+		Vector2, Color = function(a, b) return { a, b } end, function(...) return { ... } end
+		compass().draw_icons({ hd_gui = gui })
+		local image
+		for _, d in ipairs(drawn) do if d[1] == "image" then image = d end end
+		eq(image[2], "icon_obj", "on the HUD's gui")
+		eq(drawn[#drawn][1], "set_ignore_size_scale", "the gui's scales are given back")
+		Vector2, Color = nil, nil
 		obsidian.ui = nil
 		E.remove()
 	end },

@@ -32,6 +32,16 @@ return {
 		eq(p.message("support", "Machine Gun"), "Machine Gun here")
 	end },
 
+	{ "the name over a marker comes from what was pinged, and the dash is a little lighter", function()
+		local p = ping()
+		eq(p.label("ground", nil, "Look here"), nil, "no name for the ground")
+		eq(p.label("enemy", nil, "Bile Spewer, 40 m"), "Bile Spewer")
+		eq(p.label("support", nil, "Machine Gun here"), "Machine Gun")
+		eq(p.label("objective", "Raise the flag", "Raise the flag here"), "Raise the flag")
+		local c = p.lighter({ 235, 45, 35 }, 0.2)
+		eq(c[1], 239) eq(c[2], 87) eq(c[3], 79)
+	end },
+
 	{ "a shared ping reads back as sent, and junk reads as nothing", function()
 		local p = ping()
 		local s = p.encode(4, "support", { x = 1.25, y = -2, z = 3 }, "stratagem_machinegun", "Machine Gun | here")

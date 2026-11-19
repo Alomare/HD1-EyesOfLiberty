@@ -44,8 +44,11 @@ end
 return {
 	{ "what each option asks of the shading", function()
 		local l = look()
-		local w = l.wanted({ no_fog = true, dof = "off" })
-		eq(w.fog_depth_range[1], l.NO_FOG[1])
+		local w = l.wanted({ no_fog = true, planet_fog = { 20, 120 }, dof = "off" })
+		eq(w.fog_depth_range[1], 100, "reduced to a fifth: the range five times as long")
+		eq(w.fog_depth_range[2], 600)
+		eq(l.wanted({ no_fog = true, far = true, planet_fog = { 20, 120 } }).fog_depth_range[2], 600, "the farther of the two")
+		eq(l.wanted({ no_fog = true }).fog_depth_range, false, "the planet's fog not read yet: left alone")
 		eq(w.bloom_threshold_offset, nil, "bloom left to the game")
 		eq(w.dof_amount, 0) eq(w.dof_near_setting, false)
 		w = l.wanted({ far = true, planet_fog = { 20, 120 }, dof = "game" })
@@ -58,11 +61,11 @@ return {
 		eq(l.wanted({}).fog_depth_range, false, "the planet's fog")
 	end },
 
-	{ "by default the fog and the depth of field go, once each, and the bloom stays", function()
+	{ "by default the fog is reduced and the depth of field goes, once each, and the bloom stays", function()
 		local calls = {}
 		started(calls, {})
 		frame()
-		eq(last(calls, "fog_depth_range")[3][1], look().NO_FOG[1])
+		eq(last(calls, "fog_depth_range")[3][1], 20 * look().REDUCE)
 		eq(count(calls, "bloom_threshold_offset"), 0, "bloom untouched")
 		eq(last(calls, "dof_amount")[3], 0)
 		local n = #calls
@@ -85,7 +88,7 @@ return {
 		eq(count(calls, "fog_depth_range"), 2, "nothing more while it holds the camera")
 		opts.taken = false
 		frame()
-		eq(last(calls, "fog_depth_range")[3][1], look().NO_FOG[1], "no fog again")
+		eq(last(calls, "fog_depth_range")[3][1], 20 * look().REDUCE, "reduced fog again")
 		eq(count(calls, "dof_amount"), 2, "the depth of field sent again")
 		E.remove()
 	end },

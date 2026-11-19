@@ -1,24 +1,32 @@
 -- Compass: in third person, a strip at the top of the screen in the look of Helldivers Arcade's level
--- bar (the HUD's basicbox_01 panel, 560 by 48 design pixels, with a dark trough inside). It scrolls
--- with the camera's heading: the letters N, E, S and W on the cardinal points, the bearing in degrees
--- on the four points between, and a tick every TICK degrees. Objectives found on the map show at their
--- bearing from the Helldiver, at any distance, with their map icon; one still hidden in a search zone
--- doesn't show. Bearings run clockwise from north (+y), east being +x, as on the game's map.
+-- bar (the HUD's basicbox_01 panel, 560 design pixels wide), thinner. It scrolls with the camera's
+-- heading: the letters N, E, S and W on the cardinal points and a short line every TICK degrees, a
+-- longer one on the 45s. A white arrow marks the middle, and the heading in degrees shows under the
+-- strip. Objectives found on the map show at their bearing from the Helldiver, at any distance, with
+-- their map icon; one still hidden in a search zone doesn't show. Bearings run clockwise from north
+-- (+y), east being +x, as on the game's map.
+--
+-- The map icons are drawn on the HUD's own gui (Hud.hd_gui, in Hud.draw_plugins), as the game's map
+-- and the edge markers draw them: the canvas can't draw them.
 local radar = obsidian.module("src/radar")
 
 local M = {}
 
 M.W, M.H = 1920, 1080   -- design space, scaled and centred in the window
-M.BOX = { w = 560, h = 48, top = 18, trough = 26, inset = 14 }
-M.SPAN = 120            -- degrees across the trough
+M.BOX = { w = 560, h = 30, top = 22, inset = 6 }
+M.SPAN = 120            -- degrees across the strip
 M.TICK = 15             -- degrees between ticks
-M.ICON = 24             -- objective icon, design pixels
+M.ICON = 22             -- objective icon, design pixels
+M.TICK_SHORT = 6        -- design pixels, a line
+M.TICK_LONG = 11        -- on the 45s
+M.ICON_LAYER = 470      -- the map icons on the HUD's gui, over the strip
 M.LAYER = 465           -- under the hurt indicator (470)
 M.TINT = "#ffffffcc"    -- the box, as the Arcade bar
-M.TROUGH = "#000000b0"
 M.FRAME = "#5d5c56"
 M.GOLD = "#ffc433"
-M.TEXT = "#d4d2cb"
+M.WHITE = "#ffffffff"
+M.OUTLINE = "#00000070"
+M.DEGREE = "\194\186"   -- the ordinal sign the heading is written with
 M.LETTERS = { [0] = "N", [90] = "E", [180] = "S", [270] = "W" }
 M.BOX_UV = { 0.25, 0.01, 0.75, 0.99 }
 
@@ -43,8 +51,8 @@ function M.place(heading, bearing, width)
 	return g / M.SPAN * width, math.abs(g) <= M.SPAN / 2
 end
 
--- The marks inside the span for a heading: { bearing, kind, label } with kind "letter", "number" or
--- "tick". Numbers on the 45s between the letters, ticks on the rest.
+-- The marks inside the span for a heading: { bearing, kind, label } with kind "letter", "long" (the
+-- 45s between the letters) or "tick".
 function M.marks(heading)
 	local out = {}
 	local first = floor((heading - M.SPAN / 2) / M.TICK) * M.TICK
@@ -52,7 +60,7 @@ function M.marks(heading)
 		local d = b % 360
 		if math.abs(M.gap(heading, d)) <= M.SPAN / 2 then
 			if M.LETTERS[d] then out[#out + 1] = { d, "letter", M.LETTERS[d] }
-			elseif d % 45 == 0 then out[#out + 1] = { d, "number", tostring(d) }
+			elseif d % 45 == 0 then out[#out + 1] = { d, "long" }
 			else out[#out + 1] = { d, "tick" } end
 		end
 	end
@@ -75,7 +83,32 @@ function M.objectives(list, unbox)
 	return out
 end
 
+-- The heading as shown under the strip: whole degrees, 0 to 359.
+function M.heading_text(heading)
+	return tostring(floor(heading + 0.5) % 360) .. M.DEGREE
+end
+
 -- The game -----------------------------------------------------------------------------------------
+
+-- The map icons to draw this frame on the HUD's gui: { icon, x, y, size, alpha } in window pixels.
+M.icons = nil
+
+-- Draws M.icons on the HUD's gui, at window pixels.
+function M.draw_icons(hud)
+	local list, gui = M.icons, hud and hud.hd_gui
+	if not (list and gui and #list > 0) then return end
+	local V2, V3, C = rawget(_G, "Vector2"), rawget(_G, "Vector3"), rawget(_G, "Color")
+	gui:set_ignore_position_scale(true)
+	gui:set_ignore_size_scale(true)
+	local ok, err = pcall(function()
+		for _, i in ipairs(list) do
+			gui:image(i.icon, V3(i.x - i.size / 2, i.y - i.size / 2, M.ICON_LAYER), V2(i.size, i.size), C(i.alpha, 255, 255, 255))
+		end
+	end)
+	gui:set_ignore_position_scale(false)
+	gui:set_ignore_size_scale(false)
+	if not ok then error(err, 0) end
+end
 
 local function g(name) return rawget(_G, name) end
 
@@ -107,14 +140,13 @@ function M.start(env)
 	local on = env.config.get("compass") ~= false
 	if env.config.on_change then env.config.on_change("compass", function(v) on = v ~= false end) end
 
-	local function text(s, x, y, size, color)
+	local function text(str, x, y, size, color)
 		local d = math.max(1, floor(size / 14))
-		kit:text(s, x + d, y - d, { font = "body_large", size = size, align = "center", color = "#000000c0" })
-		kit:text(s, x, y, { font = "body_large", size = size, align = "center", color = color })
+		kit:text(str, x + d, y - d, { font = "body_large", size = size, align = "center", color = "#000000c0" })
+		kit:text(str, x, y, { font = "body_large", size = size, align = "center", color = color })
 	end
 
 	local tri = { 0, 0, 0, 0, 0, 0 }
-	local diamond = { 0, 0, 0, 0, 0, 0, 0, 0 }
 
 	local function draw(api)
 		local view = env.view
@@ -138,59 +170,60 @@ function M.start(env)
 		kit:rect(x, y + bh - f, bw, f, M.FRAME)
 		kit:rect(x, y, f, bh, M.FRAME)
 		kit:rect(x + bw - f, y, f, bh, M.FRAME)
-		local tx, tw, th = x + B.inset * s, bw - 2 * B.inset * s, B.trough * s
-		local ty = y + (bh - th) / 2
-		kit:rect(tx, ty, tw, th, M.TROUGH)
-		local mid = tx + tw / 2
+		local tx, tw = x + B.inset * s, bw - 2 * B.inset * s
+		local mid, cy = tx + tw / 2, y + bh / 2
 		local heading = M.bearing(view.forward.x, view.forward.y)
 
 		kit:layer(M.LAYER + 2)
-		kit:clip(tx, ty, tw, th, function()
+		kit:clip(tx, y, tw, bh, function()
 			for _, m in ipairs(M.marks(heading)) do
 				local px = mid + M.place(heading, m[1], tw)
 				if m[2] == "letter" then
-					text(m[3], px, ty + 6 * s, 22 * s, M.GOLD)
-				elseif m[2] == "number" then
-					text(m[3], px, ty + 7 * s, 17 * s, M.TEXT)
+					text(m[3], px, cy - 7 * s, 20 * s, M.GOLD)
 				else
-					kit:rect(px - s, ty + 2 * s, 2 * s, 6 * s, "#ffffff80")
-					kit:rect(px - s, ty + th - 8 * s, 2 * s, 6 * s, "#ffffff80")
+					local len = (m[2] == "long" and M.TICK_LONG or M.TICK_SHORT) * s
+					kit:rect(px - s, cy - len / 2, 2 * s, len, "#ffffffb0")
 				end
 			end
 		end)
 
-		-- Objectives, over the marks: inside the span at their bearing, past it held at the end, fainter.
+		-- Objectives: inside the span at their bearing, past it held at the end, fainter. Drawn by the HUD.
 		local me = api.game.my_unit and api.game.my_unit()
 		local st = api.game.state and api.game.state()
 		local mm = type(st) == "table" and st.mission_manager
 		local V3A = g("Vector3Aux")
+		local icons = {}
 		if me and mm and mm.get_objectives and V3A then
 			local p = g("Unit").world_position(me, 0)
 			local size = M.ICON * s
-			kit:layer(M.LAYER + 3)
 			for _, o in ipairs(M.objectives(mm:get_objectives(), V3A.unbox)) do
 				local off, inside = M.place(heading, M.bearing(o.x - p.x, o.y - p.y), tw)
 				local half = tw / 2 - size / 2
 				if off > half then off = half elseif off < -half then off = -half end
-				local cx, cy = mid + off, ty + th / 2
-				local color = inside and "#ffffffff" or "#ffffff80"
-				if not kit:icon(o.icon, cx - size / 2, cy - size / 2, size, size, color) then
-					local r = size * 0.35
-					diamond[1], diamond[2], diamond[3], diamond[4] = cx, cy + r, cx + r, cy
-					diamond[5], diamond[6], diamond[7], diamond[8] = cx, cy - r, cx - r, cy
-					kit:poly(diamond, color)
-				end
+				icons[#icons + 1] = { icon = o.icon, x = mid + off, y = cy, size = size, alpha = inside and 255 or 130 }
 			end
 		end
+		M.icons = icons
 
-		-- The heading: a gold notch over the middle of the box.
+		-- The middle: a white arrow pointing down into the strip, with a thin soft outline.
+		kit:layer(M.LAYER + 4)
 		local n = 7 * s
-		tri[1], tri[2], tri[3], tri[4], tri[5], tri[6] = mid - n, y + bh + n, mid + n, y + bh + n, mid, y + bh - s
-		kit:poly(tri, M.GOLD)
+		tri[1], tri[2], tri[3], tri[4], tri[5], tri[6] = mid - n, y + bh + n, mid + n, y + bh + n, mid, y + bh - 2 * s
+		kit:poly(tri, M.WHITE)
+		kit:outline(tri, M.OUTLINE, 1.5 * s)
+		-- The heading under the strip.
+		text(M.heading_text(heading), mid, y - 20 * s, 18 * s, M.WHITE)
 	end
+
+	obsidian.hook("Hud", "draw_plugins", function(original, self, ...)
+		local r = { original(self, ...) }
+		if M.icons then pcall(M.draw_icons, self) end
+		return unpack(r)
+	end, env.VIEW)
 
 	local warned, wait = false, 0
 	obsidian.on_frame(function()
+		M.icons = nil
 		if wait > 0 then wait = wait - 1 return end
 		if not on or not env.state.active then return end
 		local api = env.api
@@ -198,6 +231,7 @@ function M.start(env)
 		if not M.shown(api) then return end
 		local ok, err = pcall(draw, api)
 		if not ok then
+			M.icons = nil
 			wait = 300
 			if not warned then
 				warned = true

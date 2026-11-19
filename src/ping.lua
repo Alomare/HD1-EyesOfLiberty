@@ -1,7 +1,7 @@
 -- Pings: in third person, the ping key marks what the crosshair is on, for LIFE seconds, with a
 -- COOLDOWN between two pings of this player. A marker is a vertical line with a diamond on top, drawn
--- over the level; one out of view sits at the edge of the screen. Aiming near a marker shows its words
--- over it. Each player has one marker at a time: a new ping replaces the last.
+-- over the level; one out of view sits at the edge of the screen. Aiming near a marker shows what it
+-- marks above it and how far it is below it. Each player has one marker at a time: a new ping replaces the last.
 --
 -- What the crosshair is on decides the marker and the line said in the game's chat under the player's
 -- name (api.ui.chat, Obsidian API 1.55.0; without it the marker still shows):
@@ -31,6 +31,9 @@ M.OBJECTIVE_REACH = 12  -- the same, over the ground, for an objective
 M.DIAMOND = 13          -- design pixels from the middle of the diamond to a corner
 M.ICON = 30             -- design pixels, a stratagem icon
 M.HOVER = 70            -- design pixels from the crosshair that bring up the words
+M.TEXT = 20             -- design pixels, the words' size
+M.ENEMY_TEXT = { 255, 140, 130 } -- an enemy's name: light red
+M.PULSE_LIGHT = 0.2     -- the dash up the line: the marker's colour this much toward white
 M.INSET = 30            -- design pixels from the screen edge for a marker out of view
 M.POLL = 0.25           -- seconds between two looks at what teammates share
 M.LAYER = 475
@@ -115,6 +118,21 @@ function M.nearest(list, p, reach, at, flat)
 		end
 	end
 	return best, best and best_d or nil
+end
+
+-- The name over a marker: what was pinged, from its own name or from the chat line. Nothing for the
+-- ground.
+function M.label(kind, name, words)
+	if kind == "ground" then return nil end
+	if name and name ~= "" then return name end
+	if type(words) ~= "string" then return nil end
+	if kind == "enemy" then return words:match("^(.-), %d+ m$") end
+	return words:match("^(.-) here$") or words
+end
+
+-- A colour this share of the way toward white.
+function M.lighter(c, share)
+	return { c[1] + (255 - c[1]) * share, c[2] + (255 - c[2]) * share, c[3] + (255 - c[3]) * share }
 end
 
 -- The game -----------------------------------------------------------------------------------------
@@ -264,11 +282,10 @@ function M.start(env)
 				seen[peer] = p.count -- shared before this mission: old
 			elseif p and p.count ~= seen[peer] then
 				seen[peer] = p.count
-				local m = { kind = p.kind, pos = p.pos, icon = p.icon, words = p.words, age = 0 }
+				local m = { kind = p.kind, pos = p.pos, icon = p.icon, words = p.words, age = 0, name = M.label(p.kind, nil, p.words) }
 				if p.kind == "enemy" then
 					local got, near = pcall(api.enemies.near, 3, v3(p.pos))
 					m.unit = got and type(near) == "table" and near[1] or nil
-					m.name = p.words:match("^(.-), %d+ m$")
 				end
 				markers[peer] = m
 			end
@@ -338,11 +355,11 @@ function M.start(env)
 					local bx, depth, by = frustum.project(cam, base, w, h)
 					if depth > 0.1 then
 						quad(x0 + bx, y0 + by, x0 + tx, y0 + ty, 1.5 * s, rgba(c, 0.85 * a))
-						-- A bright dash running up the line once a second.
+						-- A dash, a little lighter than the line and thicker, running up it once a second.
 						local t = (m.age % 1)
 						local px, py = bx + (tx - bx) * t, by + (ty - by) * t
 						local qx, qy = bx + (tx - bx) * min(1, t + 0.15), by + (ty - by) * min(1, t + 0.15)
-						quad(x0 + px, y0 + py, x0 + qx, y0 + qy, 2.5 * s, rgba({ 255, 255, 255 }, 0.9 * a))
+						quad(x0 + px, y0 + py, x0 + qx, y0 + qy, 2.5 * s, rgba(M.lighter(c, M.PULSE_LIGHT), a))
 					end
 				else
 					tx, ty = edge.edge(dx, dy, w, h, inset, inset)
@@ -356,19 +373,35 @@ function M.start(env)
 				else
 					draw_diamond(cx, cy, r, c, a)
 				end
-				-- The words, while the crosshair is near the marker.
+				-- While the crosshair is near the marker: the name above it on a see-through black box (light
+				-- red for an enemy), the distance from this player below it.
 				if cross and on_top then
 					local hx, hy = cx - cross.x, cy - cross.y
 					if hx * hx + hy * hy <= (M.HOVER * s) ^ 2 then
-						local words = m.words or ""
-						if m.kind == "enemy" and mine then
-							local ex, ey, ez = m.pos.x - mine.x, m.pos.y - mine.y, m.pos.z - mine.z
-							words = M.message("enemy", m.name, sqrt(ex * ex + ey * ey + ez * ez))
+						local size = M.TEXT * s
+						local d = max(1, floor(size / 14))
+						local half = (m.kind == "support" and m.icon) and M.ICON * s / 2 or r
+						local name = M.label(m.kind, m.name, m.words)
+						if name then
+							local opts = { font = "body_large", size = size, align = "center",
+								color = rgba(m.kind == "enemy" and M.ENEMY_TEXT or { 255, 255, 255 }, a) }
+							local tw = size * 0.55 * #name
+							if kit.measure then
+								local okm, mw = pcall(kit.measure, kit, name, opts)
+								if okm and type(mw) == "number" then tw = mw end
+							end
+							local pad = 6 * s
+							local y = cy + half + 8 * s
+							kit:rect(cx - tw / 2 - pad, y - pad * 0.6, tw + 2 * pad, size + pad * 0.8, { 0, 0, 0, floor(150 * a) })
+							kit:text(name, cx, y + size * 0.15, opts)
 						end
-						local size, d = 20 * s, max(1, floor(20 * s / 14))
-						local y = cy + r + 10 * s
-						kit:text(words, cx + d, y - d, { font = "body_large", size = size, align = "center", color = { 0, 0, 0, floor(190 * a) } })
-						kit:text(words, cx, y, { font = "body_large", size = size, align = "center", color = rgba(c, a) })
+						if mine then
+							local ex, ey, ez = m.pos.x - mine.x, m.pos.y - mine.y, m.pos.z - mine.z
+							local dist = string.format("%d m", floor(sqrt(ex * ex + ey * ey + ez * ez) + 0.5))
+							local y = cy - half - 6 * s - size
+							kit:text(dist, cx + d, y - d, { font = "body_large", size = size, align = "center", color = { 0, 0, 0, floor(190 * a) } })
+							kit:text(dist, cx, y, { font = "body_large", size = size, align = "center", color = { 255, 255, 255, floor(255 * a) } })
+						end
 					end
 				end
 			end
