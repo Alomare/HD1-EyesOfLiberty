@@ -11,7 +11,7 @@ M.LEVEL = { off = 0, weak = 0.5, medium = 1, strong = 1.8 }
 M.list = {}               -- own shakes: { amp, freq, left, total }
 -- A soft rumble while this player's weapon fires (src/aim.lua sees it): metres, a second, and the
 -- seconds it takes to die out after the last shot. A vehicle's guns rumble more.
-M.FIRE = { amp = 0.02, vehicle_amp = 0.045, freq = 16, fade = 0.15 }
+M.FIRE = { amp = 0.01, vehicle_amp = 0.0225, freq = 16, fade = 0.15 }
 M.fire = { level = 0, phase = 0, vehicle = false }
 -- The most the game's own shake moves the shoulder view in a frame, in metres: a run of explosions
 -- (a mod with blasts on every kill) shook it all the time.

@@ -6,6 +6,9 @@
 -- The loss is seen as src/hits.lua sees it: HealthComponent.command_master runs every damage command
 -- ("do_damage", "request_do_damage", "set_hitpoints") on the machine that runs the unit, and the hit
 -- counts when hitpoints_real drops. A personal shield that takes the hit leaves health as it was.
+--
+-- When the Helldiver dies, the whole screen is tinted red (DEATH_ALPHA) and the tint fades out over
+-- DEATH_FADE seconds. The death is seen in the frame: the avatar's health turns is_dead.
 local scoped = obsidian.module("src/scoped")
 local shake = obsidian.module("src/shake")
 local art = obsidian.module("src/art")
@@ -19,11 +22,16 @@ M.PER_SHARE = 3       -- strength for each share of the health bar lost (a third
 M.COLOR = { 205, 22, 16 }
 M.ALPHA = 235         -- at full strength, out of 255
 M.LAYER = 60
-M.SHAKE = { amp = 0.06, most = 0.16, freq = 17, time = 0.28 }
+M.SHAKE = { amp = 0.03, most = 0.08, freq = 17, time = 0.28 }
 M.SHAKE_GAP = 0.12    -- seconds between two shakes: fire and acid hurt many times a second
 M.DAMAGE = { do_damage = true, request_do_damage = true, set_hitpoints = true }
 
+M.DEATH_ALPHA = 64    -- out of 255: a quarter
+M.DEATH_FADE = 2      -- seconds
+M.DEATH_LAYER = 59    -- under the edge flash
+
 M.flash = { level = 0, age = math.huge }
+M.death = { age = math.huge, unit = nil, dead = false }
 M.since_shake = math.huge
 
 -- The strength of a hit that took `lost` of `most` hitpoints, from LEAST to 1.
@@ -55,13 +63,33 @@ function M.hurt(s, third_person)
 	end
 end
 
+-- How strong the death tint shows `age` seconds after the death, out of 255.
+function M.death_alpha(age)
+	if age < 0 or age >= M.DEATH_FADE then return 0 end
+	return M.DEATH_ALPHA * (1 - age / M.DEATH_FADE)
+end
+
+-- The avatar `unit` is dead (`dead`) this frame: the tint starts on the frame it dies. A new unit (a
+-- respawn) starts over, and a unit seen dead first (a death before the view came on) shows nothing.
+function M.see(unit, dead)
+	local d = M.death
+	if unit ~= d.unit then
+		d.unit, d.dead = unit, dead and true or false
+		return
+	end
+	if dead and not d.dead then d.age = 0 end
+	d.dead = dead and true or false
+end
+
 function M.step(dt)
 	M.flash.age = M.flash.age + dt
+	M.death.age = M.death.age + dt
 	M.since_shake = M.since_shake + dt
 end
 
 function M.clear()
 	M.flash.level, M.flash.age = 0, math.huge
+	M.death.age, M.death.unit, M.death.dead = math.huge, nil, false
 end
 
 local function g(name) return rawget(_G, name) end
@@ -110,18 +138,29 @@ function M.start(env)
 			return M.clear()
 		end
 		me = api.game.my_unit()
+		if me ~= nil then
+			local EA = g("EntityAux")
+			local ok, health = pcall(EA.state, me, "health")
+			M.see(me, ok and type(health) == "table" and health.is_dead == true)
+		end
 		local dt = g("ENGINE_DT")
 		dt = type(dt) == "number" and dt > 0 and math.min(dt, 0.1) or 1 / 60
 		M.step(dt)
 		local s = M.shown(M.flash.level, M.flash.age)
-		if s <= 0.004 or hidden(api) then return end
+		local tint = M.death_alpha(M.death.age)
+		if (s <= 0.004 and tint < 1) or hidden(api) then return end
 		local cm = g("CameraManager")
 		if not (cm and cm.viewport) then return end
 		local gui = art.gui()
 		if not gui then return end
 		local w, h, x0, y0 = cm.viewport:window()
 		local c = M.COLOR
-		art.draw(gui, "eol_hurt", x0 or 0, y0 or 0, w, h, M.LAYER, math.floor(M.ALPHA * s + 0.5), c[1], c[2], c[3])
+		if tint >= 1 then
+			g("Gui").rect(gui, g("Vector3")(x0 or 0, y0 or 0, M.DEATH_LAYER), g("Vector2")(w, h), g("Color")(math.floor(tint + 0.5), c[1], c[2], c[3]))
+		end
+		if s > 0.004 then
+			art.draw(gui, "eol_hurt", x0 or 0, y0 or 0, w, h, M.LAYER, math.floor(M.ALPHA * s + 0.5), c[1], c[2], c[3])
+		end
 	end
 
 	local warned = false

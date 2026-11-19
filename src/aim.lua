@@ -37,7 +37,7 @@ local function own_hit(unit, view)
 	return ok and wielder ~= nil and (wielder == view.avatar or wielder == view.target)
 end
 
--- The crosshair point: the first thing along the view past the pivot that isn't this player's own body,
+-- The crosshair point (and the unit there, for pings): the first thing along the view past the pivot that isn't this player's own body,
 -- vehicle or gear, or the far end of the ray. Every hit along the ray is asked for at once: the ray
 -- starts inside a shield bubble when the Helldiver carries one, and a hit at the start (a shape the ray
 -- starts in) doesn't count either.
@@ -48,18 +48,18 @@ function M.find_point(view)
 	local pw = W.physics_world(view.world)
 	local hits = PW.immediate_raycast(pw, V3(start.x, start.y, start.z), V3(f.x, f.y, f.z), M.RANGE,
 		"all", "collision_filter", "damage_ray")
-	local best, best_distance = nil, math.huge
+	local best, best_distance, best_unit = nil, math.huge, nil
 	if type(hits) == "table" then
 		for _, h in ipairs(hits) do
 			local pos, distance, actor = h[1], h[2], h[4]
 			if pos and type(distance) == "number" and distance > 0.05 and distance < best_distance then
 				local unit = actor and Actor and Actor.unit(actor)
-				if not own_hit(unit, view) then best, best_distance = pos, distance end
+				if not own_hit(unit, view) then best, best_distance, best_unit = pos, distance, unit end
 			end
 		end
 	end
-	if best then return { x = best.x, y = best.y, z = best.z }, true end
-	return rig.add(start, f, M.RANGE), false
+	if best then return { x = best.x, y = best.y, z = best.z }, true, best_unit end
+	return rig.add(start, f, M.RANGE), false, nil
 end
 
 -- Where the crosshair is drawn: the middle of the view, in pixels from the bottom left of the window.
@@ -240,18 +240,18 @@ function M.start(env)
 	table.insert(env.on_pose, function(view, cm)
 		-- The death cam aims nothing and draws no crosshair.
 		if view.watching then
-			state.aim_point, state.aim_hit, state.crosshair = nil, nil, nil
+			state.aim_point, state.aim_hit, state.crosshair, state.aim_unit = nil, nil, nil, nil
 			return
 		end
 		local U = g("Unit")
 		local tp = U.world_position(view.target, 0)
 		view.target_position = { x = tp.x, y = tp.y, z = tp.z }
-		local point, hit = M.find_point(view)
-		state.aim_point, state.aim_hit = point, hit
+		local point, hit, unit = M.find_point(view)
+		state.aim_point, state.aim_hit, state.aim_unit = point, hit, unit
 		state.crosshair = M.centre(cm)
 	end)
 	table.insert(env.on_release, function()
-		state.aim_point, state.aim_hit = nil, nil
+		state.aim_point, state.aim_hit, state.aim_unit = nil, nil, nil
 	end)
 
 	local function live()

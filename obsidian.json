@@ -26,8 +26,8 @@
       "id": "weapon_range",
       "scope": "session",
       "option": "max_weapon_range",
-      "name": { "en": "Max weapon range" },
-      "description": { "en": "Every weapon reaches as far as the farthest one. Off in lobbies with players who don't run it." }
+      "name": { "en": "Ballistics revamp" },
+      "description": { "en": "Every weapon reaches as far as the farthest one, and bullets lose damage past their weapon's own range. Off in lobbies with players who don't run it." }
     },
     {
       "id": "enemy_detection",
@@ -78,6 +78,8 @@
     "src/look.lua",
     "src/edge.lua",
     "src/arc.lua",
+    "src/compass.lua",
+    "src/ping.lua",
     "src/session.lua"
   ],
   "requires": [
@@ -179,7 +181,15 @@
     { "id": "edge_markers", "type": "toggle", "default": true,
       "group": "indicators", "part": "view", "scope": "client",
       "label": { "en": "Edge markers" },
-      "description": { "en": "In third person, stratagem beacons and objectives out of view show at the edge of the screen, with the icons and colours of the map." } },
+      "description": { "en": "In third person, stratagem beacons out of view show at the edge of the screen, with their own icons." } },
+    { "id": "compass", "type": "toggle", "default": true,
+      "group": "indicators", "part": "view", "scope": "client",
+      "label": { "en": "Compass" },
+      "description": { "en": "In third person, a compass at the top of the screen turns with the camera and shows the way to every objective found on the map." } },
+    { "id": "pings", "type": "toggle", "default": true,
+      "group": "indicators", "part": "view", "scope": "client",
+      "label": { "en": "Pings" },
+      "description": { "en": "In third person, the ping key marks what the crosshair is on: ground, an enemy, an objective or a dropped support weapon or pack. The chat says what was marked. Teammates with the mod see the marker too." } },
     { "id": "throw_arc", "type": "toggle", "default": true,
       "group": "indicators", "part": "view", "scope": "client",
       "label": { "en": "Throw arc" },
@@ -207,8 +217,8 @@
       "description": { "en": "Draws a sky over the level for the time of the mission, dawn, day, dusk or night, instead of the smears the game leaves past the level: brighter toward the horizon, with the sun where the light of the level comes from, clouds, and stars and a moon at night. Needs a deploy." } },
     { "id": "max_weapon_range", "type": "toggle", "default": true,
       "group": "lobby", "part": "weapon_range",
-      "label": { "en": "Max weapon range" },
-      "description": { "en": "Every weapon reaches as far as the farthest one, so targets far off in the third-person view can be hit. Changes the shared game: off in lobbies with players who don't run it." } },
+      "label": { "en": "Ballistics revamp" },
+      "description": { "en": "Every weapon reaches as far as the farthest one, so targets far off in the third-person view can be hit. Past a weapon's own range, bullets lose damage over 30 m, down to a quarter, and keep that quarter beyond. Lasers keep their damage. Changes the shared game: off in lobbies with players who don't run it." } },
     { "id": "far_detection", "type": "toggle", "default": true,
       "group": "lobby", "part": "enemy_detection",
       "label": { "en": "Far enemy detection" },
@@ -228,7 +238,8 @@
   ],
   "keybinds": [
     { "id": "toggle_view", "default": "f8", "label": { "en": "Switch the camera: top-down or third person" } },
-    { "id": "swap_shoulder", "default": "h", "label": { "en": "Swap the camera shoulder (in a vehicle: left, middle, right)" } }
+    { "id": "swap_shoulder", "default": "h", "label": { "en": "Swap the camera shoulder (in a vehicle: left, middle, right)" } },
+    { "id": "ping", "default": "mouse_middle", "label": { "en": "Ping what the crosshair is on (third person)" } }
   ],
   "resources": [
     { "type": "render_config", "name": "#1a9c33dcd0301dfd", "bundle": "1a9c33dcd0301dfd", "data": "res/render_config.bin", "part": "view", "when": { "fix_sky": true } },

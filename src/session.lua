@@ -1,4 +1,4 @@
--- The session parts: max weapon range, far enemy detection, free movement, throw range and patrols
+-- The session parts: ballistics revamp (max weapon range with damage falloff), far enemy detection, free movement, throw range and patrols
 -- that stay in view.
 --
 -- Both change the shared game, so each hook is registered with the options of the part. In a lobby
@@ -80,12 +80,119 @@ function M.with_state(state, fn, ...)
 	return unpack(results, 2, table.maxn(results))
 end
 
+-- Damage falloff (part weapon_range, with the range) --------------------------------------------------
+--
+-- With every bullet reaching MAX_RANGE, a bullet weapon hits as hard far past its own range as next to
+-- it. So past the weapon's own range (weapon_info.range, which the game keeps as it is: only the state's
+-- copy is raised) a hit loses damage, down to FALLOFF_LEAST at FALLOFF_SPAN metres past it, and stays
+-- there. One rule for every bullet weapon, custom ones included, as each carries its own range.
+--
+-- A firearm's shots deal damage in the callback of its raycast (WeaponUtility.shoot_ray_callback), made
+-- once when the weapon is set up and run when the physics answers, outside any call this mod could
+-- wrap. Every such callback is wrapped as it is made (the hook is in the view part, so weapons set up in
+-- any lobby get it), and the wrapper does nothing unless this part ran FirearmComponent.update_slaves
+-- for that weapon within LIVE_FOR seconds: in a lobby that isn't cleared the part's hooks stop, and
+-- with them the falloff, at once. Beam (laser) weapons have no such callback and stay as they are.
+--
+-- The game takes a hit's damage as power less armor (HealthComponent.calculate_damage, run again by the
+-- machine that owns the target from the command's power). Lowering power by a share would cut more than
+-- that share from an armored target, or all of it. So while the wrapped callback runs, the "do_damage"
+-- command it queues gets the power that leaves exactly the share of the damage: power - (1 - share) *
+-- damage, with damage worked out as the target's machine will.
+M.FALLOFF_SPAN = 30
+M.FALLOFF_LEAST = 0.25
+M.LIVE_FOR = 1
+
+-- The share of damage left `distance` metres from the muzzle, for a weapon of `range` metres.
+function M.falloff(distance, range)
+	if type(distance) ~= "number" or type(range) ~= "number" or range < M.MIN_RANGE then return 1 end
+	local past = distance - range
+	if past <= 0 then return 1 end
+	if past >= M.FALLOFF_SPAN then return M.FALLOFF_LEAST end
+	return 1 - (1 - M.FALLOFF_LEAST) * past / M.FALLOFF_SPAN
+end
+
+-- The power for a hit that keeps `share` of the damage `damage` that `power` deals.
+function M.lowered_power(power, damage, share)
+	if type(power) ~= "number" or type(damage) ~= "number" or damage <= 0 or share >= 1 then return power end
+	return power - (1 - share) * damage
+end
+
+local live = setmetatable({}, { __mode = "k" }) -- weapon state -> clock when the part last saw it
+local clock = os and os.clock or function() return 0 end
+
+-- Whether laser bolts: a weapon whose hit or tracer effect names a laser keeps its damage.
+local function is_laser(info)
+	for _, k in ipairs({ "effect_hit", "tracer", "tracer_effect", "muzzle_effect" }) do
+		local v = info[k]
+		if type(v) == "string" and v:lower():find("laser", 1, true) then return true end
+	end
+	return false
+end
+
+-- Runs a firearm's shot callback with its damage commands lowered by distance.
+function M.with_falloff(context, fn, ...)
+	local st = type(context) == "table" and context.state
+	local seen = type(st) == "table" and live[st]
+	local info = seen and st.weapon_info
+	if not (seen and clock() - seen <= M.LIVE_FOR and type(info) == "table" and type(info.range) == "number"
+		and info.range >= M.MIN_RANGE and info.range < M.MAX_RANGE and not is_laser(info)) then
+		return fn(...)
+	end
+	local EA, V3A, HC = rawget(_G, "EntityAux"), rawget(_G, "Vector3Aux"), rawget(_G, "HealthComponent")
+	local from = st.last_ray_from
+	if not (EA and V3A and HC and from) then return fn(...) end
+	local queue = EA.queue_command_interface
+	local range = info.range
+	EA.queue_command_interface = function(unit, interface, command, data, ...)
+		if command == "do_damage" and interface == "damageable" and type(data) == "table" and type(data.power) == "number" and data.position then
+			pcall(function()
+				local a, b = V3A.unbox(from), V3A.unbox(data.position)
+				local dx, dy, dz = b.x - a.x, b.y - a.y, b.z - a.z
+				local share = M.falloff(math.sqrt(dx * dx + dy * dy + dz * dz), range)
+				if share < 1 then
+					local damage = HC.calculate_damage(unit, data.power, nil, data.armorpiercing, data.angle_incidence, data.angle_hit, nil, data.ignore_armor)
+					data.power = M.lowered_power(data.power, damage, share)
+				end
+			end)
+		end
+		return queue(unit, interface, command, data, ...)
+	end
+	local results = { pcall(fn, ...) }
+	EA.queue_command_interface = queue
+	if not results[1] then error(results[2], 0) end
+	return unpack(results, 2, table.maxn(results))
+end
+
+-- Notes the firearms whose range the part raises this frame, for the falloff.
+function M.note_live(entities)
+	if type(entities) ~= "table" then return end
+	local now = clock()
+	for _, context in pairs(entities) do
+		local st = type(context) == "table" and context.state
+		if type(st) == "table" and raised(st.range) then live[st] = now end
+	end
+end
+
+local function start_falloff(env)
+	hook("WeaponUtility", "shoot_ray_callback", function(original, unit, context, ...)
+		local callback = original(unit, context, ...)
+		if type(callback) ~= "function" then return callback end
+		return function(...)
+			return M.with_falloff(context, callback, ...)
+		end
+	end, env.VIEW)
+end
+
 local function start_weapon_range(env)
 	local opts = env.part("weapon_range")
 	local function over_entities(original, self, entities, ...)
 		return M.with_entities(entities, original, self, entities, ...)
 	end
-	hook("FirearmComponent", "update_slaves", over_entities, opts)
+	hook("FirearmComponent", "update_slaves", function(original, self, entities, ...)
+		M.note_live(entities)
+		return M.with_entities(entities, original, self, entities, ...)
+	end, opts)
 	hook("BeamweaponComponent", "update_slaves", over_entities, opts)
 	hook("LaserSightComponent", "update_slaves", over_entities, opts)
 	hook("LauncherComponent", "do_fire", function(original, self, unit, state, ...)
@@ -318,7 +425,10 @@ function M.start(env)
 	env_ref = env
 	if env.config.get("keep_patrols") ~= false then start_keep_patrols(env) end
 	if env.config.get("throw_range") ~= false then start_throw_range(env) end
-	if env.config.get("max_weapon_range") ~= false then start_weapon_range(env) end
+	if env.config.get("max_weapon_range") ~= false then
+		start_weapon_range(env)
+		start_falloff(env)
+	end
 	if env.config.get("far_detection") ~= false then start_enemy_detection(env) end
 	if env.config.get("free_movement") ~= false then start_free_movement(env) end
 end

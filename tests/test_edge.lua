@@ -84,7 +84,7 @@ return {
 		near(top, 1040, "the top keeps the plain inset")
 	end },
 
-	{ "objectives and beacons out of view get icon and arrow; allies are the game's own marker", function()
+	{ "beacons out of view get icon and arrow; objectives are left to the compass; allies are the game's own marker", function()
 		local e, env = setup({ me = { x = 0, y = 0, z = 0 }, ally = { x = 0, y = -20, z = 0 }, near = { x = 0, y = 10, z = 0 },
 			downed = { x = 40, y = 5, z = 0 }, beacon = { x = -40, y = 5, z = 0 } },
 			{ ally = { health = {} }, near = { health = {} }, downed = { health = { is_downed = true } }, me = { health = {} } })
@@ -102,8 +102,8 @@ return {
 			if c[2] == "icon_map_player_01" then players = players + 1 end
 		end
 		eq(players, 0, "no arrows of its own for allies")
-		eq(#images, 2, "the beacon and the pending objective above the view")
-		eq(arrows, 2, "each with an arrow")
+		eq(#images, 1, "the beacon only")
+		eq(arrows, 1, "with an arrow")
 		eq(calls[#calls][1], "size_scale") eq(calls[#calls - 1][2], false, "the gui scales are given back")
 		E.remove()
 	end },

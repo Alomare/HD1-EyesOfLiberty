@@ -7,8 +7,9 @@
 --
 -- The mod is split into parts (obsidian.json "parts"):
 --   view             client: the third person camera, aim, crosshair, view distance, sky, fog, depth
---                    of field, enemy indicators
---   weapon_range     session: every weapon reaches as far as the farthest one
+--                    of field, enemy indicators, compass, pings
+--   weapon_range     session (Ballistics revamp): every weapon reaches as far as the farthest one, and
+--                    bullets lose damage past their weapon's own range
 --   enemy_detection  session: enemies notice the squad from farther away
 --   free_movement    session: the Helldiver can leave the shared top-down screen
 --   throw_range      session: grenades and stratagem balls fly twice as far
@@ -29,6 +30,7 @@ local state = {
 	aiming = false,     -- the aim button is held
 	firing = false,     -- fire or a throw is held
 	crosshair = nil,    -- { x, y } in pixels from the bottom left, where shots go
+	aim_point = nil,    -- { x, y, z } the crosshair is on (src/aim.lua), and aim_unit, the unit there
 	claimed_by = nil,   -- id of a mod that draws the crosshair instead of this one
 	sprint_fade = 1,    -- 1, down to 0 while sprinting: the crosshair fades out
 }
@@ -54,7 +56,7 @@ local env = {
 config.start(env)
 
 local started = {}
-for _, name in ipairs({ "src/art", "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/hurt", "src/look", "src/edge", "src/arc", "src/session" }) do
+for _, name in ipairs({ "src/art", "src/camera", "src/aim", "src/crosshair", "src/view", "src/radar", "src/hits", "src/hurt", "src/look", "src/edge", "src/compass", "src/ping", "src/arc", "src/session" }) do
 	local ok, err = pcall(function()
 		local m = obsidian.module(name)
 		if m and m.start then m.start(env) end

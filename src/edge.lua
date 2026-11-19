@@ -1,5 +1,5 @@
--- Edge markers: in third person, stratagem beacons and objectives out of view show at the edge of the
--- screen, on the side to turn to. Allies out of view have the game's own marker (the name card's
+-- Edge markers: in third person, stratagem beacons out of view show at the edge of the screen, on the
+-- side to turn to. Objectives are on the compass instead (src/compass.lua). Allies out of view have the game's own marker (the name card's
 -- "icon_outofscreen_player_01", Hud.draw_player_name_in_world), which src/frustum.lua points the right
 -- way for allies behind the camera and reddens for a downed ally.
 --
@@ -8,9 +8,7 @@
 --   stratagem beacon the stratagem's own icon (LoadoutSettings.stratagems[id].icon), at the size of the
 --                    countdown list (HudSettings.settings.stratagem_countdown_list.stratagem_icon.size),
 --                    while it counts down
---   objective        the objective's map icon in the map's colours (Hud.init objective_colors): white
---                    while pending, the search yellow while hidden, at the middle of the search zone
--- Beacons and objectives carry "icon_arrow_01", the HUD's scroll arrow, on the side toward the edge.
+-- Beacons carry "icon_arrow_01", the HUD's scroll arrow, on the side toward the edge.
 -- Only what is out of view gets a marker: on screen the game shows its own.
 local frustum = obsidian.module("src/frustum")
 
@@ -18,7 +16,6 @@ local M = {}
 
 M.INSET = 22          -- design pixels (1280 x 720) between a marker and the screen edge
 M.INSET_BOTTOM = 96   -- at the bottom, above the player panels of the HUD
-M.OBJECTIVE = 32      -- objective icon, design pixels (Hud.draw_map)
 M.BEACON = 32         -- fallback when the HUD settings have no countdown icon size
 M.ARROW = 16          -- icon_arrow_01, design pixels (menu_screen_base: 16 for small arrows)
 M.ARROW_GAP = 2       -- design pixels between an icon and its arrow
@@ -79,15 +76,6 @@ end
 
 -- Game parts ----------------------------------------------------------------------------------------
 
-local function colour(box, fallback)
-	local QA = g("QuaternionAux")
-	if type(box) == "table" and QA then
-		local ok, c = pcall(QA.unbox, box)
-		if ok and c then return c end
-	end
-	return fallback
-end
-
 local function size_of(setting, fallback)
 	local V2A = g("Vector2Aux")
 	if type(setting) == "table" and V2A then
@@ -116,28 +104,6 @@ function M.gather(hud, api, fn)
 				if info and info.icon then
 					local p = U.world_position(unit, 0)
 					fn("thing", { x = p.x, y = p.y, z = p.z + 0.5 }, info.icon, bw, bh, C(255, 255, 255, 255))
-				end
-			end
-		end
-	end
-	-- Objectives not done yet.
-	local mm = hud.mission_manager
-	local V3A = g("Vector3Aux")
-	if mm and mm.get_objectives and V3A then
-		local colours = {
-			pending = colour({ x = 255, y = 255, z = 255, w = 255 }, C(255, 255, 255, 255)),
-			search = C(255, 234, 193, 0),
-		}
-		for _, o in ipairs(mm:get_objectives() or {}) do
-			if type(o) == "table" and o.icon and o.state ~= "complete" and o.state ~= "failed"
-				and type(o.position) == "table" then
-				local hidden = type(o.objective_hidden_data) == "table" and o.objective_hidden_data
-				local offset = hidden and hidden.offset and V3A.unbox(hidden.offset)
-				local c = hidden and colours.search or colours.pending
-				for _, box in ipairs(o.position) do
-					local p = V3A.unbox(box)
-					if offset then p = p + offset end
-					fn("thing", { x = p.x, y = p.y, z = p.z + 1 }, o.icon, M.OBJECTIVE, M.OBJECTIVE, c)
 				end
 			end
 		end

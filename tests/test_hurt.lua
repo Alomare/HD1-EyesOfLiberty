@@ -78,4 +78,20 @@ return {
 		Gui, Vector2, Color = nil, nil, nil
 		E.remove()
 	end },
+
+	{ "a death tints the screen a quarter red, fading out over two seconds, once per death", function()
+		local h = hurt()
+		h.clear()
+		h.see("me", false)
+		h.see("me", true)
+		eq(h.death_alpha(h.death.age), 64, "a quarter on the frame of the death")
+		h.step(1)
+		near(h.death_alpha(h.death.age), 32, "half way")
+		h.step(1)
+		eq(h.death_alpha(h.death.age), 0, "gone after two seconds")
+		h.see("me", true)
+		h.clear()
+		h.see("other", true)
+		eq(h.death_alpha(h.death.age), 0, "a body first seen dead shows nothing")
+	end },
 }

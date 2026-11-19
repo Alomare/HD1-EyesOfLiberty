@@ -226,4 +226,55 @@ return {
 		eq(inside.fn(off_screen, {}, { x = 0, y = 0 }, -0.1, -0.1, -0.1, -0.1), false, "outside the patrol update: the game's answer")
 		EntityAux = nil
 	end },
+
+	{ "bullets lose damage past their weapon's range, to a quarter over 30 m, armor taken into account", function()
+		local session = obsidian.module("src/session")
+		eq(session.falloff(10, 40), 1, "inside the range")
+		eq(session.falloff(40, 40), 1, "at the range")
+		near(session.falloff(55, 40), 0.625, "halfway through the span")
+		eq(session.falloff(70, 40), 0.25, "the end of the span")
+		eq(session.falloff(300, 40), 0.25, "and beyond")
+		eq(session.falloff(50, 2), 1, "melee reach stays")
+		-- power 100 against armor 40 deals 60; a quarter of it is 15, so power 55.
+		eq(session.lowered_power(100, 60, 0.25), 55)
+		eq(session.lowered_power(100, 0, 0.25), 100, "a hit that does nothing stays")
+	end },
+
+	{ "the shot callback lowers its damage commands only while the part runs for that weapon", function()
+		vec_engine()
+		local session = obsidian.module("src/session")
+		OPTIONS = { keep_patrols = false, throw_range = false, max_weapon_range = true, far_detection = false, free_movement = false }
+		local env = { config = { get = function(id) return OPTIONS[id] end }, part = function(id) return { part = id } end, state = {}, VIEW = { part = "view" } }
+		local queued = {}
+		EntityAux = { queue_command_interface = function(unit, interface, command, data) queued[#queued + 1] = data.power end }
+		Vector3Aux = { unbox = function(t) return t end }
+		HealthComponent = { calculate_damage = function(unit, power) return math.max(power - 40, 0) end }
+		session.start(env)
+		local make, update
+		for _, h in ipairs(HOOKS) do
+			if h.target == "WeaponUtility" and h.method == "shoot_ray_callback" then make = h end
+			if h.target == "FirearmComponent" and h.method == "update_slaves" then update = h end
+		end
+		assert(make and update, "both hooks")
+		eq(make.opts.part, "view", "every weapon set up in any lobby gets the wrapper")
+		local st = { range = 40, weapon_info = { range = 40 }, last_ray_from = { x = 0, y = 0, z = 0 } }
+		local context = { state = st }
+		local callback = make.fn(function(unit, ctx)
+			return function(distance)
+				EntityAux.queue_command_interface("enemy", "damageable", "do_damage", { power = 100, position = { x = distance, y = 0, z = 0 } })
+			end
+		end, "rifle", context)
+		callback(100)
+		eq(queued[1], 100, "the part hasn't run for this weapon: as in the game")
+		update.fn(function() end, {}, { rifle = context })
+		callback(20)
+		callback(100)
+		eq(queued[2], 100, "inside the range")
+		eq(queued[3], 55, "past the span: a quarter of the 60 that got through the armor")
+		eq(type(EntityAux.queue_command_interface), "function", "the command function is put back")
+		st.weapon_info.effect_hit = "fx/laser_hit"
+		callback(100)
+		eq(queued[4], 100, "laser bolts keep their damage")
+		EntityAux, Vector3Aux, HealthComponent = nil, nil, nil
+	end },
 }
