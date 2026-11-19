@@ -10,6 +10,7 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - New: Ammo bar. A short arc by the crosshair shows the magazine, laser heat or arc charge, in the style of the Better HUD ammo circle, with options for position, shape and scale. The Better HUD ammo circle stays hidden while the bar is on.
 - New: Scroll camera distance option, off by default. The mouse wheel moves the camera closer or farther on foot instead of switching weapons.
 - New: The Helldiver is hidden while the camera is pressed against it, by a wall or in a tight corner.
+- New: Explosion kick. A blast nearby knocks the camera: it rolls away, tips up and rises, then springs back. Bigger blasts kick harder and from farther; blasts in a row kick less each time.
 - Fixed: The Helldiver no longer disappears high in a jump pack flight while the backpack and weapons stay.
 
 ## 0.13.1

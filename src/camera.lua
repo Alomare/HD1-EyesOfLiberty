@@ -21,6 +21,7 @@ local frustum = obsidian.module("src/frustum")
 local pod = obsidian.module("src/pod")
 local shake = obsidian.module("src/shake")
 local deathcam = obsidian.module("src/deathcam")
+local kick = obsidian.module("src/kick")
 
 local M = {}
 
@@ -839,9 +840,20 @@ function M.apply(env, cm, dt, pose)
 	local state, view = env.state, M.view
 	local Q, V3, C = g("Quaternion"), g("Vector3"), g("Camera")
 	local position, pitch, fov, world, proxy = pose.position, pose.pitch, pose.fov, pose.world, pose.proxy
+	-- An explosion's kick (src/kick.lua): a roll about the view, a tip up and a lift, scaled by the
+	-- Camera shake option. The tip and lift reach the aim too, so the crosshair stays where shots go.
+	local roll = 0
+	if not pose.watching then
+		local kr, kp, kl = kick.step(dt, shake.factor(env.config.get("camera_shake")))
+		roll, pitch = kr, pitch + kp
+		position = { x = position.x, y = position.y, z = position.z + kl }
+	else
+		kick.clear()
+	end
 	-- Apply.
 	local cam, cam_unit = cm.viewport:get_camera(), cm.viewport.camera_unit
 	local rotation = Q.multiply(Q(V3(0, 0, 1), math.rad(view.yaw)), Q(V3(1, 0, 0), math.rad(pitch)))
+	if roll ~= 0 then rotation = Q.multiply(rotation, Q(V3(0, 1, 0), math.rad(roll))) end
 	C.set_local_position(cam, cam_unit, V3(position.x, position.y, position.z))
 	C.set_local_rotation(cam, cam_unit, rotation)
 	C.set_vertical_fov(cam, math.rad(fov))
