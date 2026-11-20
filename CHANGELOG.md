@@ -2,7 +2,7 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
-## Next
+## 0.16.0
 
 - New: Pings on ammo boxes, blue with the Resupply icon, and on research samples, white with the sample icon.
 - New: An enemy ping also plays one of the stratagem arrow sounds.
