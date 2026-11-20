@@ -2,6 +2,11 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 1.0.0
+
+- Changed: Eyes of Liberty leaves Early Access.
+- New: Releases also go to the Nexus Mods page.
+
 ## 0.16.0
 
 - New: Pings on ammo boxes, blue with the Resupply icon, and on research samples, white with the sample icon.
