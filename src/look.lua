@@ -161,7 +161,11 @@ function M.focus(env, api)
 end
 
 M.READ_EVERY = 30             -- frames between reads of the planet's sun and fog colours
-local planet = { fog = nil, sun = nil, read = false, wait = 0 }
+-- Frames at the start of a mission the planet's fog is read again each frame before any of it is sent:
+-- the first frames hold another environment's (a probe read a fog span of 36 m where the planet's is
+-- 127 m, and Reduce fog then stretched the wrong one). Once sent, the fog can't be read back.
+M.SETTLE = 120
+local planet = { fog = nil, sun = nil, read = false, wait = 0, settle = 0 }
 
 function M.frame(env)
 	if env.off then return end
@@ -188,9 +192,13 @@ function M.frame(env)
 			return ok and v or nil
 		end
 		if not planet.read then
-			planet.read, planet.wait = true, 0
-			planet.fog = read("fog_depth_range")
-			planet.sun = { blend = read("fog_sun_blend") }
+			planet.read, planet.wait, planet.settle = true, 0, M.SETTLE + 1
+			planet.sun = {}
+		end
+		if planet.settle > 0 then
+			planet.settle = planet.settle - 1
+			planet.fog = read("fog_depth_range") or planet.fog
+			planet.sun.blend = read("fog_sun_blend") or planet.sun.blend
 		end
 		-- The sun and fog colours settle after the first frames of a mission (a probe read another
 		-- sun there), and this mod never sets them, so they are read again every READ_EVERY frames.
@@ -205,8 +213,8 @@ function M.frame(env)
 	local dof = config.get("depth_of_field") or "off"
 	M.apply(world.shading, M.wanted({
 		fog = tonumber(config.get("reduce_fog")) or M.FOG_DEFAULT,
-		planet_fog = planet.fog,
-		planet_sun = planet.sun,
+		planet_fog = planet.settle <= 0 and planet.fog or nil,
+		planet_sun = planet.settle <= 0 and planet.sun or nil,
 		dof = dof,
 		focus = dof == "helldiver" and M.focus(env, api) or nil,
 	}))

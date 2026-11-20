@@ -17,6 +17,10 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - New: Alarm effect. During an alarm, the screen edges pulse red once, and broad red stripes flash up both sides of the screen and settle to a faint glow. It replaces the red overlay of the game, which often showed shrunk in third person. An option turns it off.
 - Changed: The crosshair shows only while the Helldiver can shoot: not while dead, dropping in the Hellpod, putting in a stratagem or looking at the map.
 - Fixed: Pinging a dropped support weapon or pack marks it again. Needs Obsidian API 1.55.1.
+- Fixed: Reduce fog has its full effect. The fog of the level was read before it settled, and low settings still left much of the fog.
+- Changed: Enemy pings and map marker pings show without the vertical line.
+- Changed: Pings on dropped weapons and packs sit lower, with a larger icon.
+- Changed: A new icon.
 
 ## 0.13.1
 

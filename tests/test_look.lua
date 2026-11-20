@@ -28,6 +28,7 @@ local function started(calls, opts)
 	local l = look()
 	l.applied = {}
 	l._planet.read = false
+	l.SETTLE = opts.settle or 0
 	l.start(env)
 	return e, env
 end
@@ -75,6 +76,16 @@ return {
 		eq(w.dof_near_setting[1], 2) eq(w.dof_far_setting[1], 4, "blurred from 4 m on, past the Helldiver 3 m off")
 		eq(w.dof_far_setting[2], l.DOF_RAMP)
 		eq(l.wanted({}).fog_depth_range, false, "the planet's fog")
+	end },
+
+	{ "the fog waits for the level to settle before it is stretched", function()
+		local calls = {}
+		started(calls, { settle = 3 })
+		for _ = 1, 3 do frame() end
+		eq(last(calls, "fog_depth_range"), nil, "nothing sent while the planet's fog may still change")
+		frame()
+		near(last(calls, "fog_depth_range")[3][2], 20 + 100 / look().FOG_DEFAULT, "then the settled fog, stretched")
+		E.remove()
 	end },
 
 	{ "by default the fog is reduced and the depth of field goes, once each, and the bloom stays", function()

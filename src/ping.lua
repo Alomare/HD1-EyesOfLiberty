@@ -1,5 +1,5 @@
 -- Pings: in third person, the ping key marks what the crosshair is on, for LIFE seconds. A player
--- can ping BURST times in a row, then waits COOLDOWN seconds; COOLDOWN without a ping starts a new burst. A marker is a vertical line with a diamond on top, drawn
+-- can ping BURST times in a row, then waits COOLDOWN seconds; COOLDOWN without a ping starts a new burst. A marker is a vertical line with a diamond on top (an enemy's and a map marker's without the line), drawn
 -- over the level; one out of view sits at the edge of the screen. Aiming near a marker shows what it
 -- marks above it and how far it is below it. Each player has one marker at a time: a new ping replaces the last.
 --
@@ -10,7 +10,7 @@
 --   anything else          white, on the spot                         "Look here"
 --
 -- Map markers: each player's marker on the map (src/compass.lua map_pings) stands in the level as a
--- marker too, for as long as it is on the map: a line in the player's colour with the map's marker icon,
+-- marker too, for as long as it is on the map: the map's marker icon in the player's colour,
 -- lighter and outlined in black, in place of the diamond. Aiming near it shows its distance only.
 --
 -- While the crosshair is near a marker, its line, dash and diamond or icon fade to HOVER_DIM; the words
@@ -34,13 +34,15 @@ M.COOLDOWN = 2.5        -- seconds of wait after a burst
 M.GROW = 0.3            -- seconds for the line to rise
 M.POP = 0.25            -- seconds for the diamond to settle
 M.LINE = 2.5            -- metres of line over the spot
+M.SUPPORT_LINE = 1.4    -- metres of line over a dropped weapon or pack
+M.NO_LINE = { enemy = true, map = true } -- markers drawn with no line: the diamond or icon alone
 M.ABOVE_ENEMY = 2.2     -- metres over an enemy's root for its diamond, when its box can't be read
 M.OVER_BOX = 0.15       -- metres over the top of an enemy's bounding box for its diamond
 M.ENEMY_REACH = 4       -- metres from the crosshair point an enemy counts as aimed at
 M.PICKUP_REACH = 2.5    -- the same for a weapon or pack on the ground
 M.OBJECTIVE_REACH = 12  -- the same, over the ground, for an objective
 M.DIAMOND = 10.4        -- design pixels from the middle of the diamond to a corner
-M.ICON = 30             -- design pixels, a stratagem icon
+M.ICON = 36             -- design pixels, a stratagem icon
 M.HOVER = 70            -- design pixels from the crosshair that bring up the words
 M.HOVER_DIM = 0.5       -- a hovered marker's line and diamond, of their opacity
 M.DIM_RATE = 12         -- how fast they fade there and back, per second
@@ -435,7 +437,7 @@ function M.start(env)
 				-- The line and the diamond or icon, dimmed while hovered (m.dim, from the frame before).
 				local la = a * (m.dim or 1)
 				if m.unit then m.lift = top_of(m.unit) end
-				local lift = m.kind == "enemy" and (m.lift or M.ABOVE_ENEMY) or M.LINE
+				local lift = m.kind == "enemy" and (m.lift or M.ABOVE_ENEMY) or m.kind == "support" and M.SUPPORT_LINE or M.LINE
 				-- An enemy's line rises from the middle of its body, anything else's from the ground.
 				local from = m.kind == "enemy" and M.body(lift) or 0
 				local base = { x = m.pos.x, y = m.pos.y, z = m.pos.z + from }
@@ -450,7 +452,7 @@ function M.start(env)
 					local pulse = M.lighter(c, M.PULSE_LIGHT)
 					-- A map marker's line stops under its icon, which the HUD draws under the canvas.
 					local ey = icon_size and ty - icon_size / 2 or ty
-					if depth > 0.1 and (not icon_size or ey > by) then
+					if depth > 0.1 and not M.NO_LINE[m.kind] and (not icon_size or ey > by) then
 						quad(x0 + bx, y0 + by, x0 + tx, y0 + ey, 1.5 * s, rgba(c, 0.85 * la))
 						-- A dash, a little lighter than the line and thicker, running up it once a second.
 						local px, py = bx + (tx - bx) * t, by + (ey - by) * t
