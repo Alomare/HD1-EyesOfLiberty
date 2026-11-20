@@ -37,9 +37,12 @@ return {
 		eq(p.label("ground", nil, "Look here"), nil, "no name for the ground")
 		near(p.body(2.15), 1, "an enemy's line starts half way up its body")
 		near(p.body(nil), (p.ABOVE_ENEMY - p.OVER_BOX) / 2, "half the usual height when the box can't be read")
-		eq(p.name_alpha("enemy", 0.5), 0, "an enemy's name waits for the crosshair to stay")
-		near(p.name_alpha("enemy", p.NAME_AFTER + p.NAME_FADE), 1, "then fades in")
-		eq(p.name_alpha("support", 0), 1, "other names show at once")
+		eq(p.dim(nil, false, 0.016), 1, "not hovered: whole")
+		local d = 1
+		for _ = 1, 60 do d = p.dim(d, true, 1 / 60) end
+		near(d, p.HOVER_DIM, "hovered for a second: half", 1e-3)
+		for _ = 1, 60 do d = p.dim(d, false, 1 / 60) end
+		near(d, 1, "and back", 1e-3)
 		eq(p.label("enemy", nil, "Bile Spewer, 40 m"), "Bile Spewer")
 		eq(p.label("support", nil, "Machine Gun here"), "Machine Gun")
 		eq(p.label("objective", "Raise the flag", "Raise the flag here"), "Raise the flag")

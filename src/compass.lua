@@ -40,6 +40,9 @@ M.WHITE = "#ffffffff"
 M.LETTERS = { [0] = "N", [90] = "E", [180] = "S", [270] = "W" }
 M.BOX_UV = { 0.25, 0.01, 0.75, 0.99 }
 M.PING_ICON = "map_marker_ping"
+M.ARROW = 8             -- design pixels, a triangle at an end, from its back to its tip
+M.ARROW_EDGE = 1.5      -- design pixels of black around it
+M.ARROW_GAP = 5         -- design pixels from the compass to its back
 M.PING = 24             -- design pixels, a map marker
 M.PING_LIGHT = 0.45     -- the player's colour this far toward white
 M.PING_EDGE = 1.5       -- design pixels of black around a map marker
@@ -122,6 +125,33 @@ function M.has_ping(ping)
 		and not (ping[1] == -1000 and ping[2] == -1000)
 end
 
+-- The players' markers on the map now: { index, x, y, color (lighter), base (the player's colour),
+-- ping (the map's coordinates) } each, from the HUD kept in M.hud.
+function M.map_pings()
+	local out = {}
+	local hud = M.hud
+	local level = type(hud) == "table" and (hud.generated_level or hud.custom_level)
+	local V2A, GS = rawget(_G, "Vector2Aux"), rawget(_G, "GameSettings")
+	if not (type(hud) == "table" and type(hud.players) == "table" and type(level) == "table" and V2A
+		and type(level.width) == "number") then return out end
+	local ok_m, msize = pcall(V2A.unbox, level.map_size)
+	if not (ok_m and msize) then return out end
+	for i, player in ipairs(hud.players) do
+		local got, ping = pcall(function()
+			if not player.player_go:exists() then return nil end
+			return player.player_go:get("map_ping")
+		end)
+		if got and M.has_ping(ping) then
+			local at = M.ping_world(ping, level.width, level.height, msize.x, msize.y)
+			local pc = GS and GS.player_colors and GS.player_colors[i]
+			local base = type(pc) == "table" and { pc.y or 255, pc.z or 255, pc.w or 255 } or { 255, 255, 255 }
+			out[#out + 1] = { index = i, x = at.x, y = at.y, color = M.lighter(base, M.PING_LIGHT), base = base,
+				ping = { ping[1], ping[2] } }
+		end
+	end
+	return out
+end
+
 -- A colour { r, g, b } made lighter by `f` toward white.
 function M.lighter(c, f)
 	local function l(v) return math.floor(v + (255 - v) * f + 0.5) end
@@ -141,11 +171,14 @@ end
 M.icons = nil
 M.panel = nil
 M.hud = nil             -- the HUD, kept from Hud.draw_plugins, for the players' map markers
+M.world_icons = nil     -- icons src/ping.lua puts over the level this frame, in the same form
+M.WORLD_LAYER = 460     -- under the compass
 
 -- Draws M.panel and M.icons on the HUD's gui, at window pixels.
 function M.draw_icons(hud)
 	local list, gui, panel = M.icons, hud and hud.hd_gui, M.panel
-	if not (gui and (panel or (list and #list > 0))) then return end
+	local extra = M.world_icons
+	if not (gui and (panel or (list and #list > 0) or (extra and #extra > 0))) then return end
 	local V2, V3, C = rawget(_G, "Vector2"), rawget(_G, "Vector3"), rawget(_G, "Color")
 	gui:set_ignore_position_scale(true)
 	gui:set_ignore_size_scale(true)
@@ -160,18 +193,32 @@ function M.draw_icons(hud)
 			gui:rect(V3(x, y, M.PANEL_LAYER + 1), V2(f, h), frame)
 			gui:rect(V3(x + w - f, y, M.PANEL_LAYER + 1), V2(f, h), frame)
 		end
-		for _, i in ipairs(list or {}) do
-			local c = i.color or { 255, 255, 255 }
-			local at, size = V3(i.x - i.size / 2, i.y - i.size / 2, M.ICON_LAYER), V2(i.size, i.size)
-			if i.edge then
-				local black = C(i.alpha, 0, 0, 0)
-				for _, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 0.7, 0.7 }, { -0.7, 0.7 }, { 0.7, -0.7 }, { -0.7, -0.7 } }) do
-					gui:image(i.icon, V3(at.x + d[1] * i.edge, at.y + d[2] * i.edge, M.ICON_LAYER), size, black)
-				end
-				at = V3(at.x, at.y, M.ICON_LAYER + 1)
-			end
-			gui:image(i.icon, at, size, C(i.alpha, c[1], c[2], c[3]))
+		-- An icon cut to lo..hi across (the inside of the strip), when it has them.
+		local function image(i, x, y, z, color)
+			local left, w = x, i.size
+			local u0, u1 = 0, 1
+			if i.lo and left < i.lo then u0 = (i.lo - left) / i.size end
+			if i.hi and left + w > i.hi then u1 = 1 - (left + w - i.hi) / i.size end
+			if u1 - u0 <= 0.01 then return end
+			gui:image(i.icon, V3(left + u0 * i.size, y, z), V2(i.size * (u1 - u0), i.size), color, V2(u0, 0), V2(u1, 1))
 		end
+		local function each(items, layer)
+			for _, i in ipairs(items or {}) do
+				local c = i.color or { 255, 255, 255 }
+				local x, y = i.x - i.size / 2, i.y - i.size / 2
+				local z = layer
+				if i.edge then
+					local black = C(i.alpha, 0, 0, 0)
+					for _, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 0.7, 0.7 }, { -0.7, 0.7 }, { 0.7, -0.7 }, { -0.7, -0.7 } }) do
+						image(i, x + d[1] * i.edge, y + d[2] * i.edge, z, black)
+					end
+					z = z + 1
+				end
+				image(i, x, y, z, C(i.alpha, c[1], c[2], c[3]))
+			end
+		end
+		each(list, M.ICON_LAYER)
+		each(extra, M.WORLD_LAYER)
 	end)
 	gui:set_ignore_position_scale(false)
 	gui:set_ignore_size_scale(false)
@@ -215,6 +262,7 @@ function M.start(env)
 	end
 
 
+	local p0 = nil
 	local function draw(api)
 		local view = env.view
 		local cm = g("CameraManager")
@@ -245,49 +293,50 @@ function M.start(env)
 			end
 		end)
 
-		-- Objectives: inside the span at their bearing, past it held at the end, fainter. Drawn by the HUD.
+		-- Objectives and map markers at their bearing. Near an end of the strip an icon slides out of it,
+		-- cut at the inside of the frame; one past the end isn't drawn, and a small white triangle outside
+		-- the compass on that side points the way.
 		local me = api.game.my_unit and api.game.my_unit()
 		local st = api.game.state and api.game.state()
 		local mm = type(st) == "table" and st.mission_manager
 		local V3A = g("Vector3Aux")
 		local icons = {}
-		if me and mm and mm.get_objectives and V3A then
-			local p = g("Unit").world_position(me, 0)
-			local size = M.ICON * s
-			for _, o in ipairs(M.objectives(mm:get_objectives(), V3A.unbox)) do
-				local off, inside = M.place(heading, M.bearing(o.x - p.x, o.y - p.y), tw)
-				local half = tw / 2 - size / 2
-				if off > half then off = half elseif off < -half then off = -half end
-				icons[#icons + 1] = { icon = o.icon, x = mid + off, y = cy, size = size, alpha = inside and 255 or 130 }
+		local out_left, out_right = false, false
+		local function add(icon, at, size, color, edge_px)
+			local off, inside = M.place(heading, M.bearing(at.x - p0.x, at.y - p0.y), tw)
+			if not inside then
+				if off < 0 then out_left = true else out_right = true end
+			end
+			if math.abs(off) < tw / 2 + size / 2 then
+				icons[#icons + 1] = { icon = icon, x = mid + off, y = cy, size = size, alpha = 255, color = color, edge = edge_px,
+					lo = tx, hi = tx + tw }
 			end
 		end
-		-- Map markers, one per player who has one on the map, in the player's colour.
-		local hud = M.hud
-		local level = type(hud) == "table" and (hud.generated_level or hud.custom_level)
-		local V2A, GS = g("Vector2Aux"), g("GameSettings")
-		if me and type(hud) == "table" and type(hud.players) == "table" and type(level) == "table" and V2A then
-			local size = M.PING * s
-			local ok_m, msize = pcall(V2A.unbox, level.map_size)
-			local p = g("Unit").world_position(me, 0)
-			for i, player in ipairs(hud.players) do
-				local got, ping = pcall(function()
-					if not player.player_go:exists() then return nil end
-					return player.player_go:get("map_ping")
-				end)
-				if got and M.has_ping(ping) and ok_m and msize and type(level.width) == "number" then
-					local at = M.ping_world(ping, level.width, level.height, msize.x, msize.y)
-					local off, inside = M.place(heading, M.bearing(at.x - p.x, at.y - p.y), tw)
-					local half = tw / 2 - size / 2
-					if off > half then off = half elseif off < -half then off = -half end
-					local pc = GS and GS.player_colors and GS.player_colors[i]
-					local base = type(pc) == "table" and { pc.y or 255, pc.z or 255, pc.w or 255 } or { 255, 255, 255 }
-					icons[#icons + 1] = { icon = M.PING_ICON, x = mid + off, y = cy, size = size, alpha = inside and 255 or 150,
-						color = M.lighter(base, M.PING_LIGHT), edge = math.max(1, M.PING_EDGE * s) }
-				end
+		if me then
+			p0 = g("Unit").world_position(me, 0)
+			if mm and mm.get_objectives and V3A then
+				for _, o in ipairs(M.objectives(mm:get_objectives(), V3A.unbox)) do add(o.icon, o, M.ICON * s) end
+			end
+			for _, mp in ipairs(M.map_pings()) do
+				add(M.PING_ICON, mp, M.PING * s, mp.color, math.max(1, M.PING_EDGE * s))
 			end
 		end
 		M.icons = icons
 
+		-- A triangle outside each end of the compass with something past it, pointing out.
+		kit:layer(M.LAYER + 4)
+		local ts, te = M.ARROW * s, math.max(1, M.ARROW_EDGE * s)
+		local sides = {}
+		if out_left then sides[#sides + 1] = -1 end
+		if out_right then sides[#sides + 1] = 1 end
+		for _, side in ipairs(sides) do
+			local ax = side < 0 and x - M.ARROW_GAP * s or x + bw + M.ARROW_GAP * s
+			local tip, back = ax + side * ts, ax
+			local big = { tip + side * te * 1.6, cy, back - side * te, cy + ts * 0.8 + te * 1.6, back - side * te, cy - ts * 0.8 - te * 1.6 }
+			local small = { tip, cy, back, cy + ts * 0.8, back, cy - ts * 0.8 }
+			kit:poly(big, "#000000ff")
+			kit:poly(small, M.WHITE)
+		end
 		-- The middle: a short white line across the top border, a quarter in the strip and three quarters over it.
 		kit:layer(M.LAYER + 4)
 		local mw, mh, ow = M.MARK_W * s, M.MARK_H * s, math.max(1, M.MARK_EDGE * s)
@@ -304,7 +353,7 @@ function M.start(env)
 	obsidian.hook("Hud", "draw_plugins", function(original, self, ...)
 		M.hud = self
 		local r = { original(self, ...) }
-		if M.icons then pcall(M.draw_icons, self) end
+		if M.icons or M.world_icons then pcall(M.draw_icons, self) end
 		return unpack(r)
 	end, env.VIEW)
 

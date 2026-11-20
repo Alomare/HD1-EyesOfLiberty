@@ -9,6 +9,13 @@
 --   support weapon, pack   blue line, the stratagem's icon on top     "<stratagem, without its code> here"
 --   anything else          white, on the spot                         "Look here"
 --
+-- Map markers: each player's marker on the map (src/compass.lua map_pings) stands in the level as a
+-- marker too, for as long as it is on the map: a line in the player's colour with the map's marker icon,
+-- lighter and outlined in black, in place of the diamond. Aiming near it shows its distance only.
+--
+-- While the crosshair is near a marker, its line, dash and diamond or icon fade to HOVER_DIM; the words
+-- stay as they are.
+--
 -- Nothing goes through the game's chat, which players without the mod would read with no marker to
 -- go with it. Teammates with the mod get the marker through lobby member data (api.lobby.share, about
 -- a second late): "<count>|<kind>|<x>|<y>|<z>|<icon>|<words>". Each machine with the mod plays the
@@ -35,8 +42,9 @@ M.OBJECTIVE_REACH = 12  -- the same, over the ground, for an objective
 M.DIAMOND = 10.4        -- design pixels from the middle of the diamond to a corner
 M.ICON = 30             -- design pixels, a stratagem icon
 M.HOVER = 70            -- design pixels from the crosshair that bring up the words
-M.NAME_AFTER = 1        -- seconds of the crosshair on an enemy's marker before its name shows
-M.NAME_FADE = 0.15      -- seconds for that name to fade in
+M.HOVER_DIM = 0.5       -- a hovered marker's line and diamond, of their opacity
+M.DIM_RATE = 12         -- how fast they fade there and back, per second
+M.MAP_ICON = 26         -- design pixels, a map marker's icon in the level
 M.TEXT = 20             -- design pixels, the words' size
 M.ENEMY_TEXT = { 255, 178, 170 } -- an enemy's name: light red
 M.PULSE_LIGHT = 0.2     -- the dash up the line: the marker's colour this much toward white
@@ -52,6 +60,7 @@ M.COLORS = {
 }
 
 local floor, sqrt, max, min = math.floor, math.sqrt, math.max, math.min
+local function g(name) return rawget(_G, name) end
 
 -- Pure parts ----------------------------------------------------------------------------------------
 
@@ -152,11 +161,22 @@ function M.body(lift)
 	return max(0, (lift or M.ABOVE_ENEMY) - M.OVER_BOX) / 2
 end
 
--- How strongly a marker's name shows after `hover` seconds with the crosshair on it, 0 to 1: an
--- enemy's only after NAME_AFTER seconds, fading in; anything else at once.
-function M.name_alpha(kind, hover)
-	if kind ~= "enemy" then return 1 end
-	return min(1, max(0, ((hover or 0) - M.NAME_AFTER) / M.NAME_FADE))
+-- The opacity share of a marker's line and diamond, eased by dt toward HOVER_DIM while hovered and back
+-- to 1 after.
+function M.dim(current, hovered, dt)
+	local want = hovered and M.HOVER_DIM or 1
+	current = current or 1
+	return current + (want - current) * min(1, M.DIM_RATE * (dt or 0))
+end
+
+-- The ground under (x, y): the highest static surface below `from` metres up, or nil.
+function M.ground(world, x, y, from)
+	local PW, W, V3 = g("PhysicsWorld"), g("World"), g("Vector3")
+	if not (PW and W and V3 and world) then return nil end
+	local ok, hit, pos = pcall(PW.immediate_raycast, W.physics_world(world), V3(x, y, from), V3(0, 0, -1), 1000,
+		"closest", "types", "statics", "collision_filter", "default")
+	if ok and hit and pos then return pos.z end
+	return nil
 end
 
 -- A colour this share of the way toward white.
@@ -165,8 +185,6 @@ function M.lighter(c, share)
 end
 
 -- The game -----------------------------------------------------------------------------------------
-
-local function g(name) return rawget(_G, name) end
 
 local function v3(p) return g("Vector3")(p.x, p.y, p.z) end
 
@@ -368,6 +386,24 @@ function M.start(env)
 		kit:outline(diamond, { 0, 0, 0, floor(200 * a) }, max(1, r * 0.18))
 	end
 
+	-- The players' map markers as markers in the level, keyed "map<index>"; a new spot starts afresh.
+	local function sync_map(view, mine)
+		local seen_now = {}
+		for _, mp in ipairs(compass.map_pings()) do
+			local key = "map" .. mp.index
+			seen_now[key] = true
+			local m = markers[key]
+			if not (m and m.ping and m.ping[1] == mp.ping[1] and m.ping[2] == mp.ping[2]) then
+				local z = M.ground(view.world, mp.x, mp.y, (mine and mine.z or 0) + 150) or (mine and mine.z) or 0
+				markers[key] = { kind = "map", pos = { x = mp.x, y = mp.y, z = z }, age = 0, ping = mp.ping,
+					color = mp.base, light = mp.color }
+			end
+		end
+		for key, m in pairs(markers) do
+			if m.kind == "map" and not seen_now[key] then markers[key] = nil end
+		end
+	end
+
 	local function draw(api, dt)
 		local view = env.view
 		local cm = g("CameraManager")
@@ -380,10 +416,13 @@ function M.start(env)
 		local cross = env.state.crosshair
 		local me = api.game.my_unit()
 		local mine = me and plain(g("Unit").world_position(me, 0))
+		sync_map(view, mine)
+		local icons = {}
+		compass.world_icons = icons
 		kit:layer(M.LAYER)
 		for peer, m in pairs(markers) do
 			m.age = m.age + dt
-			local a = M.alpha(m.age)
+			local a = m.kind == "map" and 1 or M.alpha(m.age)
 			if a <= 0 then
 				markers[peer] = nil
 			else
@@ -392,7 +431,9 @@ function M.start(env)
 					local okp, p = pcall(function() return U.alive(m.unit) and is_enemy(m.unit) and U.world_position(m.unit, 0) end)
 					if okp and p then m.pos = plain(p) else m.unit = nil end
 				end
-				local c = M.COLORS[m.kind] or M.COLORS.ground
+				local c = m.color or M.COLORS[m.kind] or M.COLORS.ground
+				-- The line and the diamond or icon, dimmed while hovered (m.dim, from the frame before).
+				local la = a * (m.dim or 1)
 				if m.unit then m.lift = top_of(m.unit) end
 				local lift = m.kind == "enemy" and (m.lift or M.ABOVE_ENEMY) or M.LINE
 				-- An enemy's line rises from the middle of its body, anything else's from the ground.
@@ -402,44 +443,50 @@ function M.start(env)
 				local inset = M.INSET * s
 				local on_top, tx, ty, dx, dy = edge.locate(cam, top, w, h, inset)
 				local r = M.DIAMOND * s * M.pop(m.age)
+				local icon_size = m.kind == "map" and M.MAP_ICON * s * M.pop(m.age) or nil
 				if on_top then
 					local bx, depth, by = frustum.project(cam, base, w, h)
 					local t = (m.age % 1)
 					local pulse = M.lighter(c, M.PULSE_LIGHT)
-					if depth > 0.1 then
-						quad(x0 + bx, y0 + by, x0 + tx, y0 + ty, 1.5 * s, rgba(c, 0.85 * a))
+					-- A map marker's line stops under its icon, which the HUD draws under the canvas.
+					local ey = icon_size and ty - icon_size / 2 or ty
+					if depth > 0.1 and (not icon_size or ey > by) then
+						quad(x0 + bx, y0 + by, x0 + tx, y0 + ey, 1.5 * s, rgba(c, 0.85 * la))
 						-- A dash, a little lighter than the line and thicker, running up it once a second.
-						local px, py = bx + (tx - bx) * t, by + (ty - by) * t
-						local qx, qy = bx + (tx - bx) * min(1, t + 0.15), by + (ty - by) * min(1, t + 0.15)
-						quad(x0 + px, y0 + py, x0 + qx, y0 + qy, 2.5 * s, rgba(pulse, a))
+						local px, py = bx + (tx - bx) * t, by + (ey - by) * t
+						local qx, qy = bx + (tx - bx) * min(1, t + 0.15), by + (ey - by) * min(1, t + 0.15)
+						quad(x0 + px, y0 + py, x0 + qx, y0 + qy, 2.5 * s, rgba(pulse, la))
 					end
 				else
 					tx, ty = edge.edge(dx, dy, w, h, inset, inset)
 				end
 				local cx, cy = x0 + tx, y0 + ty
-				if m.kind == "support" and m.icon then
+				if icon_size then
+					icons[#icons + 1] = { icon = compass.PING_ICON, x = cx, y = cy, size = icon_size, alpha = floor(255 * la),
+						color = m.light, edge = max(1, compass.PING_EDGE * s) }
+				elseif m.kind == "support" and m.icon then
 					local size = M.ICON * s * M.pop(m.age)
-					if not kit:icon(m.icon, cx - size / 2, cy - size / 2, size, size, { 255, 255, 255, floor(255 * a) }) then
-						draw_diamond(cx, cy, r, c, a)
+					if not kit:icon(m.icon, cx - size / 2, cy - size / 2, size, size, { 255, 255, 255, floor(255 * la) }) then
+						draw_diamond(cx, cy, r, c, la)
 					end
 				else
-					draw_diamond(cx, cy, r, c, a)
+					draw_diamond(cx, cy, r, c, la)
 				end
 				-- While the crosshair is near the marker: the name above it on a see-through black box (light
-				-- red for an enemy, after NAME_AFTER seconds there), the distance from this player below it.
+				-- red for an enemy), the distance from this player below it. A map marker shows its distance only.
 				local hovered = false
 				if cross and on_top then
 					local hx, hy = cx - cross.x, cy - cross.y
 					hovered = hx * hx + hy * hy <= (M.HOVER * s) ^ 2
 				end
-				m.hover = hovered and (m.hover or 0) + dt or 0
+				m.dim = M.dim(m.dim, hovered, dt)
 				if hovered then
 					do
 						local size = M.TEXT * s
 						local d = max(1, floor(size / 14))
-						local half = (m.kind == "support" and m.icon) and M.ICON * s / 2 or r
-						local name = M.label(m.kind, m.name, m.words)
-						local na = a * M.name_alpha(m.kind, m.hover)
+						local half = icon_size and icon_size / 2 or (m.kind == "support" and m.icon) and M.ICON * s / 2 or r
+						local name = m.kind ~= "map" and M.label(m.kind, m.name, m.words) or nil
+						local na = a
 						if name and na > 0 then
 							local opts = { font = "body_large", size = size, align = "center",
 								color = rgba(m.kind == "enemy" and M.ENEMY_TEXT or { 255, 255, 255 }, na) }
@@ -471,6 +518,7 @@ function M.start(env)
 		local api = env.api
 		if not in_mission(api) then
 			markers, seen, primed = {}, {}, false
+			compass.world_icons = nil
 			return
 		end
 		local dt = g("ENGINE_DT")
@@ -480,6 +528,7 @@ function M.start(env)
 			poll = M.POLL
 			pcall(listen, api)
 		end
+		compass.world_icons = nil
 		if wait > 0 then wait = wait - 1 return end
 		if not on or not env.state.active or not compass.shown(api) then
 			for _, m in pairs(markers) do m.age = m.age + dt end

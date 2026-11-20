@@ -1,7 +1,9 @@
 -- The ammo bar: Better HUD's ammo circle (src/ammo_look.lua) as a sixth of a circle around the
 -- crosshair, in third person on foot. Same colours, warnings, shakes, laser heat, arc charge, empty
--- flash and reload button; shows from a shot, hides while and after a reload, fades out 8 seconds after
--- the last shot. A weapon of 40 rounds or fewer has a faint line between rounds.
+-- flash and reload button; shows from a shot, fades out 8 seconds after the last shot. A weapon of 40
+-- rounds or fewer has a faint line between rounds. While the weapon reloads, the bar fills in Better
+-- HUD's reload grey as the reload goes; a finished reload swells the band by GROW and fades it out over
+-- DONE seconds, as Better HUD's reload ring does, and the bar stays hidden until the next shot.
 --
 -- Options: ammo_bar (on), ammo_bar_position ("oppose": on the side away from the Helldiver, "same": on
 -- the Helldiver's side, "top", "bottom"), ammo_bar_curved (on; off draws a straight bar of the same
@@ -32,6 +34,17 @@ M.SHADOW = 0.2
 M.OPACITY = 0.9       -- the whole bar at most this opaque
 M.KINDS = { "firearm", "flameweapon", "launcher", "beamweapon", "arcweapon" }
 local NEAR_END = 0.85 -- a reload that stops past this far counts as finished, not cancelled
+M.FILL = { 212, 212, 212, 255 } -- the reload fill, Better HUD's
+M.DONE = 0.1          -- seconds a finished reload takes to swell and fade out
+M.GROW = 0.45         -- how much thicker the band ends, of its width
+
+-- How thick and how visible the band of a finished reload is `t` seconds after it finished, or nil once
+-- gone.
+function M.finish(t)
+	if t >= M.DONE then return nil end
+	local f = t / M.DONE
+	return 1 + M.GROW * f, 1 - f
+end
 
 -- The bar's shape: a function (t, r) giving the screen point t of the way along the bar (0 where the
 -- fill starts) at r pixels from the crosshair (cx, cy). position: "oppose", "same", "top", "bottom";
@@ -114,7 +127,7 @@ function M.start(env)
 	if not kit then return end
 	local quad = { 0, 0, 0, 0, 0, 0, 0, 0 }
 	local t = {}           -- the circle's tracking (src/ammo_look.lua)
-	local last, clock = nil, 0
+	local last, clock, done_at = nil, 0, nil
 	local failed = false
 
 	local function piece(f, t0, t1, r1, r2, color, cx, cy, shade)
@@ -149,14 +162,24 @@ function M.start(env)
 		end
 		local p = st and M.progress(st)
 		local reloading = p ~= nil
-		if not p and last and last >= NEAR_END then look.reloaded(t) end
+		if p then done_at = nil
+		elseif last and last >= NEAR_END then
+			done_at = clock
+			look.reloaded(t)
+		end
 		last = p
+		-- The reload: its progress, or a finished one swelling and fading.
+		local rp, grow, ralpha = p, 1, 1
+		if not rp and done_at then
+			grow, ralpha = M.finish(clock - done_at)
+			if grow then rp = 1 else grow, ralpha, done_at = 1, 1, nil end
+		end
 		local share, rounds, empty, size, ready = look.reading(st)
 		if share then look.track(t, weapon, share, clock, reloading) end
 		look.react(t, kind, share, rounds, empty, ready, clock, dt)
 		local alpha = (share and not reloading) and look.alpha(t.shot, clock) or 0
 		local discharge = not reloading and kind == "arcweapon" and look.discharge_alpha(t, clock)
-		if alpha <= 0 and not discharge then return end
+		if alpha <= 0 and not discharge and not rp then return end
 		local game = api.game.state and api.game.state()
 		local hud = game and game.hud
 		if hud and (hud.hidden or hud.enabled == false) then return end
@@ -173,10 +196,13 @@ function M.start(env)
 		local curved = env.config.get("ammo_bar_curved") ~= false
 		local camera = env.camera
 		local f = M.shape(env.config.get("ammo_bar_position") or "oppose", camera and camera.side_now or 1, curved, cx, cy, R)
-		local half, e = M.WIDTH * ring / 2, M.EDGE * ring
+		local half, e = M.WIDTH * ring / 2 * grow, M.EDGE * ring
 		local r1, r2 = R - half, R + half
 		local fill, ccw, color, track = 1, false, look.WHITE, nil
-		if discharge then
+		if rp then
+			kit:opacity(ralpha * M.OPACITY)
+			fill, color = rp, M.FILL
+		elseif discharge then
 			kit:opacity(discharge * M.OPACITY)
 		else
 			kit:opacity(alpha * M.OPACITY)
@@ -198,13 +224,13 @@ function M.start(env)
 			if ccw then band(f, 1 - fill, 1, r1, r2, color, cx, cy, true, curved)
 			else band(f, 0, fill, r1, r2, color, cx, cy, true, curved) end
 		end
-		if rounds and not discharge then
+		if rounds and not discharge and not rp then
 			kit:layer(422)
 			local lw = M.LINE_WIDTH * ring / R / M.SPAN -- the line's width as a share of the bar
 			if not curved then lw = M.LINE_WIDTH * ring / (2 * R * math.sin(M.SPAN / 2)) end
 			for _, at in ipairs(M.dividers(size)) do piece(f, at - lw / 2, at + lw / 2, r1, r2, M.LINE, cx, cy, false) end
 		end
-		if empty and (rounds or kind == "beamweapon") and not discharge then
+		if empty and (rounds or kind == "beamweapon") and not discharge and not rp then
 			kit:layer(424)
 			local room = 2 * (11 - M.WIDTH) * ring * 0.9
 			local bx, by = f(0.5, r2 + e + M.BUTTON_GAP * ring + room / 2)

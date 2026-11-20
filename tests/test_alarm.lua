@@ -80,4 +80,13 @@ return {
 		env.state.armed = true
 		eq(x.look(env, true), "aim")
 	end },
+
+	{ "a finished reload swells the ammo bar and fades it out, as the Better HUD ring", function()
+		local b = m("src/ammobar")
+		local grow, alpha = b.finish(0)
+		eq(grow, 1) eq(alpha, 1)
+		grow, alpha = b.finish(b.DONE / 2)
+		near(grow, 1 + b.GROW / 2, "half way", 1e-9) near(alpha, 0.5, nil, 1e-9)
+		eq(b.finish(b.DONE), nil, "gone")
+	end },
 }
