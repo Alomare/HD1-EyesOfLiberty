@@ -94,25 +94,40 @@ function M.restore(U, Q, W)
 	if any and last.world then W.update_unit(last.world, last.avatar) end
 end
 
+-- The whole bend toward the point for a weapon facing f at p, or nil when the point gives no pitch to
+-- aim at: none, or almost straight under the hand, as when looking far down. The last bend is then held
+-- (M.held), so the pose doesn't snap back to the animation's.
+M.UNDER = 0.05 -- metres across from the hand within which a point is straight under it
+function M.target_bend(f, p, point)
+	if not point then return nil end
+	local to = { x = point.x - p.x, y = point.y - p.y, z = point.z - p.z }
+	if to.x * to.x + to.y * to.y < M.UNDER * M.UNDER then return nil end
+	return M.bend(M.pitch_of({ x = f.x, y = f.y, z = f.z }), M.pitch_of(to))
+end
+
 function M.apply(env, dt)
 	local U, Q, W = g("Unit"), g("Quaternion"), g("World")
 	M.restore(U, Q, W)
 	local want = M.wanted(env)
 	M.weight = rig.ease(M.weight, want and 1 or 0, M.RATE, dt or 0.016)
-	if M.weight < 0.01 then return false end
+	if M.weight < 0.01 then
+		M.held = nil
+		return false
+	end
 	local view = env.view
 	local avatar = view and view.avatar
 	local point = env.state.aim_point
-	if not (avatar and point and U.alive(avatar) and U.has_node(avatar, "r_hand_attach")) then return false end
+	if not (avatar and U.alive(avatar) and U.has_node(avatar, "r_hand_attach")) then return false end
 	-- The animation has set the bones for this frame, but their world transforms are still those of the
 	-- last scene update, bend and all (checked in game, 2026-11-20): bring them up to date before measuring.
 	if view.world then W.update_unit(view.world, avatar) end
 	local hand = U.node(avatar, "r_hand_attach")
 	local f = Q.forward(U.world_rotation(avatar, hand))
 	local p = U.world_position(avatar, hand)
-	local to = { x = point.x - p.x, y = point.y - p.y, z = point.z - p.z }
-	if to.x * to.x + to.y * to.y < 1 then return false end
-	local b = M.bend(M.pitch_of({ x = f.x, y = f.y, z = f.z }), M.pitch_of(to)) * M.weight
+	local full = M.target_bend(f, p, point)
+	if full then M.held = full else full = M.held end
+	if not full then return false end
+	local b = full * M.weight
 	if math.abs(b) < 0.2 then return false end
 	local nodes = {}
 	for _, n in ipairs(M.SPINE) do if U.has_node(avatar, n) then nodes[#nodes + 1] = U.node(avatar, n) end end

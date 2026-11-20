@@ -32,22 +32,55 @@ return {
 		eq(p.message("support", "Machine Gun"), "Machine Gun here")
 	end },
 
-	{ "the name over a marker comes from what was pinged, and the dash is a little lighter", function()
+	{ "the name over a marker comes from what was pinged", function()
 		local p = ping()
 		eq(p.label("ground", nil, "Look here"), nil, "no name for the ground")
 		near(p.body(2.15), 1, "an enemy's line starts half way up its body")
 		near(p.body(nil), (p.ABOVE_ENEMY - p.OVER_BOX) / 2, "half the usual height when the box can't be read")
-		eq(p.dim(nil, false, 0.016), 1, "not hovered: whole")
-		local d = 1
-		for _ = 1, 60 do d = p.dim(d, true, 1 / 60) end
-		near(d, p.HOVER_DIM, "hovered for a second: half", 1e-3)
-		for _ = 1, 60 do d = p.dim(d, false, 1 / 60) end
-		near(d, 1, "and back", 1e-3)
 		eq(p.label("enemy", nil, "Bile Spewer, 40 m"), "Bile Spewer")
 		eq(p.label("support", nil, "Machine Gun here"), "Machine Gun")
 		eq(p.label("objective", "Raise the flag", "Raise the flag here"), "Raise the flag")
-		local c = p.lighter({ 235, 45, 35 }, 0.2)
-		eq(c[1], 239) eq(c[2], 87) eq(c[3], 79)
+		eq(p.message("ammo", "Resupply"), "Resupply here")
+		eq(p.message("sample", "Sample"), "Sample here")
+		eq(p.decode(p.encode(1, "sample", { x = 0, y = 0, z = 0 }, "", "Sample here")).kind, "sample")
+		eq(p.decode(p.encode(1, "ammo", { x = 0, y = 0, z = 0 }, "stratagem_resupply", "Resupply here")).icon, "stratagem_resupply")
+	end },
+
+	{ "the diamond is 15 percent smaller, and the line outline half as strong as the diamond's", function()
+		local p = ping()
+		near(p.DIAMOND, 10.4 * 0.85, nil, 1e-9)
+		eq(p.LINE_EDGE, 0.5)
+		eq(p.dim, nil, "no fading when looked at")
+	end },
+
+	{ "an enemy ping plays a stratagem arrow sound over the chat sound", function()
+		local p = ping()
+		eq(p.arrow(0), "equip_radio_press_cross")
+		eq(p.arrow(0.99), "equip_radio_press_square")
+		local played, chat = {}, 0
+		local api = { audio = { play = function(e) played[#played + 1] = e return true end },
+			game = { state = function() return { text_chat = { play_chat_sound = function() chat = chat + 1 end } } end } }
+		p.sound(api, "ground")
+		eq(#played, 0, "the ground: the chat sound only")
+		p.sound(api, "enemy")
+		eq(#played, 1)
+		eq(played[1]:match("^equip_radio_press_") ~= nil, true)
+		eq(chat, 2)
+	end },
+
+	{ "markers out of view sit where the game keeps allies: 96 px from the sides, 54 from top and bottom", function()
+		local p = ping()
+		local frustum = obsidian.module("src/frustum")
+		local cam = frustum.camera_from({ x = 0, y = 0, z = 0 }, { x = 0, y = 1, z = 0 }, math.rad(70))
+		local on, x, y = p.place(cam, { x = 0, y = 10, z = 0 }, 1920, 1080, 100, 60)
+		eq(on, true) near(x, 960, nil, 1e-6) near(y, 540, nil, 1e-6)
+		on, x, y = p.place(cam, { x = 100, y = 10, z = 1 }, 1920, 1080, 100, 60)
+		eq(on, false) near(x, 1920 - 100, "far right in front: clamped to the margin", 1e-6)
+		assert(y > 540 and y < 1080 - 60, "keeps its height: " .. y)
+		on, x, y = p.place(cam, { x = 0, y = -10, z = 0 }, 1920, 1080, 100, 60)
+		eq(on, false) near(y, 60, "straight behind: the bottom margin", 1e-6) near(x, 960, nil, 1e-6)
+		on, x, y = p.place(cam, { x = 10, y = -10, z = 0 }, 1920, 1080, 100, 60)
+		eq(on, false) near(x, 1820, "behind and right: the right margin", 1e-6)
 	end },
 
 	{ "a shared ping reads back as sent, and junk reads as nothing", function()
@@ -108,12 +141,37 @@ return {
 		eq(t.kind, "enemy")
 		eq(t.name, "Scout")
 		env.state.aim_unit = nil
-		env.state.aim_point = { x = 55, y = 45, z = 0 }
+		env.state.aim_point = { x = 53, y = 47, z = 0 }
 		t = p.target(env)
 		eq(t.kind, "objective")
 		eq(t.name, "Raise the flag")
+		env.state.aim_point = { x = 58, y = 50, z = 0 }
+		eq(p.target(env).kind, "ground", "8 m from the objective: the ground")
 		env.state.aim_point = { x = -50, y = 50, z = 0 }
 		eq(p.target(env).kind, "ground", "an objective still hidden isn't named")
+		E.remove()
+	end },
+
+	{ "an ammo box pings with the Resupply icon, a research sample with its own", function()
+		local e = E.install()
+		local p = ping()
+		e.units.sample = { position = { x = 10, y = 10, z = 0 } }
+		local box = { unit = "box", kind = "ammo_pickup", position = { x = 0, y = 30, z = 0 } }
+		local api = {
+			game = { state = function() return {} end, slaves = function(name) return name == "research_sample_pickup" and { sample = {} } or {} end },
+			enemies = { near = function() return {} end },
+			world = { pickups = function(pos, reach) return (math.abs(pos.y - 30) <= reach and math.abs(pos.x) <= reach) and { box } or {} end },
+			catalog = { text = function(k) return k == "stratagem_resupply" and "Resupply" or k end },
+		}
+		local env = E.env(api)
+		env.state.aim_point = { x = 1, y = 30, z = 0 }
+		local t = p.target(env)
+		eq(t.kind, "ammo") eq(t.icon, "stratagem_resupply") eq(t.name, "Resupply")
+		env.state.aim_point = { x = 11, y = 9, z = 0 }
+		t = p.target(env)
+		eq(t.kind, "sample") eq(t.name, "Sample")
+		env.state.aim_point = { x = 15, y = 10, z = 0 }
+		eq(p.target(env).kind, "ground", "5 m from the sample: the ground")
 		E.remove()
 	end },
 

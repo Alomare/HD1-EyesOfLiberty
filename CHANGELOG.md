@@ -2,6 +2,15 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## Next
+
+- New: Pings on ammo boxes, blue with the Resupply icon, and on research samples, white with the sample icon.
+- New: An enemy ping also plays one of the stratagem arrow sounds.
+- Changed: A ping goes to an objective only within 5 m of it, down from 12 m.
+- Changed: Ping markers out of view keep to the screen edges as the markers of allies do.
+- Changed: The ping diamond is 15 percent smaller, and the line has a thin outline. The pulse up the line is gone, and markers no longer fade while the crosshair is on them.
+- Fixed: Weapon follows aim no longer snaps back to the plain pose when looking far down.
+
 ## 0.15.1
 
 - Fixed: Weapon follows aim bends the Helldiver on screen. In 0.15.0 the bend came after the frame was drawn, so the weapon stayed level.

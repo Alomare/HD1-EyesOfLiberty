@@ -232,7 +232,7 @@
     { "id": "pings", "type": "toggle", "default": true,
       "group": "navigation", "part": "view", "scope": "client",
       "label": { "en": "Pings" },
-      "description": { "en": "In third person, the ping key marks what the crosshair is on: ground, an enemy, an objective or a dropped support weapon or pack, also while down, and after death until the camera moves to an ally. Teammates with the mod see the marker too and hear the chat sound; players without the mod see and hear nothing." } },
+      "description": { "en": "In third person, the ping key marks what the crosshair is on: ground, an enemy, an objective, a dropped support weapon or pack, an ammo box or a research sample, also while down, and after death until the camera moves to an ally. Teammates with the mod see the marker too and hear the chat sound; players without the mod see and hear nothing." } },
     { "id": "radar", "type": "toggle", "default": true,
       "group": "indicators", "part": "view", "scope": "client",
       "label": { "en": "Enemy indicators" },

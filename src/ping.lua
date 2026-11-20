@@ -1,20 +1,23 @@
 -- Pings: in third person, the ping key marks what the crosshair is on, for LIFE seconds. A player
 -- can ping BURST times in a row, then waits COOLDOWN seconds; COOLDOWN without a ping starts a new burst. A marker is a vertical line with a diamond on top (an enemy's and a map marker's without the line), drawn
--- over the level; one out of view sits at the edge of the screen. Aiming near a marker shows what it
+-- over the level; one out of view sits at the edge of the screen, where the game keeps the markers of
+-- allies out of view (Hud.draw_player_name_in_world: 96 pixels in from the sides, 54 from the top and
+-- bottom, plus half the marker). Aiming near a marker shows what it
 -- marks above it and how far it is below it. Each player has one marker at a time: a new ping replaces the last.
 --
 -- What the crosshair is on decides the marker and its words:
 --   enemy                  red, above the enemy and following it      "<enemy>, <metres from the caller> m"
 --   objective (found)      yellow, over the objective                 "<objective> here"
 --   support weapon, pack   blue line, the stratagem's icon on top     "<stratagem, without its code> here"
+--   ammo box               blue line, the Resupply icon on top        "<Resupply> here" (dropped or on the map)
+--   research sample        white line, the sample icon on top         "Sample here"
 --   anything else          white, on the spot                         "Look here"
+--
+-- An enemy ping also plays one of the stratagem arrow sounds, at random, over the chat sound.
 --
 -- Map markers: each player's marker on the map (src/compass.lua map_pings) stands in the level as a
 -- marker too, for as long as it is on the map: the map's marker icon in the player's colour,
 -- lighter and outlined in black, in place of the diamond. Aiming near it shows its distance only.
---
--- While the crosshair is near a marker, its line, dash and diamond or icon fade to HOVER_DIM; the words
--- stay as they are.
 --
 -- Nothing goes through the game's chat, which players without the mod would read with no marker to
 -- go with it. Teammates with the mod get the marker through lobby member data (api.lobby.share, about
@@ -40,17 +43,21 @@ M.ABOVE_ENEMY = 2.2     -- metres over an enemy's root for its diamond, when its
 M.OVER_BOX = 0.15       -- metres over the top of an enemy's bounding box for its diamond
 M.ENEMY_REACH = 4       -- metres from the crosshair point an enemy counts as aimed at
 M.PICKUP_REACH = 2.5    -- the same for a weapon or pack on the ground
-M.OBJECTIVE_REACH = 12  -- the same, over the ground, for an objective
-M.DIAMOND = 10.4        -- design pixels from the middle of the diamond to a corner
+M.SAMPLE_REACH = 2.5    -- the same for a research sample
+M.OBJECTIVE_REACH = 5   -- the same, over the ground, for one of the points of an objective
+M.DIAMOND = 8.84        -- design pixels from the middle of the diamond to a corner
+M.LINE_EDGE = 0.5       -- the line's black outline, of the diamond outline's opacity
+M.SAMPLE_ICON = 36      -- design pixels, a research sample's icon, as big as a stratagem icon
+M.SAMPLE_TEXTURE = "icon_research_sample" -- the sample counter's icon (ResearchSampleManager); hud/hud has it (seen in game)
+M.SAMPLE_EDGE = 0.5     -- its black outline: pixels per design pixel, and of the icon's opacity
+M.RESUPPLY_ICON = "stratagem_resupply"
+M.ARROWS = { "equip_radio_press_cross", "equip_radio_press_circle", "equip_radio_press_triangle", "equip_radio_press_square" }
+M.EDGE_X, M.EDGE_Y = 96, 54 -- pixels from the screen edge to a marker out of view, as the game's
 M.ICON = 36             -- design pixels, a stratagem icon
 M.HOVER = 70            -- design pixels from the crosshair that bring up the words
-M.HOVER_DIM = 0.5       -- a hovered marker's line and diamond, of their opacity
-M.DIM_RATE = 12         -- how fast they fade there and back, per second
 M.MAP_ICON = 26         -- design pixels, a map marker's icon in the level
 M.TEXT = 20             -- design pixels, the words' size
 M.ENEMY_TEXT = { 255, 178, 170 } -- an enemy's name: light red
-M.PULSE_LIGHT = 0.2     -- the dash up the line: the marker's colour this much toward white
-M.INSET = 30            -- design pixels from the screen edge for a marker out of view
 M.POLL = 0.25           -- seconds between two looks at what teammates share
 M.LAYER = 475
 M.SHARE = "ping"
@@ -59,7 +66,10 @@ M.COLORS = {
 	enemy = { 235, 45, 35 },
 	objective = { 255, 196, 51 },
 	support = { 80, 165, 255 },
+	ammo = { 80, 165, 255 },
+	sample = { 255, 255, 255 },
 }
+M.LIFTS = { support = "SUPPORT_LINE", ammo = "SUPPORT_LINE" }
 
 local floor, sqrt, max, min = math.floor, math.sqrt, math.max, math.min
 local function g(name) return rawget(_G, name) end
@@ -85,7 +95,7 @@ end
 -- The words of a ping.
 function M.message(kind, name, metres)
 	if kind == "enemy" then return string.format("%s, %d m", name or "Enemy", floor((metres or 0) + 0.5)) end
-	if kind == "objective" or kind == "support" then return (name or "Objective") .. " here" end
+	if kind == "objective" or kind == "support" or kind == "ammo" or kind == "sample" then return (name or "Objective") .. " here" end
 	return "Look here"
 end
 
@@ -163,12 +173,26 @@ function M.body(lift)
 	return max(0, (lift or M.ABOVE_ENEMY) - M.OVER_BOX) / 2
 end
 
--- The opacity share of a marker's line and diamond, eased by dt toward HOVER_DIM while hovered and back
--- to 1 after.
-function M.dim(current, hovered, dt)
-	local want = hovered and M.HOVER_DIM or 1
-	current = current or 1
-	return current + (want - current) * min(1, M.DIM_RATE * (dt or 0))
+-- Where a marker shows on a w by h screen, as the game places the markers of allies: a point in front
+-- inside the margins (mx, my pixels from the sides and from the top and bottom) where it is; one in
+-- front past them clamped to them; one behind on the margins, along the way to turn. Answers on (in
+-- view), x, y, with y up.
+function M.place(cam, p, w, h, mx, my)
+	local on, x, y, dx, dy = edge.locate(cam, p, w, h, 0)
+	mx, my = min(mx, w / 2), min(my, h / 2)
+	if on and x >= mx and x <= w - mx and y >= my and y <= h - my then return true, x, y end
+	local d = { x = p.x - cam.position.x, y = p.y - cam.position.y, z = p.z - cam.position.z }
+	local z = d.x * cam.forward.x + d.y * cam.forward.y + d.z * cam.forward.z
+	if z > 1e-3 then
+		return false, max(mx, min(w - mx, w / 2 + dx / z)), max(my, min(h - my, h / 2 + dy / z))
+	end
+	local ex, ey = edge.edge(dx, dy, w - 2 * mx, h - 2 * my, 0, 0)
+	return false, ex + mx, ey + my
+end
+
+-- One of the stratagem arrow sounds, at random.
+function M.arrow(r)
+	return M.ARROWS[min(#M.ARROWS, floor((r or math.random()) * #M.ARROWS) + 1)]
 end
 
 -- The ground under (x, y): the highest static surface below `from` metres up, or nil.
@@ -179,11 +203,6 @@ function M.ground(world, x, y, from)
 		"closest", "types", "statics", "collision_filter", "default")
 	if ok and hit and pos then return pos.z end
 	return nil
-end
-
--- A colour this share of the way toward white.
-function M.lighter(c, share)
-	return { c[1] + (255 - c[1]) * share, c[2] + (255 - c[2]) * share, c[3] + (255 - c[3]) * share }
 end
 
 -- Whether the ping key may ping now: in third person, the Helldiver alive or down, or dead with the
@@ -261,8 +280,11 @@ function M.target(env)
 		return { kind = "enemy", unit = u, pos = plain(g("Unit").world_position(u, 0)), name = enemy_name(api, u) }
 	end
 	if api.world and api.world.pickups then
-		local got, list = pcall(api.world.pickups, point, M.PICKUP_REACH, { "weapon_pickup", "backpack_pickup" })
+		local got, list = pcall(api.world.pickups, point, M.PICKUP_REACH, { "weapon_pickup", "backpack_pickup", "ammo_pickup" })
 		local pick = got and type(list) == "table" and list[1]
+		if pick and pick.kind == "ammo_pickup" then
+			return { kind = "ammo", pos = pick.position, unit = pick.unit, icon = M.RESUPPLY_ICON, name = M.trim(text_of(api, "stratagem_resupply")) }
+		end
 		if pick then
 			local strat = pick.stratagem
 			local entry = nil
@@ -276,6 +298,19 @@ function M.target(env)
 				return { kind = "support", pos = pick.position, unit = pick.unit, icon = entry.icon, name = M.trim(text_of(api, entry.name)) }
 			end
 		end
+	end
+	local samples = {}
+	local okS, slaves = pcall(api.game.slaves, "research_sample_pickup")
+	if okS and type(slaves) == "table" then
+		local U = g("Unit")
+		for unit in pairs(slaves) do
+			local okp, q = pcall(function() return U.alive(unit) and U.world_position(unit, 0) end)
+			if okp and q then samples[#samples + 1] = { x = q.x, y = q.y, z = q.z, unit = unit } end
+		end
+	end
+	local sample = M.nearest(samples, point, M.SAMPLE_REACH)
+	if sample then
+		return { kind = "sample", pos = { x = sample.x, y = sample.y, z = sample.z }, unit = sample.unit, name = "Sample" }
 	end
 	local st = api.game.state and api.game.state()
 	local mm = type(st) == "table" and st.mission_manager
@@ -296,8 +331,10 @@ function M.target(env)
 	return { kind = "ground", pos = { x = point.x, y = point.y, z = point.z } }
 end
 
--- The chat's sound, on this machine only, through the game's own call. Answers whether it played.
-function M.sound(api)
+-- The chat's sound, on this machine only, through the game's own call, and for an enemy one of the
+-- stratagem arrow sounds over it. Answers whether the chat's sound played.
+function M.sound(api, kind)
+	if kind == "enemy" and api.audio and api.audio.play then pcall(api.audio.play, M.arrow()) end
 	local st = api.game.state and api.game.state()
 	local chat = type(st) == "table" and st.text_chat
 	if type(chat) ~= "table" or type(chat.play_chat_sound) ~= "function" then return false end
@@ -323,7 +360,8 @@ function M.start(env)
 		return api and api.game and api.game.in_mission and api.game.in_mission()
 	end
 
-	obsidian.keybind("ping", function()
+	-- A ping at what the crosshair is on, as the key gives; kept as M.fire for tests in the game.
+	local function fire()
 		if not M.may_ping(on, env.state) then return end
 		local api = env.api
 		if not in_mission(api) then return end
@@ -347,9 +385,12 @@ function M.start(env)
 		markers.me = { kind = t.kind, pos = t.pos, unit = t.kind == "enemy" and t.unit or nil, icon = t.icon, words = words,
 			name = t.name, age = 0 }
 		count = count + 1
-		M.sound(api)
+		M.sound(api, t.kind)
 		if api.lobby and api.lobby.share then pcall(api.lobby.share, M.SHARE, M.encode(count, t.kind, t.pos, t.icon, words)) end
-	end, env.KEY_VIEW or env.VIEW)
+		return t.kind
+	end
+	M.fire = fire
+	obsidian.keybind("ping", fire, env.KEY_VIEW or env.VIEW)
 
 	-- Teammates' pings, from what they share.
 	local function listen(api)
@@ -368,7 +409,7 @@ function M.start(env)
 					m.unit = got and type(near) == "table" and near[1] or nil
 				end
 				markers[peer] = m
-				M.sound(api)
+				M.sound(api, p.kind)
 			end
 		end
 		primed = true
@@ -379,7 +420,7 @@ function M.start(env)
 
 	local function rgba(c, a) return { c[1], c[2], c[3], floor(255 * a + 0.5) } end
 
-	local function quad(x1, y1, x2, y2, half, color)
+	local function quad(x1, y1, x2, y2, half, color, outline, width)
 		local dx, dy = x2 - x1, y2 - y1
 		local len = sqrt(dx * dx + dy * dy)
 		if len < 0.5 then return end
@@ -387,6 +428,7 @@ function M.start(env)
 		line[1], line[2], line[3], line[4] = x1 + px, y1 + py, x2 + px, y2 + py
 		line[5], line[6], line[7], line[8] = x2 - px, y2 - py, x1 - px, y1 - py
 		kit:poly(line, color)
+		if outline then kit:outline(line, outline, width) end
 	end
 
 	local function draw_diamond(x, y, r, c, a)
@@ -438,43 +480,39 @@ function M.start(env)
 			else
 				local U = g("Unit")
 				if m.unit then
-					local okp, p = pcall(function() return U.alive(m.unit) and is_enemy(m.unit) and U.world_position(m.unit, 0) end)
+					local okp, p = pcall(function() return U.alive(m.unit) and (m.kind ~= "enemy" or is_enemy(m.unit)) and U.world_position(m.unit, 0) end)
 					if okp and p then m.pos = plain(p) else m.unit = nil end
 				end
 				local c = m.color or M.COLORS[m.kind] or M.COLORS.ground
-				-- The line and the diamond or icon, dimmed while hovered (m.dim, from the frame before).
-				local la = a * (m.dim or 1)
-				if m.unit then m.lift = top_of(m.unit) end
-				local lift = m.kind == "enemy" and (m.lift or M.ABOVE_ENEMY) or m.kind == "support" and M.SUPPORT_LINE or M.LINE
+				local la = a
+				if m.unit and m.kind == "enemy" then m.lift = top_of(m.unit) end
+				local lift = m.kind == "enemy" and (m.lift or M.ABOVE_ENEMY) or M.LIFTS[m.kind] and M[M.LIFTS[m.kind]] or M.LINE
 				-- An enemy's line rises from the middle of its body, anything else's from the ground.
 				local from = m.kind == "enemy" and M.body(lift) or 0
 				local base = { x = m.pos.x, y = m.pos.y, z = m.pos.z + from }
 				local top = { x = m.pos.x, y = m.pos.y, z = m.pos.z + from + (lift - from) * M.rise(m.age) }
-				local inset = M.INSET * s
-				local on_top, tx, ty, dx, dy = edge.locate(cam, top, w, h, inset)
 				local r = M.DIAMOND * s * M.pop(m.age)
-				local icon_size = m.kind == "map" and M.MAP_ICON * s * M.pop(m.age) or nil
+				local icon_size = m.kind == "map" and M.MAP_ICON * s * M.pop(m.age)
+					or m.kind == "sample" and M.SAMPLE_ICON * s * M.pop(m.age) or nil
+				local half = icon_size and icon_size / 2 or (m.icon and M.ICON * s / 2) or r
+				local on_top, tx, ty = M.place(cam, top, w, h, M.EDGE_X + half, M.EDGE_Y + half)
 				if on_top then
 					local bx, depth, by = frustum.project(cam, base, w, h)
-					local t = (m.age % 1)
-					local pulse = M.lighter(c, M.PULSE_LIGHT)
-					-- A map marker's line stops under its icon, which the HUD draws under the canvas.
+					-- A line under an icon the HUD draws stops under it: the HUD is under the canvas.
 					local ey = icon_size and ty - icon_size / 2 or ty
 					if depth > 0.1 and not M.NO_LINE[m.kind] and (not icon_size or ey > by) then
-						quad(x0 + bx, y0 + by, x0 + tx, y0 + ey, 1.5 * s, rgba(c, 0.85 * la))
-						-- A dash, a little lighter than the line and thicker, running up it once a second.
-						local px, py = bx + (tx - bx) * t, by + (ey - by) * t
-						local qx, qy = bx + (tx - bx) * min(1, t + 0.15), by + (ey - by) * min(1, t + 0.15)
-						quad(x0 + px, y0 + py, x0 + qx, y0 + qy, 2.5 * s, rgba(pulse, la))
+						quad(x0 + bx, y0 + by, x0 + tx, y0 + ey, 1.5 * s, rgba(c, 0.85 * la),
+							{ 0, 0, 0, floor(200 * M.LINE_EDGE * la) }, max(1, 0.5 * s))
 					end
-				else
-					tx, ty = edge.edge(dx, dy, w, h, inset, inset)
 				end
 				local cx, cy = x0 + tx, y0 + ty
 				if icon_size then
-					icons[#icons + 1] = { icon = compass.PING_ICON, x = cx, y = cy, size = icon_size, alpha = floor(255 * la),
-						color = m.light, edge = max(1, compass.PING_EDGE * s) }
-				elseif m.kind == "support" and m.icon then
+					local sample = m.kind == "sample"
+					icons[#icons + 1] = { icon = sample and M.SAMPLE_TEXTURE or compass.PING_ICON, x = cx, y = cy, size = icon_size,
+						alpha = floor(255 * la), color = not sample and m.light or nil,
+						edge = sample and max(1, M.SAMPLE_EDGE * s) or max(1, compass.PING_EDGE * s),
+						edge_alpha = sample and floor(255 * la * M.SAMPLE_EDGE) or nil }
+				elseif m.icon then
 					local size = M.ICON * s * M.pop(m.age)
 					if not kit:icon(m.icon, cx - size / 2, cy - size / 2, size, size, { 255, 255, 255, floor(255 * la) }) then
 						draw_diamond(cx, cy, r, c, la)
@@ -489,12 +527,10 @@ function M.start(env)
 					local hx, hy = cx - cross.x, cy - cross.y
 					hovered = hx * hx + hy * hy <= (M.HOVER * s) ^ 2
 				end
-				m.dim = M.dim(m.dim, hovered, dt)
 				if hovered then
 					do
 						local size = M.TEXT * s
 						local d = max(1, floor(size / 14))
-						local half = icon_size and icon_size / 2 or (m.kind == "support" and m.icon) and M.ICON * s / 2 or r
 						local name = m.kind ~= "map" and M.label(m.kind, m.name, m.words) or nil
 						local na = a
 						if name and na > 0 then

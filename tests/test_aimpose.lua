@@ -11,6 +11,14 @@ return {
 		eq(a.bend(0, -80), -a.MAX, "and down")
 	end },
 
+	{ "a point close under the hand still bends down, to the limit; no point at all gives nothing to hold", function()
+		local a = obsidian.module("src/aimpose")
+		local f, p = { x = 0, y = 1, z = 0 }, { x = 0, y = 0, z = 1.4 }
+		eq(a.target_bend(f, p, { x = 0, y = 0.5, z = 0 }), -a.MAX, "looking far down, 0.5 m ahead: bent down all the way")
+		eq(a.target_bend(f, p, { x = 0, y = 0.01, z = 0 }), nil, "straight under the hand")
+		eq(a.target_bend(f, p, nil), nil)
+	end },
+
 	{ "a bone that still holds last frame's bend goes back; one the animation moved stays", function()
 		local a = obsidian.module("src/aimpose")
 		local bones = { [1] = { 0, 0, 0.3, 0.95 }, [2] = { 0.5, 0, 0, 0.87 } }

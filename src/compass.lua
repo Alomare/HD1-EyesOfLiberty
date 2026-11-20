@@ -261,7 +261,7 @@ function M.draw_icons(hud)
 				local x, y = i.x - i.size / 2, i.y - i.size / 2
 				local z = layer
 				if i.edge then
-					local black = C(i.alpha, 0, 0, 0)
+					local black = C(i.edge_alpha or i.alpha, 0, 0, 0)
 					for _, d in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 0.7, 0.7 }, { -0.7, 0.7 }, { 0.7, -0.7 }, { -0.7, -0.7 } }) do
 						image(i, x + d[1] * i.edge, y + d[2] * i.edge, z, black)
 					end
