@@ -91,8 +91,8 @@ local export = { version = obsidian.version or "0.13.1" }
 -- pixels from the bottom left (the coordinates of obsidian.ui.canvas). aiming: the aim button is held;
 -- firing (since 0.4.2): fire or a throw is held, which also brings up the aiming cursor of the game in
 -- the top-down view. fade (since 0.6.0): from 1 down to 0 as the Helldiver sprints; a crosshair drawn
--- there fades with it. armed (since 0.14.0): false while the Helldiver can't shoot (dead, down,
--- carrying, in the Hellpod, putting in a stratagem, on the map, the death cam); a crosshair drawn there
+-- there fades with it. armed (since 0.14.0): false while the Helldiver can't shoot (dead, in the
+-- Hellpod, putting in a stratagem, on the map, the death cam); a crosshair drawn there
 -- hides then. nil while the top-down camera is on.
 function export.crosshair()
 	if not state.active or not state.crosshair then return nil end

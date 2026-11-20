@@ -11,9 +11,9 @@
 -- main.lua, as Custom Crosshair does) turns this one off. While sprinting the crosshair fades out
 -- (state.sprint_fade, from src/camera.lua), and the export hands the same fade to the other mod.
 --
--- A crosshair shows only while the Helldiver can shoot (state.armed, set each pose): alive, not down,
--- not carrying, not dropping in the Hellpod, not putting in a stratagem, the map shut and the death cam
--- off. The export hands the same flag to the other mod, so its crosshair hides at the same moments.
+-- A crosshair shows only while the Helldiver can shoot (state.armed, set each pose): alive, not dropping
+-- in the Hellpod, not putting in a stratagem, the map shut and the death cam off. Down and carrying,
+-- the Helldiver still shoots, and the crosshair stays. The export hands the same flag to the other mod, so its crosshair hides at the same moments.
 local scoped = obsidian.module("src/scoped")
 local art = obsidian.module("src/art")
 
@@ -34,11 +34,9 @@ function M.always_on()
 end
 
 -- Whether a Helldiver can shoot, from the HUD state the game shows for it (CharacterComponent.get_hud_state:
--- "normal", "dead", "map", "stratagems" or a vehicle's own), whether it's down and whether it carries
--- something in both hands.
-function M.can_shoot(hud, downed, carrying)
-	if hud == "dead" or hud == "map" or hud == "stratagems" then return false end
-	return not downed and not carrying
+-- "normal", "dead", "map", "stratagems" or a vehicle's own).
+function M.can_shoot(hud)
+	return not (hud == "dead" or hud == "map" or hud == "stratagems")
 end
 
 -- Whether the Helldiver of the view can shoot now (M.can_shoot), out of the death cam and the Hellpod.
@@ -51,18 +49,11 @@ function M.armed(env, view)
 		local ok, h = pcall(cc.get_hud_state, unit)
 		if ok then hud = h end
 	end
-	local downed, carrying = false, false
 	if EA then
 		local ok, hs = pcall(EA.state, unit, "health")
-		if ok and type(hs) == "table" then
-			if hs.is_dead then return false end
-			downed = hs.is_downed == true
-		end
-		local carry = g("CharacterStateCarry")
-		local got, cs = pcall(EA.state, unit, "character")
-		carrying = got and type(cs) == "table" and carry ~= nil and cs.current_state == carry or false
+		if ok and type(hs) == "table" and hs.is_dead then return false end
 	end
-	return M.can_shoot(hud, downed, carrying)
+	return M.can_shoot(hud)
 end
 
 -- Which cursor shows now: "aim", "idle" or nil. env.api may be nil. always: the game option above.

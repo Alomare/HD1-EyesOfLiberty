@@ -13,8 +13,8 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - New: Explosion kick. A blast nearby knocks the camera: it rolls away, tips up and rises, then springs back. Bigger blasts kick harder and from farther; blasts in a row kick less each time.
 - Fixed: The Helldiver no longer disappears high in a jump pack flight while the backpack and weapons stay.
 - New: Map markers show on the compass, one per player, with the map marker icon in the colour of that player, for as long as the marker is on the map.
-- New: Alarm effect. During an alarm, the screen edges throb red, broad red stripes flash up both sides of the screen and settle to a faint glow, and the compass turns dark red. It replaces the red overlay of the game, which often showed shrunk in third person. An option turns it off.
-- Changed: The crosshair shows only while the Helldiver can shoot: not while dead, down, carrying, dropping in the Hellpod, putting in a stratagem or looking at the map.
+- New: Alarm effect. During an alarm, the screen edges pulse red once, and broad red stripes flash up both sides of the screen and settle to a faint glow. It replaces the red overlay of the game, which often showed shrunk in third person. An option turns it off.
+- Changed: The crosshair shows only while the Helldiver can shoot: not while dead, dropping in the Hellpod, putting in a stratagem or looking at the map.
 - Fixed: Pinging a dropped support weapon or pack marks it again. Needs Obsidian API 1.55.1.
 
 ## 0.13.1

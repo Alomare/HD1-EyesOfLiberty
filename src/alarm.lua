@@ -3,28 +3,28 @@
 -- particle is sized for the top-down view, and widened for the shoulder view (src/camera.lua) it
 -- still came out shrunk now and then. So in third person the game's overlay is kept out of sight
 -- (linked at a scale of nothing, put back as it was in the top-down view) and this one shows instead:
---   - the screen edges throb red ("eol_hurt" of the mod's art), a sharp beat and a slow fall, as a siren;
+--   - the screen edges pulse red once ("eol_hurt" of the mod's art) as the alarm sounds, and fade
+--     off over PULSE_FADE seconds;
 --   - broad red hazard stripes run up each side of the screen, strongest at the edge and fading out
 --     toward the middle: at full strength as the alarm sounds, down to REST of it over SETTLE seconds.
--- It fades in over FADE_IN seconds when the alarm starts and out over FADE_OUT when it ends. The compass
--- (src/compass.lua) turns dark red for as long as M.level is up.
+-- It fades in over FADE_IN seconds when the alarm starts and out over FADE_OUT when it ends.
 -- The overlay is the Alarm effect option; off, the game's own overlay shows as before.
 local art = obsidian.module("src/art")
 
 local M = {}
 
-M.COLOR = { 205, 18, 12 }     -- the throb at the edges
+M.COLOR = { 205, 18, 12 }     -- the pulse at the edges
 M.STRIPE = { 200, 18, 12 }    -- the hazard stripes
 M.STRIPE_ALPHA = 200          -- out of 255, a stripe at the screen edge at full strength
-M.BEAT = 1.1                  -- seconds from one beat to the next
-M.ATTACK = 0.12               -- share of a beat taken by the rise
-M.EDGE_LOW, M.EDGE_HIGH = 70, 200 -- alpha of the edges between beats and at a beat, out of 255
-M.BAND = 150                  -- design pixels, how far in from the edge the stripes reach
+M.ATTACK = 0.12               -- seconds the pulse takes to rise
+M.PULSE_FADE = 3              -- seconds the pulse takes to fade off after
+M.EDGE = 220                  -- alpha of the edges at the height of the pulse, out of 255
+M.BAND = 120                  -- design pixels, how far in from the edge the stripes reach
 M.SLICES = 10                 -- steps of the fade from the edge to the inside of a band
-M.PERIOD = 80                 -- design pixels from one stripe to the next
-M.WIDTH = 36                  -- design pixels, a stripe
+M.PERIOD = 64                 -- design pixels from one stripe to the next
+M.WIDTH = 29                  -- design pixels, a stripe
 M.SCROLL = 40                 -- design pixels a second the stripes move
-M.REST, M.SETTLE = 0.2, 5     -- the stripes settle to REST of full strength over SETTLE seconds
+M.REST, M.SETTLE = 0.2, 3     -- the stripes settle to REST of full strength over SETTLE seconds
 M.FADE_IN, M.FADE_OUT = 0.1, 0.8
 M.EDGE_LAYER = 57             -- the art gui, under the hurt flash (60)
 M.LAYER = 450                 -- the bands, on the canvas under the compass (465)
@@ -49,11 +49,12 @@ function M.up(particles, live)
 	return false
 end
 
--- The beat at `t` seconds, 0 to 1: a quick rise, then a slow fall.
-function M.beat(t)
-	local f = (t % M.BEAT) / M.BEAT
-	if f < M.ATTACK then return f / M.ATTACK end
-	local d = 1 - (f - M.ATTACK) / (1 - M.ATTACK)
+-- The pulse of the edges `t` seconds after the alarm sounded, 0 to 1: a quick rise, then a fall to
+-- nothing over PULSE_FADE seconds.
+function M.pulse(t)
+	if t < 0 then return 0 end
+	if t < M.ATTACK then return t / M.ATTACK end
+	local d = math.max(0, 1 - (t - M.ATTACK) / M.PULSE_FADE)
 	return d * d
 end
 
@@ -145,12 +146,12 @@ function M.start(env)
 		if not (w and h and w > 0 and h > 0) then return end
 		x0, y0 = x0 or 0, y0 or 0
 		local s = h / M.H
-		local beat = M.beat(M.clock)
+		local pulse = M.pulse(M.since)
 		local level = M.level
-		-- The edges throb.
+		-- The edges pulse once.
 		local gui = art.gui()
-		if gui then
-			local a = (M.EDGE_LOW + (M.EDGE_HIGH - M.EDGE_LOW) * beat) * level
+		if gui and pulse > 0.004 then
+			local a = M.EDGE * pulse * level
 			local c = M.COLOR
 			art.draw(gui, "eol_hurt", x0, y0, w, h, M.EDGE_LAYER, math.floor(a + 0.5), c[1], c[2], c[3])
 		end

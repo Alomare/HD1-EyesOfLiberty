@@ -14,9 +14,7 @@
 -- Map markers: each player's marker on the map (the "map_ping" field of the player's game object, in
 -- the map's own coordinates, { -1000, -1000 } for none) shows at its bearing for as long as it is on
 -- the map, with the map's marker icon in the player's colour made lighter, outlined in black.
--- Alarm: while src/alarm.lua is up, the panel turns dark red.
 local radar = obsidian.module("src/radar")
-local alarm = obsidian.module("src/alarm")
 
 local M = {}
 
@@ -45,7 +43,6 @@ M.PING_ICON = "map_marker_ping"
 M.PING = 24             -- design pixels, a map marker
 M.PING_LIGHT = 0.45     -- the player's colour this far toward white
 M.PING_EDGE = 1.5       -- design pixels of black around a map marker
-M.ALARM_TINT = { 200, 40, 30 } -- the panel's tint at the height of an alarm (white otherwise)
 
 local atan2, deg, floor = math.atan2, math.deg, math.floor
 
@@ -139,8 +136,7 @@ end
 
 -- The game -----------------------------------------------------------------------------------------
 
--- What to draw this frame on the HUD's gui, in window pixels: the panel ({ x, y, w, h, s, alarm,
--- clock }) and the map icons ({ icon, x, y, size, alpha, color, edge } each: color { r, g, b } or white,
+-- What to draw this frame on the HUD's gui, in window pixels: the panel ({ x, y, w, h, s }) and the map icons ({ icon, x, y, size, alpha, color, edge } each: color { r, g, b } or white,
 -- edge the black outline in pixels or none).
 M.icons = nil
 M.panel = nil
@@ -156,10 +152,7 @@ function M.draw_icons(hud)
 	local ok, err = pcall(function()
 		if panel then
 			local x, y, w, h, f = panel.x, panel.y, panel.w, panel.h, 2 * panel.s
-			local a = panel.alarm or 0
-			local t = M.ALARM_TINT
-			local function mix(v) return math.floor(255 + (v - 255) * a + 0.5) end
-			gui:image("basicbox_01", V3(x, y, M.PANEL_LAYER), V2(w, h), C(204 + math.floor(36 * a + 0.5), mix(t[1]), mix(t[2]), mix(t[3])),
+			gui:image("basicbox_01", V3(x, y, M.PANEL_LAYER), V2(w, h), C(204, 255, 255, 255),
 				V2(M.BOX_UV[1], M.BOX_UV[2]), V2(M.BOX_UV[3], M.BOX_UV[4]))
 			local frame = C(255, 93, 92, 86)
 			gui:rect(V3(x, y, M.PANEL_LAYER + 1), V2(w, f), frame)
@@ -233,7 +226,7 @@ function M.start(env)
 		local B = M.BOX
 		local bw, bh = B.w * s, B.h * s
 		local x, y = ox + (M.W - B.w) / 2 * s, oy + (M.H - B.top - B.h) * s
-		M.panel = { x = x, y = y, w = bw, h = bh, s = s, alarm = alarm.level }
+		M.panel = { x = x, y = y, w = bw, h = bh, s = s }
 		local tx, tw = x + B.inset * s, bw - 2 * B.inset * s
 		local mid, cy = tx + tw / 2, y + bh / 2
 		local heading = M.bearing(view.forward.x, view.forward.y)
