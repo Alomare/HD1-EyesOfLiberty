@@ -2,7 +2,7 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
-## Next
+## 0.15.1
 
 - Fixed: Weapon follows aim bends the Helldiver on screen. In 0.15.0 the bend came after the frame was drawn, so the weapon stayed level.
 - Changed: The ammo bar shows a line between rounds for weapons of up to 50 rounds, up from 40.
