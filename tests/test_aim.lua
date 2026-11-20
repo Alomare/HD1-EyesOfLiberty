@@ -120,6 +120,20 @@ return {
 		E.remove()
 	end },
 
+	{ "a pad turns the view while another window is in front, the mouse doesn't", function()
+		E.install()
+		local cam = obsidian.module("src/camera")
+		Window.has_focus = function() return false end
+		local pad = cam.read_input(nil, "me", { state = { pad_number = 0, has_focus = true,
+			input_data = { is_active = true, fire_button = 0, throw = 0, aim = { x = 1, y = 0, z = 0 } } } }, false, 0.016)
+		eq(pad.look, true, "pad: split-screen windows in the back still turn the view")
+		eq(pad.stick and pad.stick.x, 1, "the stick goes through")
+		local mouse = cam.read_input(nil, "me", { state = { pad_number = 99, has_focus = true,
+			input_data = { is_active = true, fire_button = 0, throw = 0 } } }, false, 0.016)
+		eq(mouse.look, false, "mouse: the window must be in front")
+		E.remove()
+	end },
+
 	{ "the queued aim command of this player is steered", function()
 		local e, env = started()
 		local masters = E.player(e, "me", { aiming = true })

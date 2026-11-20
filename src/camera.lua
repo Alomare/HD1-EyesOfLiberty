@@ -188,7 +188,10 @@ function M.read_input(self, unit, ctx, shared, dt)
 			if ok then hud = h end
 		end
 	end
-	local focused = M.has_focus()
+	-- The window focus matters to the mouse only, which the view holds in the middle of the screen. The
+	-- game reads a pad whatever window is in front, and so does the view: split-screen tools such as
+	-- Nucleus Co-op run one game window per player, and only one of them is ever in front.
+	local focused = not kbm or M.has_focus()
 	local active = type(data) == "table" and data.is_active and st.has_focus
 	local look = active and focused and not st.character_input_disabled and hud ~= "map" and not st.show_menu_cursor
 		and not st.mouse_aim_disabled and true or false
