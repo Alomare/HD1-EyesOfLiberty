@@ -445,7 +445,8 @@ local function relink(cm, name, info, scale)
 	end
 	local world = world_of(cm)
 	local m = M4.identity()
-	local sx, sy, sz = M.particle_axes(info.aspect, scale)
+	local sx, sy, sz
+	if scale == 0 then sx, sy, sz = 1e-4, 1e-4, 1e-4 else sx, sy, sz = M.particle_axes(info.aspect, scale) end
 	M4.set_element(m, 1, 1, sx)
 	M4.set_element(m, 2, 2, sy)
 	M4.set_element(m, 3, 3, sz)
@@ -454,9 +455,14 @@ local function relink(cm, name, info, scale)
 end
 
 -- Each frame of the shoulder view: view_fov in radians. scale 1 puts them back as the game had them.
+-- With M.hide_alarm (the Alarm effect option, src/alarm.lua), the game's alarm overlay is linked at a
+-- scale of nothing while the shoulder view draws, as the mod draws its own; the top-down view (view_fov
+-- nil) puts it back.
+M.hide_alarm = false
 function M.fit_particles(cm, view_fov)
-	local scale = view_fov and M.particle_scale(view_fov, cm.fov) * M.PARTICLE_MARGIN or 1
+	local wide = view_fov and M.particle_scale(view_fov, cm.fov) * M.PARTICLE_MARGIN or 1
 	for name, info in pairs(M.particles) do
+		local scale = (view_fov and info.alarm and M.hide_alarm) and 0 or wide
 		if math.abs((info.scale or 1) - scale) > 0.005 then
 			local ok = pcall(relink, cm, name, info, scale)
 			if not ok then M.particles[name] = nil end
@@ -983,7 +989,7 @@ function M.start(env)
 				local ok, w, h = pcall(function() return self.viewport:window() end)
 				if ok and type(w) == "number" and type(h) == "number" and h > 0 then aspect = (w / h) / 1.777778 end
 			end
-			M.particles[name] = { aspect = aspect, scale = 1 }
+			M.particles[name] = { aspect = aspect, scale = 1, alarm = type(effect) == "string" and effect:find("alarm", 1, true) ~= nil }
 		end
 		return unpack(r, 1, r.n)
 	end, env.VIEW)

@@ -56,7 +56,7 @@ local env = {
 config.start(env)
 
 local started = {}
-for _, name in ipairs({ "src/art", "src/camera", "src/aim", "src/blocked", "src/body", "src/crosshair", "src/view", "src/radar", "src/hits", "src/hurt", "src/look", "src/edge", "src/compass", "src/ping", "src/arc", "src/ammobar", "src/kick", "src/session" }) do
+for _, name in ipairs({ "src/art", "src/camera", "src/aim", "src/blocked", "src/body", "src/crosshair", "src/view", "src/radar", "src/hits", "src/hurt", "src/look", "src/edge", "src/compass", "src/ping", "src/arc", "src/ammobar", "src/alarm", "src/kick", "src/session" }) do
 	local ok, err = pcall(function()
 		local m = obsidian.module(name)
 		if m and m.start then m.start(env) end
@@ -91,11 +91,13 @@ local export = { version = obsidian.version or "0.13.1" }
 -- pixels from the bottom left (the coordinates of obsidian.ui.canvas). aiming: the aim button is held;
 -- firing (since 0.4.2): fire or a throw is held, which also brings up the aiming cursor of the game in
 -- the top-down view. fade (since 0.6.0): from 1 down to 0 as the Helldiver sprints; a crosshair drawn
--- there fades with it. nil while the top-down camera is on.
+-- there fades with it. armed (since 0.14.0): false while the Helldiver can't shoot (dead, down,
+-- carrying, in the Hellpod, putting in a stratagem, on the map, the death cam); a crosshair drawn there
+-- hides then. nil while the top-down camera is on.
 function export.crosshair()
 	if not state.active or not state.crosshair then return nil end
 	return { x = state.crosshair.x, y = state.crosshair.y, aiming = state.aiming, firing = state.firing,
-		vehicle = state.vehicle, fade = state.sprint_fade or 1 }
+		vehicle = state.vehicle, fade = state.sprint_fade or 1, armed = state.armed ~= false }
 end
 
 -- Another mod draws the crosshair from now on (Custom Crosshair does this). Eyes of Liberty

@@ -39,6 +39,8 @@ return {
 		eq(b.stop(origin, point, {}), nil, "a clear way")
 		eq(b.stop(origin, { x = 0, y = 1, z = 1.5 }, { { distance = 0.5, position = wall } }), nil, "a point too close to tell")
 		eq(b.stop(origin, point, { { distance = 0.01, position = wall } }), nil, "a hit at the start doesn't count")
+		eq(b.stop(origin, point, { { distance = 8, position = wall } }), nil, "a block 8 m out: the target's cover, no mark")
+		eq(b.stop(origin, point, { { distance = 5.9, position = wall } }), wall, "within 6 m: marked")
 		local s = b.strokes(100, 100, 1080)
 		eq(#s, 2) eq(s[1][1], 100 - b.SIZE) eq(s[1][4], 100 + b.SIZE, "two diagonal strokes")
 	end },

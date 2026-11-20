@@ -6,12 +6,16 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 
 - Changed: The line of an enemy ping starts at the middle of the enemy's body again, not at the ground.
 - Changed: An enemy ping shows the enemy's name after the crosshair stays on it for one second.
-- New: Blocked shot mark. A small red X marks where shots would land when something between the weapon and the crosshair would stop them.
+- New: Blocked shot mark. A small red X marks where shots would land when something within 6 m of the weapon, between it and the crosshair, would stop them.
 - New: Ammo bar. A short arc by the crosshair shows the magazine, laser heat or arc charge, in the style of the Better HUD ammo circle, with options for position, shape and scale. The Better HUD ammo circle stays hidden while the bar is on.
 - New: Scroll camera distance option, off by default. The mouse wheel moves the camera closer or farther on foot instead of switching weapons.
 - New: The Helldiver is hidden while the camera is pressed against it, by a wall or in a tight corner.
 - New: Explosion kick. A blast nearby knocks the camera: it rolls away, tips up and rises, then springs back. Bigger blasts kick harder and from farther; blasts in a row kick less each time.
 - Fixed: The Helldiver no longer disappears high in a jump pack flight while the backpack and weapons stay.
+- New: Map markers show on the compass, one per player, with the map marker icon in the colour of that player, for as long as the marker is on the map.
+- New: Alarm effect. During an alarm, the screen edges throb red, broad red stripes flash up both sides of the screen and settle to a faint glow, and the compass turns dark red. It replaces the red overlay of the game, which often showed shrunk in third person. An option turns it off.
+- Changed: The crosshair shows only while the Helldiver can shoot: not while dead, down, carrying, dropping in the Hellpod, putting in a stratagem or looking at the map.
+- Fixed: Pinging a dropped support weapon or pack marks it again. Needs Obsidian API 1.55.1.
 
 ## 0.13.1
 

@@ -10,6 +10,10 @@
 -- the mod's art (src/art.lua). Another mod that draws the crosshair (claim_crosshair in
 -- main.lua, as Custom Crosshair does) turns this one off. While sprinting the crosshair fades out
 -- (state.sprint_fade, from src/camera.lua), and the export hands the same fade to the other mod.
+--
+-- A crosshair shows only while the Helldiver can shoot (state.armed, set each pose): alive, not down,
+-- not carrying, not dropping in the Hellpod, not putting in a stratagem, the map shut and the death cam
+-- off. The export hands the same flag to the other mod, so its crosshair hides at the same moments.
 local scoped = obsidian.module("src/scoped")
 local art = obsidian.module("src/art")
 
@@ -29,10 +33,43 @@ function M.always_on()
 	return ok and on and true or false
 end
 
+-- Whether a Helldiver can shoot, from the HUD state the game shows for it (CharacterComponent.get_hud_state:
+-- "normal", "dead", "map", "stratagems" or a vehicle's own), whether it's down and whether it carries
+-- something in both hands.
+function M.can_shoot(hud, downed, carrying)
+	if hud == "dead" or hud == "map" or hud == "stratagems" then return false end
+	return not downed and not carrying
+end
+
+-- Whether the Helldiver of the view can shoot now (M.can_shoot), out of the death cam and the Hellpod.
+function M.armed(env, view)
+	if not view or view.watching or env.state.dropping or not view.avatar then return false end
+	local unit, EA = view.avatar, g("EntityAux")
+	local hud = nil
+	local cc = g("CharacterComponent")
+	if cc and cc.get_hud_state then
+		local ok, h = pcall(cc.get_hud_state, unit)
+		if ok then hud = h end
+	end
+	local downed, carrying = false, false
+	if EA then
+		local ok, hs = pcall(EA.state, unit, "health")
+		if ok and type(hs) == "table" then
+			if hs.is_dead then return false end
+			downed = hs.is_downed == true
+		end
+		local carry = g("CharacterStateCarry")
+		local got, cs = pcall(EA.state, unit, "character")
+		carrying = got and type(cs) == "table" and carry ~= nil and cs.current_state == carry or false
+	end
+	return M.can_shoot(hud, downed, carrying)
+end
+
 -- Which cursor shows now: "aim", "idle" or nil. env.api may be nil. always: the game option above.
 function M.look(env, always)
 	local state = env.state
 	if not state.active or not state.crosshair or state.claimed_by or state.dropping then return nil end
+	if state.armed == false then return nil end
 	if (state.sprint_fade or 1) <= 0.01 then return nil end
 	local camera = env.camera
 	local input = camera and camera.input
@@ -79,6 +116,11 @@ end
 
 function M.start(env)
 	local failed = false
+	env.state.armed = nil
+	table.insert(env.on_pose, function(view)
+		env.state.armed = M.armed(env, view)
+	end)
+	table.insert(env.on_release, function() env.state.armed = nil end)
 	-- The game draws its cursor images while it reads input; the crosshair goes on the same gui then.
 	obsidian.hook("InputComponent", "update_masters", function(original, self, ...)
 		local r = scoped.pack(original(self, ...))

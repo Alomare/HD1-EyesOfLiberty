@@ -1,7 +1,8 @@
 -- The blocked shot mark. Shots start at the Helldiver, not at the camera (src/aim.lua), so over the
 -- shoulder the crosshair can sit on a target while a rock or a wall in front of the weapon takes the
 -- shot. When the way from the shot's start to the crosshair point meets something more than GAP metres
--- short of that point, a small plain red X marks where the shot would land. On foot only, while the
+-- short of that point and less than NEAR metres from the shot's start, a small plain red X marks where
+-- the shot would land. A block farther off is left out: it's the target's own cover, seen as it is. On foot only, while the
 -- crosshair shows (src/crosshair.lua; drawn under another mod's crosshair too).
 local rig = obsidian.module("src/rig")
 local frustum = obsidian.module("src/frustum")
@@ -12,6 +13,7 @@ local M = {}
 local function g(name) return rawget(_G, name) end
 
 M.GAP = 0.75          -- metres short of the crosshair point a hit must be to count as blocked
+M.NEAR = 6            -- metres from the shot's start a hit must be within to count
 M.ORIGIN = { x = 0, y = 0, z = 1.5 } -- where shots start over the root until a weapon reports it
 M.SIZE = 7            -- pixels at 1080 lines from the middle of the X to a tip
 M.WIDTH = 2.2         -- pixels at 1080 lines, the stroke
@@ -32,11 +34,11 @@ end
 
 -- The point where a shot from `origin` to `point` is stopped, given the hits along that way as
 -- { distance, unit, position } (own ones already left out), or nil when nothing stops it more than
--- GAP metres short.
+-- GAP metres short and within NEAR metres of the start.
 function M.stop(origin, point, hits)
 	local length = rig.length(rig.sub(point, origin))
 	if length < 1.5 then return nil end
-	local best, best_d = nil, length - M.GAP
+	local best, best_d = nil, math.min(length - M.GAP, M.NEAR)
 	for _, h in ipairs(hits or {}) do
 		if type(h.distance) == "number" and h.distance > 0.05 and h.distance < best_d then
 			best, best_d = h.position, h.distance
