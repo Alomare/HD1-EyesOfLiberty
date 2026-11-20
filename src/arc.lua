@@ -38,7 +38,7 @@ M.THROW_STATES = { "CharacterStateThrow", "CharacterStateStratagemsThrow", "Char
 	"CharacterStateDownedStratagemsThrow" }
 M.PAUSE = 300
 
-local sqrt, atan2, min, max = math.sqrt, math.atan2, math.min, math.max
+local sqrt, atan2, min, max, floor = math.sqrt, math.atan2, math.min, math.max, math.floor
 
 local function g(name) return rawget(_G, name) end
 
@@ -217,32 +217,66 @@ local function ground_hit(pw)
 	end
 end
 
-function M.draw(hud, env, scale, dt)
+-- After a throw the last arc stays where it was, its dashes still, and fades out over FREEZE seconds.
+M.FREEZE = 1
+M.shown = nil  -- { points, land, scroll, frame } of the arc drawn last
+M.frozen = nil -- { points, land, scroll, t } of a throw, fading
+
+-- How strong a frozen arc shows `t` seconds after the throw, 1 to 0.
+function M.freeze_alpha(t)
+	if t >= M.FREEZE then return 0 end
+	return 1 - math.max(0, t) / M.FREEZE
+end
+
+-- The throw went: the arc shown last freezes, when it was drawn within the last few frames.
+function M.thrown(frame)
+	local s = M.shown
+	if s and frame - s.frame <= 3 then
+		M.frozen = { points = s.points, land = s.land, scroll = s.scroll, t = 0 }
+	end
+	M.shown = nil
+end
+
+function M.draw(hud, env, scale, dt, frame)
 	local held = M.held
 	local gui = hud.hd_gui
 	local view = env.view
 	local cm = g("CameraManager")
-	if not (held and gui and view and view.world and cm and cm.viewport) then return end
+	if not (gui and view and view.world and cm and cm.viewport) then return end
+	local frozen = M.frozen
+	if frozen then
+		frozen.t = frozen.t + (dt or 0)
+		local a = M.freeze_alpha(frozen.t)
+		if a <= 0 then M.frozen = nil else M.render(gui, view, cm, frozen.points, frozen.land, frozen.scroll, a) end
+	end
+	if not held then return end
 	local start, v = M.throw_now(held.unit, held.ctx, scale, env.state.aim_point)
 	if not start then return end
 	local pw = g("World").physics_world(view.world)
 	local points, land = M.fly(start, v, ground_hit(pw))
+	M.scroll = (M.scroll + (dt or 0) * M.SCROLL) % M.DASH_EVERY
+	M.shown = { points = points, land = land, scroll = M.scroll, frame = frame or 0 }
+	M.render(gui, view, cm, points, land, M.scroll, 1)
+end
+
+-- Draws a flight's dashes from `scroll` metres in and its landing ring, `fade` (0 to 1) strong.
+function M.render(gui, view, cm, points, land, scroll, fade)
 	local w, h = cm.viewport:window()
 	local cam = frustum.camera_from(view.position, view.forward, math.rad(view.fov or 70))
 	local V2, V3, C, G, R2D = g("Vector2"), g("Vector3"), g("Color"), g("Gui"), g("Rotation2D")
 	local s = gui.ui_scale or h / 720
-	M.scroll = (M.scroll + (dt or 0) * M.SCROLL) % M.DASH_EVERY
+	fade = fade or 1
 	gui:set_ignore_position_scale(true)
 	gui:set_ignore_size_scale(true)
-	local colour = C(M.ALPHA, 255, 255, 255)
-	local dark = C(M.SHADOW_ALPHA, 0, 0, 0)
+	local colour = C(floor(M.ALPHA * fade + 0.5), 255, 255, 255)
+	local dark = C(floor(M.SHADOW_ALPHA * fade + 0.5), 0, 0, 0)
 	local sh = max(M.SHADOW * s, 1)
 	local function screen(p)
 		local sx, depth, sy = frustum.project(cam, p, w, h)
 		if depth <= 0.3 then return nil end
 		return sx, sy, depth
 	end
-	for _, d in ipairs(M.along(points, M.DASH_EVERY, M.scroll)) do
+	for _, d in ipairs(M.along(points, M.DASH_EVERY, scroll)) do
 		local x, y, depth = screen(d)
 		if x then
 			local x2, y2 = screen({ x = d.x + d.dx * 0.1, y = d.y + d.dy * 0.1, z = d.z + d.dz * 0.1 })
@@ -276,8 +310,8 @@ function M.draw(hud, env, scale, dt)
 			local rh = math.max(math.abs(ty - by), 2)
 			local ring_gui = art.gui()
 			if ring_gui then
-				art.draw(ring_gui, "eol_ring", cx - rw / 2 + sh, cy - rh / 2 - sh, rw, rh, M.LAYER - 1, M.SHADOW_ALPHA, 0, 0, 0)
-				art.draw(ring_gui, "eol_ring", cx - rw / 2, cy - rh / 2, rw, rh, M.LAYER, M.RING_ALPHA, 255, 255, 255)
+				art.draw(ring_gui, "eol_ring", cx - rw / 2 + sh, cy - rh / 2 - sh, rw, rh, M.LAYER - 1, floor(M.SHADOW_ALPHA * fade + 0.5), 0, 0, 0)
+				art.draw(ring_gui, "eol_ring", cx - rw / 2, cy - rh / 2, rw, rh, M.LAYER, floor(M.RING_ALPHA * fade + 0.5), 255, 255, 255)
 			end
 		end
 	end
@@ -301,6 +335,12 @@ function M.start(env)
 			return unpack(r)
 		end, env.VIEW)
 	end
+	-- The throw of this player's Helldiver: the arc shown freezes and fades.
+	obsidian.hook("CharacterComponent", "do_throw", function(original, self, unit, ...)
+		if on and camera.input and unit == camera.input.unit then pcall(M.thrown, frame) end
+		return original(self, unit, ...)
+	end, env.VIEW)
+	table.insert(env.on_release, function() M.frozen, M.shown = nil, nil end)
 	local warned, wait = false, 0
 	obsidian.hook("Hud", "draw_plugins", function(original, self, dt, ...)
 		local r = { original(self, dt, ...) }
@@ -308,12 +348,12 @@ function M.start(env)
 		if held and frame - held.frame > 2 then M.held, held = nil, nil end
 		if wait > 0 then
 			wait = wait - 1
-		elseif on and held and env.state.active and not env.state.watching then
+		elseif on and (held or M.frozen) and env.state.active and not env.state.watching then
 			local scale = 1
 			if frame - scaled_frame <= 2 and env.config.get("throw_range") ~= false then
 				scale = obsidian.module("src/session").THROW_SCALE
 			end
-			local ok, err = pcall(M.draw, self, env, scale, type(dt) == "number" and dt or 1 / 60)
+			local ok, err = pcall(M.draw, self, env, scale, type(dt) == "number" and dt or 1 / 60, frame)
 			if not ok then
 				wait = M.PAUSE
 				pcall(self.hd_gui.set_ignore_position_scale, self.hd_gui, false)

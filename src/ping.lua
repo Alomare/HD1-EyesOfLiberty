@@ -186,6 +186,14 @@ function M.lighter(c, share)
 	return { c[1] + (255 - c[1]) * share, c[2] + (255 - c[2]) * share, c[3] + (255 - c[3]) * share }
 end
 
+-- Whether the ping key may ping now: in third person, the Helldiver alive or down, or dead with the
+-- camera still on the body (src/aim.lua finds the point there too), until it moves on to an ally.
+function M.may_ping(on, state)
+	if not on or not state.active then return false end
+	if state.watching then return state.ping_centre ~= nil end
+	return true
+end
+
 -- The game -----------------------------------------------------------------------------------------
 
 local function v3(p) return g("Vector3")(p.x, p.y, p.z) end
@@ -316,7 +324,7 @@ function M.start(env)
 	end
 
 	obsidian.keybind("ping", function()
-		if not on or not env.state.active or env.state.watching then return end
+		if not M.may_ping(on, env.state) then return end
 		local api = env.api
 		if not in_mission(api) then return end
 		local now = clock()
@@ -415,7 +423,7 @@ function M.start(env)
 		x0, y0 = x0 or 0, y0 or 0
 		local s = min(w / compass.W, h / compass.H)
 		local cam = frustum.camera_from(view.position, view.forward, math.rad(view.fov or 70))
-		local cross = env.state.crosshair
+		local cross = env.state.crosshair or env.state.ping_centre
 		local me = api.game.my_unit()
 		local mine = me and plain(g("Unit").world_position(me, 0))
 		sync_map(view, mine)

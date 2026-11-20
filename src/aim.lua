@@ -13,6 +13,10 @@
 --   CharacterComponent.do_throw, ThrowableComponent.command_master "thrown"
 --                                          the grenade or stratagem ball flies to the crosshair point
 --                                          on a low arc (src/arc.lua aimed)
+--   WeaponUtility.shoot_beam_callback     a laser beam that hits nothing is drawn along the way it
+--                                          was fired, not the Helldiver's flat facing
+--   ArcweaponComponent.command_slave "show_hits"
+--                                          an arc that finds no target flies toward the crosshair
 local rig = obsidian.module("src/rig")
 local scoped = obsidian.module("src/scoped")
 local shake = obsidian.module("src/shake")
@@ -183,7 +187,7 @@ function M.collect(slaves, view, point, quaternion_forward, from_weapon)
 				local dir
 				if view.vehicle then dir = rig.gun_dir(origin, point, f)
 				else dir = rig.shot_dir(origin, point, { x = f.x, y = f.y, z = 0 }) end
-				if dir then list[#list + 1] = { f = { x = f.x, y = f.y, z = f.z }, dir = dir } end
+				if dir then list[#list + 1] = { f = { x = f.x, y = f.y, z = f.z }, dir = dir, unit = unit } end
 			end
 		end
 	end
@@ -215,6 +219,22 @@ end
 
 local function same(a, b)
 	return math.abs(a.x - b.x) < 1e-5 and math.abs(a.y - b.y) < 1e-5 and math.abs(a.z - b.z) < 1e-5
+end
+
+-- The way each of this player's lasers fired last: weapon unit -> { dir, frame }.
+M.beam_dirs = setmetatable({}, { __mode = "k" })
+
+-- Runs fn(...) with Quaternion.forward of the rotation `rot` answering `dir` ({ x, y, z }). The game
+-- asks for the flat facing of the wielder (node 0) where these hooks bend it.
+function M.with_forward(rot_forward, dir, fn, ...)
+	local Q, V3 = g("Quaternion"), g("Vector3")
+	local forward = Q.forward
+	local function bent(q, ...)
+		local f = forward(q, ...)
+		if same(f, rot_forward) then return V3(dir.x, dir.y, dir.z) end
+		return f
+	end
+	return scoped.swap(Q, "forward", bent, fn, ...)
 end
 
 -- Runs fn(...) with this player's shots going to the crosshair point.
@@ -256,9 +276,15 @@ function M.start(env)
 	state.aim_point = nil
 
 	table.insert(env.on_pose, function(view, cm)
-		-- The death cam aims nothing and draws no crosshair.
+		-- The death cam aims nothing and draws no crosshair. On this player's own body, before it moves
+		-- to an ally, the point in the middle of the view is still found, for pings only.
+		state.ping_centre = nil
 		if view.watching then
 			state.aim_point, state.aim_hit, state.crosshair, state.aim_unit = nil, nil, nil, nil
+			if view.own_body then
+				state.aim_point, state.aim_hit, state.aim_unit = M.find_point(view)
+				state.ping_centre = M.centre(cm)
+			end
 			return
 		end
 		local U = g("Unit")
@@ -269,7 +295,7 @@ function M.start(env)
 		state.crosshair = M.centre(cm)
 	end)
 	table.insert(env.on_release, function()
-		state.aim_point, state.aim_hit, state.aim_unit = nil, nil, nil
+		state.aim_point, state.aim_hit, state.aim_unit, state.ping_centre = nil, nil, nil, nil
 	end)
 
 	local function live()
@@ -292,9 +318,56 @@ function M.start(env)
 			if not live() or type(slaves) ~= "table" then return original(self, slaves, dt, ...) end
 			local ok, list = pcall(M.collect, slaves, env.view, state.aim_point, g("Quaternion").forward)
 			if not ok or #list == 0 then return original(self, slaves, dt, ...) end
+			if class == "BeamweaponComponent" then
+				local now = env.frame and env.frame() or 0
+				for _, o in ipairs(list) do M.beam_dirs[o.unit] = { dir = o.dir, frame = now } end
+			end
 			return M.redirect(list, original, self, slaves, dt, ...)
 		end, env.VIEW)
 	end
+
+	-- A beam that hits nothing is drawn by its raycast's callback from the muzzle along the wielder's
+	-- flat facing (WeaponUtility.shoot_beam_callback: Quaternion.forward(Unit.world_rotation(wielder, 0))),
+	-- so a laser fired up or down drew level. For this player's lasers that facing answers the way the
+	-- beam was fired last (kept by the update_slaves hook above).
+	obsidian.hook("WeaponUtility", "shoot_beam_callback", function(original, unit, ...)
+		local callback = original(unit, ...)
+		if type(callback) ~= "function" then return callback end
+		return function(...)
+			local kept = M.beam_dirs[unit]
+			local now = env.frame and env.frame() or 0
+			if not (kept and live() and now - kept.frame <= 3) then return callback(...) end
+			local ok, flat = pcall(function()
+				local U, Q = g("Unit"), g("Quaternion")
+				local f = Q.forward(U.world_rotation(wielder_of(unit), 0))
+				return { x = f.x, y = f.y, z = f.z }
+			end)
+			if not ok then return callback(...) end
+			return M.with_forward(flat, kept.dir, callback, ...)
+		end
+	end, env.VIEW)
+
+	-- An arc weapon's bolt that finds no target flies from 1 m over the wielder's root along its flat
+	-- facing (ArcweaponComponent.command_slave "show_hits", and the shotgun's blast): for this player
+	-- it flies toward the crosshair point. Targets are picked by direction over the ground, which the
+	-- Helldiver's facing (src/aim.lua steer) already turns to the crosshair.
+	obsidian.hook("ArcweaponComponent", "command_slave", function(original, self, unit, ctx, message, ...)
+		if not ((message == "show_hits" or message == "shotgun_blast") and live()) then
+			return original(self, unit, ctx, message, ...)
+		end
+		local ok, flat, dir = pcall(function()
+			local U, Q = g("Unit"), g("Quaternion")
+			local wielder = wielder_of(unit)
+			if wielder ~= env.view.avatar or env.view.vehicle then return nil end
+			local p = U.world_position(wielder, 0)
+			local d = rig.shot_dir({ x = p.x, y = p.y, z = p.z + 1 }, state.aim_point)
+			if not d then return nil end
+			local f = Q.forward(U.world_rotation(wielder, 0))
+			return { x = f.x, y = f.y, z = f.z }, d
+		end)
+		if not (ok and flat and dir) then return original(self, unit, ctx, message, ...) end
+		return M.with_forward(flat, dir, original, self, unit, ctx, message, ...)
+	end, env.VIEW)
 
 	obsidian.hook("LaserSightComponent", "update_slaves", function(original, self, slaves, dt, ...)
 		if not live() or type(slaves) ~= "table" then return original(self, slaves, dt, ...) end

@@ -381,19 +381,71 @@ end
 -- (margins -0.5, line 304). The third-person view sees much farther than that screen, so a patrol in
 -- plain view vanished and played the arrival again on coming close. While update_host runs, a unit
 -- within KEEP_RANGE of a living Helldiver counts as on screen for that despawn check only; spawning
--- still waits for the top-down screen, so no more patrols come than in the game.
+-- still waits for the top-down screen, so no more patrols come than in the game. A patrol unit that
+-- has a Helldiver as its target (the enemy state's target_unit) counts as on screen out to CHASE_RANGE.
+--
+-- Encounters (an alarm's reinforcements, objective waves) have a removal of their own:
+-- EncounterManager.remove_enemies_far_away, every 5 seconds, removes each of its enemies farther than
+-- 40 m (remove_enemies_far_away_radius) from every living Helldiver, so a wave chasing the squad from
+-- 50 m vanished in plain view. That call is given ENCOUNTER_RANGE instead. The radius field itself
+-- stays, since the game also reads it to decide where a new wave may spawn. Kept enemies still take
+-- their places in the game's limits (the encounter's max_num_enemies, MAX_NUM_ALLOWED_ENEMIES), so no
+-- more come at once than in the game.
 M.KEEP_RANGE = 100
+M.CHASE_RANGE = 200
+M.ENCOUNTER_RANGE = 100
 M.KEEP_MARGIN = -0.1
 
--- Whether (x, y) lies within KEEP_RANGE of one of the places in `players` ({ x, y } each).
-function M.near_players(players, x, y)
-	local r2 = M.KEEP_RANGE * M.KEEP_RANGE
+-- The radius the encounter's removal gets.
+function M.encounter_radius(radius)
+	if type(radius) ~= "number" then return radius end
+	return math.max(radius, M.ENCOUNTER_RANGE)
+end
+
+-- Whether (x, y) lies within `range` of one of the places in `players`.
+function M.within(players, x, y, range)
+	local r2 = range * range
 	for i = 1, #players do
 		local p = players[i]
 		local dx, dy = x - p.x, y - p.y
 		if dx * dx + dy * dy <= r2 then return true end
 	end
 	return false
+end
+
+-- The places of the patrol units chasing a Helldiver within CHASE_RANGE of one: { x, y, z } each, as
+-- Unit.world_position answers them this frame (the despawn check asks with the same values).
+function M.chasing(manager, players)
+	local out = {}
+	local EA, U = rawget(_G, "EntityAux"), rawget(_G, "Unit")
+	for _, patrol in ipairs(type(manager) == "table" and manager.patrols or {}) do
+		for _, member in ipairs(type(patrol) == "table" and patrol.units or {}) do
+			local unit = type(member) == "table" and member.unit
+			if unit and U.alive(unit) then
+				local ok, st = pcall(EA.state_master, unit, "enemy")
+				if not (ok and type(st) == "table") then ok, st = pcall(EA.state, unit, "enemy") end
+				if ok and type(st) == "table" and st.target_unit ~= nil then
+					local p = U.world_position(unit, 0)
+					if M.within(players, p.x, p.y, M.CHASE_RANGE) then out[#out + 1] = { x = p.x, y = p.y, z = p.z } end
+				end
+			end
+		end
+	end
+	return out
+end
+
+-- Whether a position is one of `places` (within a centimetre).
+function M.one_of(places, p)
+	for i = 1, #places do
+		local q = places[i]
+		if math.abs(q.x - p.x) < 0.01 and math.abs(q.y - p.y) < 0.01 and math.abs(q.z - p.z) < 0.01 then return true end
+	end
+	return false
+end
+
+-- Whether (x, y) lies within KEEP_RANGE of one of the places in `players` ({ x, y } each).
+function M.near_players(players, x, y)
+	return M.within(players, x, y, M.KEEP_RANGE)
 end
 
 -- The places of the living Helldivers, from the patrol manager's own entity list.
@@ -414,12 +466,16 @@ end
 
 local function start_keep_patrols(env)
 	local opts = env.part("keep_patrols")
-	local players = nil
+	local players, chasing = nil, nil
 	hook("PatrolManager", "update_host", function(original, self, ...)
 		local ok, places = pcall(M.player_places, self)
 		players = ok and places or nil
+		if players then
+			local got, list = pcall(M.chasing, self, players)
+			chasing = got and list or nil
+		end
 		local results = { pcall(original, self, ...) }
-		players = nil
+		players, chasing = nil, nil
 		if not results[1] then error(results[2], 0) end
 		return unpack(results, 2, table.maxn(results))
 	end, opts)
@@ -428,7 +484,11 @@ local function start_keep_patrols(env)
 		local a, b, c, d = original(self, position, left, ...)
 		if a then return a, b, c, d end
 		if position and M.near_players(players, position.x, position.y) then return true, b, c, d end
+		if position and chasing and #chasing > 0 and M.one_of(chasing, position) then return true, b, c, d end
 		return a, b, c, d
+	end, opts)
+	hook("EncounterManager", "remove_enemies_far_away", function(original, self, radius, ...)
+		return original(self, M.encounter_radius(radius), ...)
 	end, opts)
 end
 

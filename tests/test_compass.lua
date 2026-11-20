@@ -85,12 +85,18 @@ return {
 		local icon = compass().icons[1]
 		assert(icon and icon.icon == "icon_obj", "the objective's map icon, for the HUD to draw")
 		near(icon.x, 960, "east of the Helldiver while facing east: the middle of the screen")
-		assert(letters.E and letters["90"], "E, and the heading under the strip")
-		assert(not letters["45"], "no numbers on the strip")
-		local drawn = {}
-		local gui = setmetatable({}, { __index = function(_, name) return function(_, ...) drawn[#drawn + 1] = { name, ... } end end })
+		assert(letters["90"], "the heading under the strip, on the canvas")
+		assert(not letters["45"] and not letters.E, "no numbers on the strip, and the letters not on the canvas")
+		local drawn, texts = {}, {}
+		local gui = setmetatable({ gui = "raw" }, { __index = function(_, name) return function(_, ...) drawn[#drawn + 1] = { name, ... } end end })
 		Vector2, Color = function(a, b) return { a, b } end, function(...) return { ... } end
+		Gui = { text = function(raw, str, font, size, material, pos) texts[#texts + 1] = { raw = raw, str = str, z = pos.z } end }
 		compass().draw_icons({ hd_gui = gui })
+		local east = nil
+		for _, t in ipairs(texts) do if t.str == "E" then east = t end end
+		assert(east and east.raw == "raw", "E on the HUD's gui")
+		eq(east.z < compass().ICON_LAYER, true, "under the icons")
+		Gui = nil
 		local image
 		for _, d in ipairs(drawn) do if d[1] == "image" then image = d end end
 		eq(image[2], "icon_obj", "on the HUD's gui")

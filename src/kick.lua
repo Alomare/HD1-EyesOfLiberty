@@ -15,6 +15,11 @@
 -- metres and is KICK * (E / BASE)^0.6 strong at the blast, up to 1, fading with the distance's share of
 -- the reach to the power 1.5: a grenade kicks lightly within about 6 m, a Hellbomb hard and out to 35 m.
 --
+-- Hellpods: a pod landing raises an explosion of its own (through the level's flow), and the Hellpod
+-- camera has its own landing shake, so it kicks nothing. A blast is a pod's when one of its units has
+-- the hellpod component, or when it goes off within POD_NEAR metres of a pod that came down within
+-- POD_FRESH seconds (HellpodComponent.setup_slave, on every machine).
+--
 -- Repeats: each kick adds its strength to a fatigue that wears off at FATIGUE_RATE a second, and a new
 -- kick is exp(-TIRE * fatigue) as strong, so a barrage gives a few strong kicks and then small ones.
 local M = {}
@@ -30,9 +35,11 @@ M.TEMPLATE = {        -- energy of a blast heard only through its camera shake
 	artillery = 4500, airstrike = 5800, hellbomb_explosion = 40000,
 }
 M.MERGE_TIME, M.MERGE_DIST = 0.2, 4
+M.POD_NEAR, M.POD_FRESH = 5, 10
 
--- The full kick (strength 1): degrees of roll away from the blast, degrees of tip up, metres up.
-M.ROLL, M.PITCH, M.LIFT = 10, 4, 0.22
+-- The full kick (strength 1): degrees of roll away from the blast, degrees of tip up, metres up. Five
+-- times the first tuning (0.14.0: 10, 4, 0.22), which players found too weak at every size.
+M.ROLL, M.PITCH, M.LIFT = 50, 20, 1.1
 -- The spring each part follows: natural frequency (radians a second) and damping ratio. A kick sets
 -- the part moving at the speed that peaks at its size, so it snaps out and settles back.
 M.OMEGA, M.DAMPING = 11, 0.5
@@ -116,6 +123,34 @@ end
 local recent = {}
 local clock = 0
 
+-- Pods that came down lately: { unit, t }.
+M.pods = {}
+
+-- Whether a blast at `p` from these units is a Hellpod landing.
+function M.from_pod(p, units)
+	local EA, U = g("EntityAux"), g("Unit")
+	for _, u in ipairs(units or {}) do
+		if u ~= nil then
+			local ok, yes = pcall(EA.has_component, u, "hellpod")
+			if ok and yes then return true end
+		end
+	end
+	if not p then return false end
+	for i = #M.pods, 1, -1 do
+		local pod = M.pods[i]
+		if clock - pod.t > M.POD_FRESH then
+			table.remove(M.pods, i)
+		else
+			local ok, q = pcall(function() return U.alive(pod.unit) and U.world_position(pod.unit, 0) end)
+			if ok and q then
+				local dx, dy = q.x - p.x, q.y - p.y
+				if dx * dx + dy * dy <= M.POD_NEAR * M.POD_NEAR then return true end
+			end
+		end
+	end
+	return false
+end
+
 -- A blast of energy `e` at `p`: kicks the camera when it's near enough. Answers the strength.
 function M.blast(env, e, p)
 	if not (p and env.state.active and not env.state.watching) then return 0 end
@@ -163,9 +198,17 @@ function M.start(env)
 		end
 		return names[t]
 	end
-	obsidian.hook("ExplosionManager", "do_explosion", function(original, self, unit, position, info, ...)
-		pcall(function() M.blast(env, M.energy(info), point(position)) end)
-		return original(self, unit, position, info, ...)
+	obsidian.hook("ExplosionManager", "do_explosion", function(original, self, unit, position, info, attacker, owner, ...)
+		pcall(function()
+			local p = point(position)
+			if M.from_pod(p, { unit, attacker, owner }) then return end
+			M.blast(env, M.energy(info), p)
+		end)
+		return original(self, unit, position, info, attacker, owner, ...)
+	end, env.VIEW)
+	obsidian.hook("HellpodComponent", "setup_slave", function(original, self, unit, ...)
+		M.pods[#M.pods + 1] = { unit = unit, t = clock }
+		return original(self, unit, ...)
 	end, env.VIEW)
 	obsidian.hook("CameraManager", "add_shake", function(original, self, template, position, ...)
 		pcall(function()

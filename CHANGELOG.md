@@ -2,6 +2,27 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 0.15.0
+
+- New: Weapon follows aim option, on by default. While aiming or firing on foot, the Helldiver bends up or down so the weapon points where the crosshair is.
+- New: With a mouse and no other mod drawing the crosshair, the crosshair is the game's own aiming cursor, held in the middle of the screen, with the step of the game when aiming starts and stops.
+- New: Compass options for width, background opacity and the view angle line and heading.
+- New: Pings while down, and after death until the camera moves to an ally.
+- Changed: Settings are grouped by what they change, and every setting that applies at once is also in the pause menu.
+- Changed: F is the default ping key.
+- Changed: The explosion kick is five times stronger. Hellpod landings no longer kick.
+- Changed: When another pod of the squad comes down first, the Hellpod camera waits high above it, then moves over to the pod of the Helldiver.
+- Changed: The glide from the Hellpod into the shoulder view starts 0.4 seconds sooner.
+- Changed: On a throw, the throw arc stays in place and fades out over a second.
+- Changed: Compass icons show over the compass letters.
+- Changed: Enemy indicators show only while the Helldiver is alive or down.
+- Changed: The ammo bar of a laser fills from the bottom, in a brighter yellow.
+- Changed: Patrols stay in view also keeps patrol enemies chasing a Helldiver out to 200 m, and enemies of alarms and objective waves out to 100 m, where the game removed them at 40 m.
+- Fixed: The Helldiver no longer shakes against the camera when frame times change, as with many effects on screen.
+- Fixed: Lasers fire up and down. A beam that hit nothing was drawn level.
+- Fixed: An arc weapon bolt that finds no target flies toward the crosshair.
+- Fixed: The Hellpod camera no longer follows the pods of bots.
+
 ## 0.14.0
 
 - New: Ammo bar. A short arc by the crosshair shows the magazine, laser heat or arc charge and the reload, in the style of the Better HUD ammo and reload circles, with options for position, shape and scale. With Better HUD 1.18.0 or later, both circles stay hidden while the bar is on.

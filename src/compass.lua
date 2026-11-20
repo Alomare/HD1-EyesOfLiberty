@@ -6,10 +6,14 @@
 -- their map icon; one still hidden in a search zone doesn't show. Bearings run clockwise from north
 -- (+y), east being +x, as on the game's map.
 --
--- The panel and the map icons are drawn on the HUD's own gui (Hud.hd_gui, in Hud.draw_plugins), as
--- the game's map and the edge markers draw them: the canvas can't draw map icons, and a panel drawn by
--- the canvas covered them (the canvas draws over the HUD's gui). The icons are white, as on the
--- minimap, and may stand out past the panel.
+-- The panel, its letters and lines, and the map icons are drawn on the HUD's own gui (Hud.hd_gui, in
+-- Hud.draw_plugins), as the game's map and the edge markers draw them: the canvas can't draw map icons,
+-- and anything drawn by the canvas covers them (the canvas draws over the HUD's gui). The icons sit
+-- over the letters. They are white, as on the minimap, and may stand out past the panel.
+--
+-- Options: compass (on), compass_width ("short", "medium", "wide": the strip and the degrees across it
+-- grow together, so the letters keep their spacing), compass_opacity (the panel, 0 to 1, 0.8 by
+-- default) and compass_angle (the middle line and the heading in degrees).
 --
 -- Map markers: each player's marker on the map (the "map_ping" field of the player's game object, in
 -- the map's own coordinates, { -1000, -1000 } for none) shows at its bearing for as long as it is on
@@ -20,7 +24,12 @@ local M = {}
 
 M.W, M.H = 1920, 1080   -- design space, scaled and centred in the window
 M.BOX = { w = 560, h = 30, top = 22, inset = 6 }
-M.SPAN = 120            -- degrees across the strip
+M.SPAN = 120            -- degrees across the strip at the medium width
+M.WIDTHS = { short = 400, medium = 560, wide = 760 } -- design pixels, by the Compass width option
+M.OPACITY = 0.8         -- the panel, by default
+M.LETTER_SIZE = 20      -- design pixels
+M.LETTER_LAYER = 468    -- the letters and lines on the HUD's gui: over the panel, under the icons
+M.FONT = { path = "fonts/handel_normal", material = "handel_normal" } -- the canvas's body_large
 M.TICK = 5              -- degrees between ticks
 M.ICON = 31             -- objective icon, design pixels
 M.TICK_SHORT = 6        -- design pixels, a line
@@ -61,21 +70,29 @@ function M.gap(a, b)
 	return (b - a + 180) % 360 - 180
 end
 
+-- The strip's width in design pixels and the degrees across it, for the Compass width option.
+function M.size(width)
+	local w = M.WIDTHS[width] or M.WIDTHS.medium
+	return w, M.SPAN * w / M.WIDTHS.medium
+end
+
 -- Where a bearing sits across a trough `width` wide for a heading: pixels from the trough's middle,
--- and whether it's inside the span.
-function M.place(heading, bearing, width)
+-- and whether it's inside the span (degrees across, M.SPAN when left out).
+function M.place(heading, bearing, width, span)
+	span = span or M.SPAN
 	local g = M.gap(heading, bearing)
-	return g / M.SPAN * width, math.abs(g) <= M.SPAN / 2
+	return g / span * width, math.abs(g) <= span / 2
 end
 
 -- The marks inside the span for a heading: { bearing, kind, label } with kind "letter", "long" (the
 -- 45s between the letters) or "tick".
-function M.marks(heading)
+function M.marks(heading, span)
+	span = span or M.SPAN
 	local out = {}
-	local first = floor((heading - M.SPAN / 2) / M.TICK) * M.TICK
-	for b = first, heading + M.SPAN / 2 + M.TICK, M.TICK do
+	local first = floor((heading - span / 2) / M.TICK) * M.TICK
+	for b = first, heading + span / 2 + M.TICK, M.TICK do
 		local d = b % 360
-		if math.abs(M.gap(heading, d)) <= M.SPAN / 2 then
+		if math.abs(M.gap(heading, d)) <= span / 2 then
 			if M.LETTERS[d] then out[#out + 1] = { d, "letter", M.LETTERS[d] }
 			elseif d % 45 == 0 then out[#out + 1] = { d, "long" }
 			else out[#out + 1] = { d, "tick" } end
@@ -170,11 +187,43 @@ end
 -- edge the black outline in pixels or none).
 M.icons = nil
 M.panel = nil
+M.marks_out = nil       -- the strip's letters and lines this frame: { kind, x, y, ... } each
 M.hud = nil             -- the HUD, kept from Hud.draw_plugins, for the players' map markers
 M.world_icons = nil     -- icons src/ping.lua puts over the level this frame, in the same form
 M.WORLD_LAYER = 460     -- under the compass
 
--- Draws M.panel and M.icons on the HUD's gui, at window pixels.
+-- A colour "#rrggbb" or "#rrggbbaa" as the engine's Color (alpha first).
+function M.color(hex, C)
+	local r, g, b = tonumber(hex:sub(2, 3), 16), tonumber(hex:sub(4, 5), 16), tonumber(hex:sub(6, 7), 16)
+	local a = #hex >= 9 and tonumber(hex:sub(8, 9), 16) or 255
+	return C(a, r, g, b)
+end
+
+-- The letters and lines of the strip, on the HUD's gui.
+local function draw_marks(gui, marks, V2, V3, C)
+	local G = rawget(_G, "Gui")
+	local raw = gui.gui
+	for _, m in ipairs(marks) do
+		if m.kind == "tick" then
+			gui:rect(V3(m.x, m.y, M.LETTER_LAYER), V2(m.w, m.h), M.color(m.color, C))
+		elseif raw and G and G.text then
+			local width = m.size * 0.6
+			if G.text_extents then
+				local ok, low, high = pcall(G.text_extents, raw, m.text, M.FONT.path, m.size)
+				if ok and low and high then width = high.x - low.x end
+			end
+			local left = m.x - width / 2
+			-- A letter crossing an end of the strip isn't drawn, as the canvas's clip dropped it.
+			if not ((m.lo and left < m.lo) or (m.hi and left + width > m.hi)) then
+				local d = math.max(1, floor(m.size / 14))
+				G.text(raw, m.text, M.FONT.path, m.size, M.FONT.material, V3(left + d, m.y - d, M.LETTER_LAYER), C(192, 0, 0, 0))
+				G.text(raw, m.text, M.FONT.path, m.size, M.FONT.material, V3(left, m.y, M.LETTER_LAYER + 1), M.color(m.color, C))
+			end
+		end
+	end
+end
+
+-- Draws M.panel, M.marks_out and M.icons on the HUD's gui, at window pixels.
 function M.draw_icons(hud)
 	local list, gui, panel = M.icons, hud and hud.hd_gui, M.panel
 	local extra = M.world_icons
@@ -185,13 +234,17 @@ function M.draw_icons(hud)
 	local ok, err = pcall(function()
 		if panel then
 			local x, y, w, h, f = panel.x, panel.y, panel.w, panel.h, 2 * panel.s
-			gui:image("basicbox_01", V3(x, y, M.PANEL_LAYER), V2(w, h), C(204, 255, 255, 255),
-				V2(M.BOX_UV[1], M.BOX_UV[2]), V2(M.BOX_UV[3], M.BOX_UV[4]))
+			local fill = floor(255 * math.max(0, math.min(1, panel.opacity or M.OPACITY)) + 0.5)
+			if fill > 0 then
+				gui:image("basicbox_01", V3(x, y, M.PANEL_LAYER), V2(w, h), C(fill, 255, 255, 255),
+					V2(M.BOX_UV[1], M.BOX_UV[2]), V2(M.BOX_UV[3], M.BOX_UV[4]))
+			end
 			local frame = C(255, 93, 92, 86)
 			gui:rect(V3(x, y, M.PANEL_LAYER + 1), V2(w, f), frame)
 			gui:rect(V3(x, y + h - f, M.PANEL_LAYER + 1), V2(w, f), frame)
 			gui:rect(V3(x, y, M.PANEL_LAYER + 1), V2(f, h), frame)
 			gui:rect(V3(x + w - f, y, M.PANEL_LAYER + 1), V2(f, h), frame)
+			if M.marks_out then draw_marks(gui, M.marks_out, V2, V3, C) end
 		end
 		-- An icon cut to lo..hi across (the inside of the strip), when it has them.
 		local function image(i, x, y, z, color)
@@ -255,12 +308,6 @@ function M.start(env)
 	local on = env.config.get("compass") ~= false
 	if env.config.on_change then env.config.on_change("compass", function(v) on = v ~= false end) end
 
-	local function text(str, x, y, size, color)
-		local d = math.max(1, floor(size / 14))
-		kit:text(str, x + d, y - d, { font = "body_large", size = size, align = "center", color = "#000000c0" })
-		kit:text(str, x, y, { font = "body_large", size = size, align = "center", color = color })
-	end
-
 
 	local p0 = nil
 	local function draw(api)
@@ -272,26 +319,30 @@ function M.start(env)
 		local s = math.min(w / M.W, h / M.H)
 		local ox, oy = (w - M.W * s) / 2, (h - M.H * s) / 2
 		local B = M.BOX
-		local bw, bh = B.w * s, B.h * s
-		local x, y = ox + (M.W - B.w) / 2 * s, oy + (M.H - B.top - B.h) * s
-		M.panel = { x = x, y = y, w = bw, h = bh, s = s }
+		local config = env.config
+		local box_w, span = M.size(config.get("compass_width"))
+		local opacity = tonumber(config.get("compass_opacity")) or M.OPACITY
+		local bw, bh = box_w * s, B.h * s
+		local x, y = ox + (M.W - box_w) / 2 * s, oy + (M.H - B.top - B.h) * s
+		M.panel = { x = x, y = y, w = bw, h = bh, s = s, opacity = opacity }
 		local tx, tw = x + B.inset * s, bw - 2 * B.inset * s
 		local mid, cy = tx + tw / 2, y + bh / 2
 		local heading = M.bearing(view.forward.x, view.forward.y)
 
-		kit:layer(M.LAYER + 2)
-		kit:clip(tx, y, tw, bh, function()
-			for _, m in ipairs(M.marks(heading)) do
-				local px = mid + M.place(heading, m[1], tw)
-				if m[2] == "letter" then
-					text(m[3], px, cy - 7 * s, 20 * s, M.GOLD)
-				else
-					local long = m[2] == "long"
-					local len = (long and M.TICK_LONG or M.TICK_SHORT) * s
-					kit:rect(px - s, cy - len / 2, 2 * s, len, long and M.LONG_COLOR or M.TICK_COLOR)
-				end
+		local marks = {}
+		for _, m in ipairs(M.marks(heading, span)) do
+			local px = mid + M.place(heading, m[1], tw, span)
+			if m[2] == "letter" then
+				marks[#marks + 1] = { kind = "letter", text = m[3], x = px, y = cy - 7 * s, size = M.LETTER_SIZE * s, color = M.GOLD,
+					lo = tx, hi = tx + tw }
+			elseif px - s >= tx and px + s <= tx + tw then
+				local long = m[2] == "long"
+				local len = (long and M.TICK_LONG or M.TICK_SHORT) * s
+				marks[#marks + 1] = { kind = "tick", x = px - s, y = cy - len / 2, w = 2 * s, h = len,
+					color = long and M.LONG_COLOR or M.TICK_COLOR }
 			end
-		end)
+		end
+		M.marks_out = marks
 
 		-- Objectives and map markers at their bearing. Near an end of the strip an icon slides out of it,
 		-- cut at the inside of the frame; one past the end isn't drawn, and a small white triangle outside
@@ -303,7 +354,7 @@ function M.start(env)
 		local icons = {}
 		local out_left, out_right = false, false
 		local function add(icon, at, size, color, edge_px)
-			local off, inside = M.place(heading, M.bearing(at.x - p0.x, at.y - p0.y), tw)
+			local off, inside = M.place(heading, M.bearing(at.x - p0.x, at.y - p0.y), tw, span)
 			if not inside then
 				if off < 0 then out_left = true else out_right = true end
 			end
@@ -337,7 +388,9 @@ function M.start(env)
 			kit:poly(big, "#000000ff")
 			kit:poly(small, M.WHITE)
 		end
-		-- The middle: a short white line across the top border, a quarter in the strip and three quarters over it.
+		-- The middle: a short white line across the top border, a quarter in the strip and three quarters
+		-- over it, and the heading under the strip; both left out with the Show view angle option off.
+		if config.get("compass_angle") == false then return end
 		kit:layer(M.LAYER + 4)
 		local mw, mh, ow = M.MARK_W * s, M.MARK_H * s, math.max(1, M.MARK_EDGE * s)
 		local my = y + bh - mh / 4
@@ -359,7 +412,7 @@ function M.start(env)
 
 	local warned, wait = false, 0
 	obsidian.on_frame(function()
-		M.icons, M.panel = nil, nil
+		M.icons, M.panel, M.marks_out = nil, nil, nil
 		if wait > 0 then wait = wait - 1 return end
 		if not on or not env.state.active then return end
 		local api = env.api
@@ -367,7 +420,7 @@ function M.start(env)
 		if not M.shown(api) then return end
 		local ok, err = pcall(draw, api)
 		if not ok then
-			M.icons, M.panel = nil, nil
+			M.icons, M.panel, M.marks_out = nil, nil, nil
 			wait = 300
 			if not warned then
 				warned = true

@@ -22,6 +22,7 @@ local pod = obsidian.module("src/pod")
 local shake = obsidian.module("src/shake")
 local deathcam = obsidian.module("src/deathcam")
 local kick = obsidian.module("src/kick")
+local cursor = obsidian.module("src/cursor")
 
 local M = {}
 
@@ -116,10 +117,14 @@ end
 -- Whether a Helldiver entering the drop cutscene is this player's. The game enters it as it makes the
 -- body (CharacterComponent's master setup), before Obsidian API knows the new unit as this player's:
 -- a body of this machine counts when it's the known avatar, or when this player has no living one (a
--- dead body left on the ground doesn't count as living).
-function M.drop_is_mine(unit, mine, current)
+-- dead body left on the ground doesn't count as living). pad: the pad of the body's input master
+-- (the context's input_state), when known: an Obsidian API bot's body has a pad of its own, neither
+-- the main pad nor the keyboard's, and is never this player's (before, a bot dropping first took the
+-- Hellpod camera). own_pads: { [pad] = true } for this player's.
+function M.drop_is_mine(unit, mine, current, pad, own_pads)
 	if unit == nil then return false end
 	if mine ~= nil and unit == mine then return true end
+	if pad ~= nil and own_pads and not own_pads[pad] then return false end
 	for _, u in ipairs({ mine, current }) do
 		if u ~= nil and deathcam.living(u) then return false end
 	end
@@ -291,6 +296,25 @@ function M.target(env, avatar)
 	return avatar, nil
 end
 
+-- Where the Helldiver is drawn this frame. The camera runs in the game's update, after the mover has
+-- moved (MoverComponent.update_masters, Mover.move), but the engine moves the unit's root to the mover
+-- only in the scene update that follows: Unit.world_position answered the frame before, so the camera
+-- trailed the Helldiver by one frame of movement, more on a long frame, and the Helldiver seemed to
+-- shake when frame times jumped (probe 2026-11-20: root and Hud.update equal, the mover one frame
+-- ahead, the next frame's root equal to it, and after the scene update the root equals the mover).
+-- The mover's own position, when the unit has one; the root otherwise.
+function M.body_position(unit)
+	local U, Mv = g("Unit"), g("Mover")
+	if Mv and Mv.position and U.mover then
+		local ok, p = pcall(function()
+			local m = U.mover(unit)
+			return m and Mv.position(m)
+		end)
+		if ok and p then return p end
+	end
+	return U.world_position(unit, 0)
+end
+
 -- Whether the Helldiver is in a dive: the dive sets is_dodging in the health state until the body lands.
 function M.diving(avatar)
 	local EA = g("EntityAux")
@@ -368,6 +392,21 @@ function M.hold_fire(st)
 	if type(out) ~= "table" then return end
 	out.fire_amount, out.fire, out.fire_auto = 0, false, false
 	out.throw_amount, out.throw = 0, false
+end
+
+-- The game's own crosshair (src/cursor.lua): with a mouse, in a mission, on foot or in a vehicle,
+-- while no other mod draws the crosshair, the game's aiming cursor stays and is held at the middle of
+-- the window, so it keeps the look and the steps the game gives it when aiming starts and stops. The
+-- mod's own crosshair (src/crosshair.lua) steps aside then. M.vanilla is decided after each frame's
+-- pose and read by the cursor hooks the next frame.
+M.vanilla = false
+
+function M.vanilla_wanted(env, cm)
+	local state, input = env.state, M.input
+	if not (state.active and not M.watching and not M.hanging and not state.claimed_by) then return false end
+	if not (input and input.kbm and input.look and not input.riding and M.frame - input.frame <= 4) then return false end
+	if type(cm) ~= "table" or cm.state ~= "follow" then return false end
+	return cursor.available()
 end
 
 -- The cursors of the game's aim, which the shoulder view keeps out of the window.
@@ -503,6 +542,10 @@ function M.release(env, cm)
 			M.cursor_logs = M.cursor_logs + 1
 			env.log("Eyes of Liberty: game cursor given back (" .. was .. ")")
 		end
+	end
+	if M.vanilla then
+		M.vanilla = false
+		cursor.hold(false)
 	end
 	for _, fn in ipairs(env.on_release) do pcall(fn, cm) end
 end
@@ -653,13 +696,61 @@ function M.watch_frame(env, cm, dt, w, look)
 		position = { x = position.x + r.x * sx + u.x * sy, y = position.y + r.y * sx + u.y * sy, z = position.z + u.z * sy }
 	end
 	state.dropping = false
+	-- On this player's own body, before the camera moves to an ally, pings still go out (src/ping.lua).
+	local own = not (w.ally or w.ride or w.last_ally)
 	return M.apply(env, cm, dt, { position = position, pitch = view.pitch, fov = fov, avatar = nil, target = followed,
-		kind = kind, world = world, proxy = proxy, ground = want.z, watching = true })
+		kind = kind, world = world, proxy = proxy, ground = want.z, watching = true, own_body = own })
+end
+
+-- The pads of this player: the main pad and the keyboard's.
+function M.own_pads()
+	local out = {}
+	local kbm = rawget(_G, "KEYBOARD_MOUSE_PAD_NUMBER")
+	if kbm ~= nil then out[kbm] = true end
+	local settings = g("GameSettings")
+	local ok, main = pcall(function() return settings.get_main_pad_number() end)
+	if ok and main ~= nil then out[main] = true end
+	return out
+end
+
+-- The camera hanging in the sky over the squad's first pod, before this player's own drops in
+-- (src/pod.lua hang). Gives up after HANG_MAX seconds, or in another world.
+M.hang = nil
+M.hanging = false
+M.HANG_MAX = 20
+
+-- One frame of the hanging camera. Answers false when there is none.
+function M.hang_frame(env, cm, dt)
+	local h = M.hang
+	if not h then return false end
+	local world, proxy = world_of(cm)
+	h.world = h.world or world
+	h.t = h.t + math.max(0, dt or 0)
+	if h.world ~= world or h.t > M.HANG_MAX or env.config.get("hellpod_camera") == false then
+		M.hang = nil
+		return false
+	end
+	local view = M.view
+	if view.yaw == nil then view.yaw, view.pitch = 0, rig.START_PITCH end
+	M.mouse_delta(false)
+	local position, pitch = pod.hang_pose(h, view.yaw)
+	h.at = position
+	smooth.pivot = { x = h.anchor.x, y = h.anchor.y, z = h.anchor.z }
+	smooth.target, smooth.length = nil, nil
+	local state = env.state
+	state.aiming, state.firing, state.crosshair, state.sprint_fade = false, false, nil, 1
+	state.dropping = true
+	M.last_why = nil
+	M.hanging = true
+	local fov = env.config.get("foot_fov") or 70
+	return M.apply(env, cm, dt, { position = position, pitch = pitch, fov = fov, avatar = nil, target = nil,
+		kind = nil, world = world, proxy = proxy, ground = h.anchor.z, watching = true })
 end
 
 -- One frame of the shoulder camera, after the game's own update.
 function M.drive(env, cm, dt)
 	local state, config = env.state, env.config
+	M.hanging = false
 	local why = M.blocked(env, cm)
 	-- This player's Helldiver is dead: the death cam (src/deathcam.lua) watches the body, then allies.
 	-- It stays in the client part: with the game's shared top-down screen, a dead player sees the whole
@@ -681,6 +772,15 @@ function M.drive(env, cm, dt)
 				M.warned.watch_frame = true
 				env.log("Eyes of Liberty: death cam: " .. tostring(err))
 			end
+		end
+	end
+	-- Before this player's pod, the camera hangs over the squad's first one.
+	if why and M.DEATH_WHY[why] and M.hang and not deathcam.watch then
+		local ok, drew = pcall(M.hang_frame, env, cm, dt)
+		if ok and drew then return true end
+		if not ok and not M.warned.hang then
+			M.warned.hang = true
+			env.log("Eyes of Liberty: hellpod wait: " .. tostring(drew))
 		end
 	end
 	if why then
@@ -757,7 +857,7 @@ function M.drive(env, cm, dt)
 	state.sprint_fade = 1 - smooth.sprint
 	shake.sprint.level = smooth.sprint
 
-	local p = U.world_position(target, 0)
+	local p = kind and U.world_position(target, 0) or M.body_position(target)
 	-- How fast the Helldiver moves over the ground, eased, for the pace of the sprint sway.
 	local last = smooth.last_p
 	if last and dt > 0 then
@@ -774,7 +874,7 @@ function M.drive(env, cm, dt)
 	-- A jump pack's flight lifts the camera with the Helldiver.
 	local jumped = 0
 	if not kind then
-		local ok, up, standing = pcall(M.jump_lift, avatar, p.z, smooth.hips_rest)
+		local ok, up, standing = pcall(M.jump_lift, avatar, U.world_position(avatar, 0).z, smooth.hips_rest) -- hips and root of the same frame
 		if ok then
 			jumped = up
 			if standing and smooth.dive < 0.01 and smooth.down < 0.01 then
@@ -823,6 +923,12 @@ function M.drive(env, cm, dt)
 		local w = pod.blend(drop)
 		local pod_at, pod_pitch = pod.pose(drop, view.yaw)
 		position, pitch = pod.mix(pod_at, pod_pitch, position, view.pitch, w)
+		-- From where the camera hung over the squad's first pod, over to this one.
+		if drop.from then
+			local k = pod.snap(drop)
+			if k >= 1 then drop.from = nil
+			else position = pod.mix(drop.from, pitch, position, pitch, k) end
+		end
 		state.dropping = w < 1
 	end
 
@@ -883,7 +989,8 @@ function M.apply(env, cm, dt, pose)
 	end
 
 	env.view = { position = position, forward = forward, yaw = view.yaw, pitch = pitch, fov = fov, pivot = smooth.pivot,
-		avatar = pose.avatar, target = pose.target, vehicle = pose.kind, world = world, camera = cam, watching = pose.watching }
+		avatar = pose.avatar, target = pose.target, vehicle = pose.kind, world = world, camera = cam, watching = pose.watching,
+		own_body = pose.own_body }
 	state.active = true
 	state.vehicle = pose.kind ~= nil and not pose.watching
 	state.watching = pose.watching and true or false
@@ -976,6 +1083,13 @@ function M.start(env)
 	M.view.side = env.config.get("shoulder") == "left" and -1 or 1
 	env.config.on_change("shoulder", function(v) M.view.side = v == "left" and -1 or 1 end)
 	env.config.on_change("foot_distance", function() M.zoom.want, M.zoom.now = nil, nil end)
+	-- Camera mode changed in the pause menu: that mode now, as if the key had picked it.
+	env.config.on_change("camera_mode", function(v)
+		if v ~= "default" and v ~= "third" then return end
+		M.set_mode(env, v)
+		obsidian.storage.set("camera_mode", v)
+		obsidian.storage.set("camera_mode_option", v)
+	end)
 
 	frustum.install(env)
 
@@ -1022,7 +1136,7 @@ function M.start(env)
 			-- The software cursor the game eases back to the Helldiver after aiming stays away.
 			if st then st.software_cursor_position, st.software_cursor_start_distance = nil, nil end
 			local cursors = g("CursorManager")
-			if cursors and cursors.is_shown and cursors:is_shown() then cursors:set_show_cursor(false) end
+			if not M.vanilla and cursors and cursors.is_shown and cursors:is_shown() then cursors:set_show_cursor(false) end
 		end
 		local r = scoped.pack(scoped.around(enter, leave, original, self, masters, dt, ...))
 		if state.vehicle and ctx and M.map_open(env) then M.hold_fire(ctx.state) end
@@ -1060,7 +1174,7 @@ function M.start(env)
 
 	-- While the game reads input under the shoulder camera, the aiming cursor stays hidden and in place.
 	obsidian.hook("CursorManager", "set_show_cursor", function(original, self, on, ...)
-		if inside and on and state.active and M.input and M.input.look then return original(self, false, ...) end
+		if inside and on and state.active and not M.vanilla and M.input and M.input.look then return original(self, false, ...) end
 		return original(self, on, ...)
 	end, env.VIEW)
 	obsidian.hook("CursorManager", "set_cursor_position", function(original, self, ...)
@@ -1072,11 +1186,11 @@ function M.start(env)
 	-- way the hardware cursor came back at the mouse, which the view keeps near the middle. The game
 	-- cursors stay out while the shoulder camera takes the mouse; src/crosshair.lua draws the crosshair.
 	obsidian.hook("CursorManager", "set_cursor", function(original, self, path, ...)
-		if inside and state.active and M.input and M.input.look and M.GAME_CURSORS[path] then return end
+		if inside and state.active and not M.vanilla and M.input and M.input.look and M.GAME_CURSORS[path] then return end
 		return original(self, path, ...)
 	end, env.VIEW)
 	obsidian.hook("CursorManager", "update", function(original, self, ...)
-		if state.active and (M.watching or (M.input and M.input.look)) and type(self) == "table" then
+		if state.active and not M.vanilla and (M.watching or (M.input and M.input.look)) and type(self) == "table" then
 			pcall(M.hide_game_cursor, self)
 		end
 		return original(self, ...)
@@ -1115,10 +1229,23 @@ function M.start(env)
 			if env.config.get("hellpod_camera") == false then return end
 			local api = env.api
 			local mine = api and api.game and api.game.my_unit and api.game.my_unit()
-			if not M.drop_is_mine(unit, mine, M.input and not M.input.riding and M.input.unit or nil) then return end
+			local st = type(context) == "table" and context.state
+			local input_state = type(st) == "table" and st.input_state
+			local pad = type(input_state) == "table" and input_state.pad_number or nil
+			local current = M.input and not M.input.riding and M.input.unit or nil
 			local p = g("Unit").world_position(unit, 0)
+			if not M.drop_is_mine(unit, mine, current, pad, M.own_pads()) then
+				-- Another Helldiver of this machine drops first while this player has none: the camera
+				-- waits in the sky over that pod.
+				if not M.hang and not M.drop and not deathcam.watch and not deathcam.living(mine) and not deathcam.living(current) then
+					M.hang = pod.hang({ x = p.x, y = p.y, z = p.z })
+				end
+				return
+			end
 			M.drop = pod.new({ x = p.x, y = p.y, z = p.z })
 			M.drop.avatar = unit
+			if M.hang and M.hang.at then M.drop.from = M.hang.at end
+			M.hang = nil
 		end)
 		return unpack(r, 1, r.n)
 	end, env.VIEW)
@@ -1153,7 +1280,7 @@ function M.start(env)
 		shake.game.x, shake.game.y = 0, 0
 		-- The shoulder camera of the last frame goes on unless something stops it in this one.
 		local asked, why = pcall(M.blocked, env, self)
-		local still = state.active and asked and (why == nil or (M.watching and M.DEATH_WHY[why] ~= nil))
+		local still = state.active and asked and (why == nil or ((M.watching or M.hanging) and M.DEATH_WHY[why] ~= nil))
 		local r
 		if still then
 			r = scoped.pack(M.quiet_update(original, self, dt, ...))
@@ -1170,6 +1297,15 @@ function M.start(env)
 			pcall(M.release, env, self)
 		end
 		if still and not (ok and drove) then pcall(M.game_pose, self) end
+		local was = M.vanilla
+		local got, want = pcall(M.vanilla_wanted, env, self)
+		M.vanilla = got and want or false
+		M.vanilla = cursor.hold(M.vanilla) and M.vanilla
+		if was and not M.vanilla and state.active then
+			-- Back to the mod's crosshair: the game's cursor goes out of the window again.
+			local cursors = g("CursorManager")
+			if type(cursors) == "table" then pcall(M.hide_game_cursor, cursors) end
+		end
 		if M.flush_hud then M.flush_hud() end
 		return unpack(r, 1, r.n)
 	end, env.VIEW)

@@ -35,6 +35,7 @@ M.OPACITY = 0.9       -- the whole bar at most this opaque
 M.KINDS = { "firearm", "flameweapon", "launcher", "beamweapon", "arcweapon" }
 local NEAR_END = 0.85 -- a reload that stops past this far counts as finished, not cancelled
 M.FILL = { 212, 212, 212, 255 } -- the reload fill, Better HUD's
+M.LASER = { 255, 232, 70, 255 } -- a laser's heat: brighter than the yellow of rounds
 M.DONE = 0.1          -- seconds a finished reload takes to swell and fade out
 M.GROW = 0.45         -- how much thicker the band ends, of its width
 
@@ -208,7 +209,10 @@ function M.start(env)
 			kit:opacity(alpha * M.OPACITY)
 			fill, ccw, color = look.look(kind, share, rounds, empty, size, ready)
 			if kind == "beamweapon" then
-				if empty then track = look.burn_track(t, clock) else color = look.heat_color(1 - share, t.phase) end
+				-- A laser's heat fills the bar from its start, like a magazine, in a brighter yellow
+				-- (the circle's counter-clockwise fill read upside down on a bar).
+				ccw = false
+				if empty then track = look.burn_track(t, clock) else color = look.heat_color(1 - share, t.phase, M.LASER) end
 			elseif empty then
 				track = look.flash(clock)
 			end

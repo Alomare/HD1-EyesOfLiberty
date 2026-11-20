@@ -129,6 +129,12 @@ function M.paused(api)
 	return false
 end
 
+-- Whether the indicators show for the camera's state: third person on, the Helldiver alive or down.
+-- Not in the death cam, the extraction ride or the Hellpod drop.
+function M.wanted(state)
+	return state.active and not state.watching and not state.dropping or false
+end
+
 -- The game -----------------------------------------------------------------------------------------
 
 local function g(name) return rawget(_G, name) end
@@ -288,7 +294,7 @@ function M.start(env)
 	-- An error rests the marks for PAUSE frames (a level tearing down, say) and is logged once.
 	local warned, wait = false, 0
 	obsidian.on_frame(function()
-		if not on or not env.state.active then return rest() end
+		if not on or not M.wanted(env.state) then return rest() end
 		if wait > 0 then
 			wait = wait - 1
 			return

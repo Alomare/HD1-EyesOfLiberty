@@ -19,9 +19,33 @@ M.LOW = 7              -- metres above the spot the camera ends the fall
 M.BACK = -1.5          -- metres the camera sits behind the pod along the view: below 0, ahead of it
 M.PITCH = -86          -- degrees the pod camera looks down: almost straight, the pod in the middle
 M.LAND_FALLBACK = 1.8  -- seconds after the drop starts that the pod counts as landed without a shake
-M.HOLD = 2.0          -- seconds the camera stays on the landed pod, until about when the Helldiver climbs out
+M.HOLD = 1.6          -- seconds the camera stays on the landed pod before the glide starts (2.0 up to 0.14.0)
 M.GLIDE = 1.3          -- seconds the glide into the shoulder view takes
 M.NEAR = 6             -- metres from the Helldiver a hellpod shake counts as this pod's landing
+M.SNAP = 0.6           -- seconds the camera takes from where it hung over the squad's first pod to this pod
+
+-- Waiting in the sky: when the squad drops in and another Helldiver's pod (a bot of this machine)
+-- comes down first, the camera hangs HEIGHT over that pod's spot, looking down, until this player's
+-- own pod starts; then it moves over to it in SNAP seconds and rides it down.
+function M.hang(anchor)
+	return { t = 0, anchor = { x = anchor.x, y = anchor.y, z = anchor.z }, hanging = true }
+end
+
+-- The camera hanging over a pod: position and pitch, for a view turned to `yaw`.
+function M.hang_pose(h, yaw)
+	local flat = rig.flat_forward(yaw)
+	local a = h.anchor
+	return { x = a.x - flat.x * M.BACK, y = a.y - flat.y * M.BACK, z = a.z + M.HEIGHT }, M.PITCH
+end
+
+-- How far a drop that started from a hanging camera has moved to its own pod, 0 to 1, eased.
+function M.snap(s)
+	if not s.from then return 1 end
+	local f = s.t / M.SNAP
+	if f >= 1 then return 1 end
+	if f <= 0 then return 0 end
+	return f * f * (3 - 2 * f)
+end
 
 -- A new drop: anchor is the landing spot { x, y, z }.
 function M.new(anchor)

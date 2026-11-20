@@ -61,6 +61,8 @@ function M.look(env, always)
 	local state = env.state
 	if not state.active or not state.crosshair or state.claimed_by or state.dropping then return nil end
 	if state.armed == false then return nil end
+	-- The game's own aiming cursor is up, held at the middle (src/camera.lua M.vanilla).
+	if env.camera and env.camera.vanilla then return nil end
 	if (state.sprint_fade or 1) <= 0.01 then return nil end
 	local camera = env.camera
 	local input = camera and camera.input

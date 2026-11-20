@@ -82,7 +82,7 @@ return {
 		E.remove()
 	end },
 
-	{ "the in-game page binds the camera options, Reduce fog and the ammo bar scale, and follows changes", function()
+	{ "the in-game page binds every row to its option and follows changes", function()
 		local rows = {}
 		local page = setmetatable({}, { __index = function(_, kind)
 			return function(_, id, opts) rows[#rows + 1] = { kind = kind, id = id, opts = opts } return opts.default end
@@ -91,12 +91,16 @@ return {
 		OPTIONS.foot_distance = 4
 		local config = obsidian.module("src/config")
 		config.start({ api = api })
-		eq(#rows, 7)
-		for _, r in ipairs(rows) do eq(r.opts.option, true, r.id) end
+		eq(#rows, #config.ROWS)
+		local foot = nil
+		for _, r in ipairs(rows) do
+			eq(r.opts.option, true, r.id)
+			if r.id == "foot_distance" then foot = r end
+		end
 		eq(config.get("foot_distance"), 4, "starts from the option")
 		local heard = nil
 		config.on_change("foot_distance", function(v) heard = v end)
-		rows[1].opts.on_change(6)
+		foot.opts.on_change(6)
 		eq(heard, 6) eq(config.get("foot_distance"), 6)
 	end },
 

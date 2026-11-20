@@ -104,10 +104,12 @@ function M.pulse_rate(heat)
 	return M.PULSE[1] + (M.PULSE[2] - M.PULSE[1]) * clamp((heat - M.HOT) / (1 - M.HOT))
 end
 
--- A laser's ring color at `heat`, `phase` swings in (M.react keeps it).
-function M.heat_color(heat, phase)
-	if heat < M.HOT then return M.FILL end
-	return mix(M.FILL, M.WARN, 0.5 - 0.5 * math.cos(2 * math.pi * (phase or 0)))
+-- A laser's ring color at `heat`, `phase` swings in (M.react keeps it). base: the colour below HOT,
+-- FILL when left out (the ammo bar of Eyes of Liberty passes a brighter one).
+function M.heat_color(heat, phase, base)
+	base = base or M.FILL
+	if heat < M.HOT then return base end
+	return mix(base, M.WARN, 0.5 - 0.5 * math.cos(2 * math.pi * (phase or 0)))
 end
 
 -- The events of a frame, kept in `t`: a magazine running dry or a laser overheating shake the ring (an

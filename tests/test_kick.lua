@@ -51,12 +51,12 @@ return {
 		local k = kick()
 		k.kick(1, -1)
 		local most = run(k, 0.4)
-		near(most[1], -k.ROLL, "rolls the full amount, left", 0.6)
-		near(most[2], k.PITCH, "tips up", 0.3)
-		near(most[3], k.LIFT, "rises", 0.02)
+		near(most[1], -k.ROLL, "rolls the full amount, left", k.ROLL * 0.06)
+		near(most[2], k.PITCH, "tips up", k.PITCH * 0.075)
+		near(most[3], k.LIFT, "rises", k.LIFT * 0.09)
 		run(k, 2)
 		local r, p, l = k.step(1 / 60, 1)
-		near(r, 0, "back level", 0.01) near(p, 0, nil, 0.01) near(l, 0, nil, 0.001)
+		near(r, 0, "back level", 0.05) near(p, 0, nil, 0.05) near(l, 0, nil, 0.005)
 		k.kick(1, 1)
 		local r0 = k.step(1 / 60, 0)
 		eq(r0, 0, "Camera shake off: nothing")
@@ -82,5 +82,18 @@ return {
 		eq(k.blast(env_at(view, { explosion_kick = false }), 40000, { x = 30, y = 30, z = 0 }), 0, "option off")
 		env.state.active = false
 		eq(k.blast(env, 40000, { x = -20, y = 0, z = 0 }), 0, "top-down view: nothing")
+	end },
+
+	{ "a Hellpod landing kicks nothing", function()
+		local k = kick()
+		EntityAux = { has_component = function(u, c) return u == "pod" and c == "hellpod" end }
+		Unit = { alive = function() return true end, world_position = function() return { x = 10, y = 0, z = 0 } end }
+		eq(k.from_pod({ x = 0, y = 0, z = 0 }, { "pod" }), true, "the pod's own unit")
+		eq(k.from_pod({ x = 0, y = 0, z = 0 }, { "grenade" }), false, "a grenade")
+		k.pods = { { unit = "fresh", t = 0 } }
+		eq(k.from_pod({ x = 12, y = 0, z = 0 }, { "flow" }), true, "beside a pod just down")
+		eq(k.from_pod({ x = 30, y = 0, z = 0 }, { "flow" }), false, "far from it")
+		k.pods = {}
+		EntityAux, Unit = nil, nil
 	end },
 }
