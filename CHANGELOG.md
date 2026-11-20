@@ -17,7 +17,7 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - Changed: Pings on dropped weapons and packs sit lower, with a larger icon.
 - Changed: While the crosshair is near a ping, the line and marker fade to half, so the words and what lies behind stay readable.
 - Changed: A new icon.
-- Fixed: Reduce fog has its full effect. The fog of the level was read before it settled, and low settings still left much of the fog.
+- Fixed: Reduce fog now thins the fog as set. The fog of the level was read before it settled, and low settings still left much of the fog.
 - Fixed: Pinging a dropped support weapon or pack marks it again. Needs Obsidian API 1.55.1.
 - Fixed: The Helldiver no longer disappears high in a jump pack flight while the backpack and weapons stay.
 
