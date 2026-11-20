@@ -198,7 +198,7 @@
     { "id": "ammo_bar", "type": "toggle", "default": true,
       "group": "ammo", "part": "view", "scope": "client",
       "label": { "en": "Ammo bar" },
-      "description": { "en": "In third person on foot, a short arc by the crosshair shows the magazine left, the heat of a laser or the charge of an arc weapon, with the colours, warnings and reload button of the Better HUD ammo circle. Weapons of 40 rounds or fewer show a faint line between rounds. Shows from a shot and fades out 8 seconds after the last one. While on, the Better HUD ammo circle stays hidden in third person." } },
+      "description": { "en": "In third person on foot, a short arc by the crosshair shows the magazine left, the heat of a laser or the charge of an arc weapon, with the colours, warnings and reload button of the Better HUD ammo circle. Weapons of 50 rounds or fewer show a faint line between rounds. Shows from a shot and fades out 8 seconds after the last one. While on, the Better HUD ammo circle stays hidden in third person." } },
     { "id": "ammo_bar_position", "type": "choice", "default": "oppose",
       "choices": [ { "id": "top", "label": { "en": "Top" } }, { "id": "bottom", "label": { "en": "Bottom" } }, { "id": "oppose", "label": { "en": "Opposite the Helldiver" } }, { "id": "same", "label": { "en": "Same side as the Helldiver" } } ],
       "group": "ammo", "part": "view", "scope": "client",

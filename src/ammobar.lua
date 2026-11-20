@@ -1,6 +1,6 @@
 -- The ammo bar: Better HUD's ammo circle (src/ammo_look.lua) as a sixth of a circle around the
 -- crosshair, in third person on foot. Same colours, warnings, shakes, laser heat, arc charge, empty
--- flash and reload button; shows from a shot, fades out 8 seconds after the last shot. A weapon of 40
+-- flash and reload button; shows from a shot, fades out 8 seconds after the last shot. A weapon of 50
 -- rounds or fewer has a faint line between rounds. While the weapon reloads, the bar fills in Better
 -- HUD's reload grey as the reload goes; a finished reload swells the band by GROW and fades it out over
 -- DONE seconds, as Better HUD's reload ring does, and the bar stays hidden until the next shot.
@@ -25,7 +25,7 @@ M.WIDTH, M.EDGE = 4.2, 1.5 -- design units: the band (Better HUD's 3.5, a fifth 
 M.SIZE = 1.5          -- Better HUD's ring size in the shoulder view
 M.SPAN = math.pi / 3  -- a sixth of a circle: two thirds of a quarter
 M.PIECES = 24         -- pieces a curved bar is drawn in
-M.ROUNDS = 40         -- magazines up to this many rounds show a line between rounds
+M.ROUNDS = 50         -- magazines up to this many rounds show a line between rounds
 M.LINE = { 0, 0, 0, 110 } -- those lines: faded
 M.LINE_WIDTH = 0.5    -- design units
 M.BUTTON_GAP = 4      -- design units between the band and the reload button

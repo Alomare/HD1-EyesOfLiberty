@@ -2,10 +2,15 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## Next
+
+- Fixed: Weapon follows aim bends the Helldiver on screen. In 0.15.0 the bend came after the frame was drawn, so the weapon stayed level.
+- Changed: The ammo bar shows a line between rounds for weapons of up to 50 rounds, up from 40.
+
 ## 0.15.0
 
 - New: Weapon follows aim option, on by default. While aiming or firing on foot, the Helldiver bends up or down so the weapon points where the crosshair is.
-- New: With a mouse and no other mod drawing the crosshair, the crosshair is the game's own aiming cursor, held in the middle of the screen, with the step of the game when aiming starts and stops.
+- New: With a mouse and no other mod drawing the crosshair, the crosshair is the aiming cursor of the game, held in the middle of the screen, with the change the game shows when aiming starts and stops.
 - New: Compass options for width, background opacity and the view angle line and heading.
 - New: Pings while down, and after death until the camera moves to an ally.
 - Changed: Settings are grouped by what they change, and every setting that applies at once is also in the pause menu.
@@ -50,11 +55,11 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 ## 0.13.0
 
 - Fixed: A crash a few seconds into the second mission of a session, when the hurt flash, the throw ring or the idle cursor drew on screen.
-- Fixed: The hurt flash no longer shows in the game's top-down view.
-- New: Pings. The ping key (middle mouse button) marks what the crosshair is on: the ground, an enemy, an objective, or a dropped support weapon or pack. Teammates with the mod see the marker and hear the chat sound; nothing goes to the game's chat. Three pings in a row, then a wait of 2.5 seconds.
+- Fixed: The hurt flash no longer shows in the top-down view of the game.
+- New: Pings. The ping key (middle mouse button) marks what the crosshair is on: the ground, an enemy, an objective, or a dropped support weapon or pack. Teammates with the mod see the marker and hear the chat sound; nothing goes to the chat of the game. Three pings in a row, then a wait of 2.5 seconds.
 - New: A compass at the top of the screen in third person, with the heading in degrees, pointing to every objective found on the map with the white map icon.
 - New: The screen tints red after a death and fades back over two seconds.
-- Changed: Max weapon range is now Ballistics revamp: past a weapon's own range, bullets lose damage over 15 m, down to a fifth. Lasers keep their damage.
+- Changed: Max weapon range is now Ballistics revamp: past the range of the weapon, bullets lose damage over 15 m, down to a fifth. Lasers keep their damage.
 - Changed: Objectives out of view no longer show at the edge of the screen; the compass shows them.
 - Changed: Weapon fire and hurt feedback shake the camera half as much.
 - Changed: Remove fog is now Reduce fog, a slider from 0.1 to 1 for how fast the fog builds up with distance (0.5 by default), in place of taking it away.
@@ -142,7 +147,7 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 
 - Changed: the mod id is now alomare.unleashedcamera. Obsidian installs it as a new mod: remove Integrated Third Person after installing it. Settings start from the defaults again.
 - Changed: while Integrated Third Person is still installed, Unleashed Camera stays off and says so.
-- Changed: less work every frame for the game's screen checks, the weapon aim, the hidden helmet in first person and the depth of field that follows the Helldiver.
+- Changed: less work every frame for the screen checks of the game, the weapon aim, the hidden helmet in first person and the depth of field that follows the Helldiver.
 - New: Eye height, Eye forward and Eye side options for the first person camera.
 - Changed: the options are in new groups: Camera, Third person, First person, Vehicles, Indicators and names, Picture, and Session features.
 - Changed: the Hellpod camera rides down above the pod and a little ahead, looking almost straight down, so the pod stays in the middle of the picture.
@@ -176,12 +181,12 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - New: Depth of field option: Game default, Focus on the Helldiver, or Off (the default). Photo Mode sets the depth of field while open.
 - New: downed camera. While the Helldiver is down, the camera sits near the ground and 1 m farther back.
 - New: Increased throw range, a lobby-wide option, on by default. Grenades and stratagem balls fly twice as far, on top of the Strong Arm perk.
-- Changed: the game's own crosshair shows in third person instead of a crosshair of the mod, and Custom Crosshair replaces it when installed.
+- Changed: the crosshair of the game shows in third person instead of a crosshair of the mod, and Custom Crosshair replaces it when installed.
 - Changed: the own name card is hidden in third person. The cards of other players stay.
 - Changed: the camera on foot in a mission is 1 m farther away by default.
 - Changed: the dive camera only comes down and no longer moves closer.
 - Changed: the segments of the enemy indicator ring are twice as thick.
-- Fixed: the game's hardware cursor showed in third person, away from the crosshair.
+- Fixed: the hardware cursor of the game showed in third person, away from the crosshair.
 - Fixed: marks over the crew and the terminals on the Super Destroyer trailed behind the camera.
 
 ## 0.4.2
@@ -192,8 +197,8 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 
 - New: a soft camera rumble while a weapon fires, stronger for vehicle guns. It follows the Camera shake option.
 - Changed: the camera on foot sits a little lower, between the heights of 0.3.0 and 0.4.0.
-- Changed: the game's own shakes move the shoulder camera 12 cm at the most, so a run of explosions no longer shakes it all the time.
-- Fixed: the Hellpod camera did not start, because the game drops a new Helldiver in before the Helldiver counts as the player's.
+- Changed: the shakes of the game move the shoulder camera 12 cm at the most, so a run of explosions no longer shakes it all the time.
+- Fixed: the Hellpod camera did not start, because the game drops a new Helldiver in before that Helldiver belongs to the player.
 - Fixed: enemy and hit indicators stayed on screen with the third person view switched off.
 - Fixed: the red screen of an alarm still stopped short of the screen edges.
 

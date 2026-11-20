@@ -2,10 +2,9 @@
 -- so the weapon points at the crosshair point. The game's animations hold the weapon level (the
 -- top-down game never aims up or down), and shots left the muzzle toward the crosshair at an angle.
 --
--- When: the frame runs Lua update (the camera), then the world update (animations, then the scene),
--- then StateGame.post_update, then render (Boot's frame, world_proxy.lua). Bones turned in post_update
--- are after the animations, so they stay for the frame drawn; the Helldiver and every unit linked to
--- it (the body pieces skinned to its bones, the weapon at r_hand_attach) get World.update_unit.
+-- When: just before World.update_scene of the world of the Helldiver (see M.start); the Helldiver and
+-- every unit linked to it (the body pieces skinned to its bones, the weapon at r_hand_attach) get
+-- World.update_unit.
 --
 -- How much: the pitch of the weapon now (forward of r_hand_attach, the weapon's +y) and the pitch from
 -- that node to the crosshair point; the difference, eased in and out with the aim and within MAX
@@ -66,15 +65,48 @@ local function linked(api, avatar)
 	return list
 end
 
+-- A rotation as four numbers, which last past the frame (a Quaternion lasts one frame), and back.
+local function elements(Q, q)
+	local x, y, z, w = Q.to_elements(q)
+	return { x, y, z, w }
+end
+
+local function same(Q, q, e)
+	local x, y, z, w = Q.to_elements(q)
+	local d = math.abs(x - e[1]) + math.abs(y - e[2]) + math.abs(z - e[3]) + math.abs(w - e[4])
+	return d < 1e-4
+end
+
+-- The bones bent last frame go back to the pose before the bend, where they still hold the bend: before
+-- the scene update the game leaves them as they were (checked in game, 2026-11-20), so a bend added on
+-- top of the last one would pile up and stay after aiming stops.
+function M.restore(U, Q, W)
+	local last = M.written
+	M.written = nil
+	if not (last and U.alive(last.avatar)) then return end
+	local any = false
+	for i, e in pairs(last.nodes) do
+		if same(Q, U.local_rotation(last.avatar, i), e.now) then
+			U.set_local_rotation(last.avatar, i, Q.from_elements(e.was[1], e.was[2], e.was[3], e.was[4]))
+			any = true
+		end
+	end
+	if any and last.world then W.update_unit(last.world, last.avatar) end
+end
+
 function M.apply(env, dt)
+	local U, Q, W = g("Unit"), g("Quaternion"), g("World")
+	M.restore(U, Q, W)
 	local want = M.wanted(env)
 	M.weight = rig.ease(M.weight, want and 1 or 0, M.RATE, dt or 0.016)
 	if M.weight < 0.01 then return false end
 	local view = env.view
 	local avatar = view and view.avatar
 	local point = env.state.aim_point
-	local U, Q, W = g("Unit"), g("Quaternion"), g("World")
 	if not (avatar and point and U.alive(avatar) and U.has_node(avatar, "r_hand_attach")) then return false end
+	-- The animation has set the bones for this frame, but their world transforms are still those of the
+	-- last scene update, bend and all (checked in game, 2026-11-20): bring them up to date before measuring.
+	if view.world then W.update_unit(view.world, avatar) end
 	local hand = U.node(avatar, "r_hand_attach")
 	local f = Q.forward(U.world_rotation(avatar, hand))
 	local p = U.world_position(avatar, hand)
@@ -87,10 +119,15 @@ function M.apply(env, dt)
 	if #nodes == 0 then return false end
 	local right = Q.right(U.world_rotation(avatar, 0))
 	local turn = Q(right, math.rad(b / #nodes))
+	local written = { avatar = avatar, world = view.world, nodes = {} }
 	for _, i in ipairs(nodes) do
+		local was = U.local_rotation(avatar, i)
 		local wr = U.world_rotation(avatar, i)
-		U.set_local_rotation(avatar, i, Q.multiply(U.local_rotation(avatar, i), Q.multiply(Q.inverse(wr), Q.multiply(turn, wr))))
+		local now = Q.multiply(was, Q.multiply(Q.inverse(wr), Q.multiply(turn, wr)))
+		written.nodes[i] = { was = elements(Q, was), now = elements(Q, now) }
+		U.set_local_rotation(avatar, i, now)
 	end
+	M.written = written
 	local world = view.world
 	if world then
 		W.update_unit(world, avatar)
@@ -99,20 +136,24 @@ function M.apply(env, dt)
 	return true
 end
 
+-- The bend goes in just before the scene update of the Helldiver's world, after the animations: that is
+-- what the frame draws. Bones turned later, in StateGame.post_update, aren't drawn (checked in game
+-- through the Memory Bridge, 2026-11-20).
 function M.start(env)
 	if env.config.get("aim_pose") == false then M.off = true end
 	env.config.on_change("aim_pose", function(v) M.off = v == false end)
 	local failed = false
-	obsidian.hook("StateGame", "post_update", function(original, self, dt, ...)
-		local r = { original(self, dt, ...) }
-		if not failed and not M.off then
-			local ok, err = pcall(M.apply, env, type(dt) == "number" and dt or 0.016)
+	obsidian.hook("World", "update_scene", function(original, world, ...)
+		if not failed and not M.off and env.view and world == env.view.world then
+			local ok, err = pcall(M.apply, env, rawget(_G, "ENGINE_DT") or 0.016)
 			if not ok then
 				failed = true
 				env.log("Eyes of Liberty: aim pose stopped: " .. tostring(err))
 			end
+		elseif M.off and M.written then
+			pcall(M.restore, g("Unit"), g("Quaternion"), g("World"))
 		end
-		return unpack(r, 1, table.maxn(r))
+		return original(world, ...)
 	end, env.VIEW)
 	table.insert(env.on_release, function() M.weight = 0 end)
 end

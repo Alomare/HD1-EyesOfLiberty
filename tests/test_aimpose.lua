@@ -11,6 +11,28 @@ return {
 		eq(a.bend(0, -80), -a.MAX, "and down")
 	end },
 
+	{ "a bone that still holds last frame's bend goes back; one the animation moved stays", function()
+		local a = obsidian.module("src/aimpose")
+		local bones = { [1] = { 0, 0, 0.3, 0.95 }, [2] = { 0.5, 0, 0, 0.87 } }
+		local U = { alive = function() return true end, local_rotation = function(_, i) return bones[i] end,
+			set_local_rotation = function(_, i, q) bones[i] = q end }
+		local Q = { to_elements = function(q) return q[1], q[2], q[3], q[4] end,
+			from_elements = function(x, y, z, w) return { x, y, z, w } end }
+		local updated = 0
+		local W = { update_unit = function() updated = updated + 1 end }
+		a.written = { avatar = "me", world = "w", nodes = {
+			[1] = { was = { 0, 0, 0, 1 }, now = { 0, 0, 0.3, 0.95 } },
+			[2] = { was = { 0, 0, 0, 1 }, now = { 0.1, 0, 0, 0.99 } },
+		} }
+		a.restore(U, Q, W)
+		eq(bones[1][4], 1, "back to the pose before the bend")
+		eq(bones[2][1], 0.5, "the animation's pose is left alone")
+		eq(updated, 1, "the unit is updated once")
+		eq(a.written, nil, "nothing left to restore")
+		a.restore(U, Q, W)
+		eq(updated, 1, "a second restore does nothing")
+	end },
+
 	{ "the pose wants third person on foot, aiming or firing, with a point", function()
 		local a = obsidian.module("src/aimpose")
 		local env = { state = { active = true, aiming = true, aim_point = {} }, view = { avatar = "me" } }
