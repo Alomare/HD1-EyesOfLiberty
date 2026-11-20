@@ -2,25 +2,24 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
-## Next
+## 0.14.0
 
-- Changed: The line of an enemy ping starts at the middle of the enemy's body again, not at the ground.
-- Changed: While the crosshair is near a ping, the line and marker fade to half, so the words and what lies behind stay readable.
-- New: Blocked shot mark. A small red X marks where shots would land when something within 6 m of the weapon, between it and the crosshair, would stop them.
 - New: Ammo bar. A short arc by the crosshair shows the magazine, laser heat or arc charge and the reload, in the style of the Better HUD ammo and reload circles, with options for position, shape and scale. With Better HUD 1.18.0 or later, both circles stay hidden while the bar is on.
+- New: Explosion kick. A blast nearby knocks the camera: it rolls away, tips up and rises, then springs back. Bigger blasts kick harder and from farther; blasts in a row kick less each time.
+- New: Alarm effect. During an alarm, the screen edges pulse red once, and broad red stripes flash up both sides of the screen and settle to a faint glow. It replaces the red overlay of the game, which often showed shrunk in third person. An option turns it off.
+- New: Map markers show on the compass and in the level as pings, one per player, with the map marker icon in the colour of that player, for as long as the marker is on the map.
+- New: Blocked shot mark. A small red X marks where shots would land when something within 6 m of the weapon, between it and the crosshair, would stop them.
 - New: Scroll camera distance option, off by default. The mouse wheel moves the camera closer or farther on foot instead of switching weapons.
 - New: The Helldiver is hidden while the camera is pressed against it, by a wall or in a tight corner.
-- New: Explosion kick. A blast nearby knocks the camera: it rolls away, tips up and rises, then springs back. Bigger blasts kick harder and from farther; blasts in a row kick less each time.
-- Fixed: The Helldiver no longer disappears high in a jump pack flight while the backpack and weapons stay.
-- New: Map markers show on the compass and in the level as pings, one per player, with the map marker icon in the colour of that player, for as long as the marker is on the map.
-- Changed: Compass icons slide out at the ends of the compass instead of waiting there, and a small white triangle outside each end points to anything past it.
-- New: Alarm effect. During an alarm, the screen edges pulse red once, and broad red stripes flash up both sides of the screen and settle to a faint glow. It replaces the red overlay of the game, which often showed shrunk in third person. An option turns it off.
 - Changed: The crosshair shows only while the Helldiver can shoot: not while dead, dropping in the Hellpod, putting in a stratagem or looking at the map.
-- Fixed: Pinging a dropped support weapon or pack marks it again. Needs Obsidian API 1.55.1.
-- Fixed: Reduce fog has its full effect. The fog of the level was read before it settled, and low settings still left much of the fog.
+- Changed: Compass icons slide out at the ends of the compass instead of waiting there, and a small white triangle outside each end points to anything past it.
 - Changed: Enemy pings and map marker pings show without the vertical line.
 - Changed: Pings on dropped weapons and packs sit lower, with a larger icon.
+- Changed: While the crosshair is near a ping, the line and marker fade to half, so the words and what lies behind stay readable.
 - Changed: A new icon.
+- Fixed: Reduce fog has its full effect. The fog of the level was read before it settled, and low settings still left much of the fog.
+- Fixed: Pinging a dropped support weapon or pack marks it again. Needs Obsidian API 1.55.1.
+- Fixed: The Helldiver no longer disappears high in a jump pack flight while the backpack and weapons stay.
 
 ## 0.13.1
 
