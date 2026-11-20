@@ -13,7 +13,8 @@
 --   Beams cast a ray as long as range, launchers dip like firearms, laser sights draw to range.
 --   While each of those runs, state.range is raised to MAX_RANGE and put back after. Ranges under
 --   MIN_RANGE (melee reach) stay as they are. Flame and arc weapons have their own reach settings
---   and stay as in the game.
+--   and stay as in the game. Only while third person steers the view on this machine: the top-down
+--   view keeps the game's ranges.
 --
 -- Far enemy detection (part enemy_detection)
 --   EnemyComponent.update_target keeps players inside enemy_info.aggro_range (80 m for most
@@ -32,6 +33,22 @@ local env_ref = nil
 local function hook(target, method, fn, opts)
 	obsidian.hook(target, method, function(original, ...)
 		if env_ref and env_ref.off then return original(...) end
+		return fn(original, ...)
+	end, opts)
+end
+
+-- Whether third person steers the view on this machine. The weapon range and the throw range are
+-- part of the shoulder view: in the top-down view, shots and throws are the game's.
+local function third()
+	local state = env_ref and env_ref.state
+	return type(state) == "table" and state.active == true
+end
+M.third = third
+
+-- The same as hook, for a change that applies only while third person steers the view.
+local function view_hook(target, method, fn, opts)
+	hook(target, method, function(original, ...)
+		if not third() then return original(...) end
 		return fn(original, ...)
 	end, opts)
 end
@@ -200,13 +217,13 @@ local function start_weapon_range(env)
 	local function over_entities(original, self, entities, ...)
 		return M.with_entities(entities, original, self, entities, ...)
 	end
-	hook("FirearmComponent", "update_slaves", function(original, self, entities, ...)
+	view_hook("FirearmComponent", "update_slaves", function(original, self, entities, ...)
 		M.note_live(entities)
 		return M.with_entities(entities, original, self, entities, ...)
 	end, opts)
-	hook("BeamweaponComponent", "update_slaves", over_entities, opts)
-	hook("LaserSightComponent", "update_slaves", over_entities, opts)
-	hook("LauncherComponent", "do_fire", function(original, self, unit, state, ...)
+	view_hook("BeamweaponComponent", "update_slaves", over_entities, opts)
+	view_hook("LaserSightComponent", "update_slaves", over_entities, opts)
+	view_hook("LauncherComponent", "do_fire", function(original, self, unit, state, ...)
 		return M.with_state(state, original, self, unit, state, ...)
 	end, opts)
 end
@@ -332,7 +349,8 @@ end
 -- sqrt(distance * 18) at 45 degrees, under the game's gravity of 18). power is the charge times the
 -- thrower's throw_range_multiplier, 1.5 with the Strong Arm perk. While "thrown" runs, the throwable
 -- sees both distances times THROW_SCALE, so every throw lands that many times as far, Strong Arm
--- included.
+-- included. The thrower's machine launches the throw, so this applies only while third person steers
+-- the view there.
 M.THROW_SCALE = 2
 
 local throw_shadows = setmetatable({}, { __mode = "k" })
@@ -367,7 +385,7 @@ function M.with_throw(context, fn, ...)
 end
 
 local function start_throw_range(env)
-	hook("ThrowableComponent", "command_master", function(original, self, unit, context, message, ...)
+	view_hook("ThrowableComponent", "command_master", function(original, self, unit, context, message, ...)
 		if message ~= "thrown" then return original(self, unit, context, message, ...) end
 		return M.with_throw(context, original, self, unit, context, message, ...)
 	end, env.part("throw_range"))

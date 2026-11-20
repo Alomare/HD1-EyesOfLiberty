@@ -183,6 +183,7 @@ return {
 			return "launched"
 		end
 		local env = env_with({ throw_range = true })
+		env.state = { active = true }
 		s.start(env)
 		local hook
 		for _, h in ipairs(HOOKS) do if h.target == "ThrowableComponent" then hook = h end end
@@ -195,6 +196,30 @@ return {
 		seen = nil
 		hook.fn(function(_, _, ctx) seen = ctx.settings.throwable_info.throw_distance_max end, {}, "grenade", context, "other", {})
 		eq(seen, 12, "only the launch")
+		env.state.active = false
+		hook.fn(game, {}, "grenade", context, "thrown", { power = 1 })
+		eq(seen.max, 12, "top-down view: the game's distance")
+	end },
+
+	{ "weapons keep the game's range in the top-down view", function()
+		local s = session()
+		local env = env_with({ max_weapon_range = true })
+		env.state = { active = false }
+		s.start(env)
+		local by = hooks_by_method()
+		local rifle = { state = { range = 30 } }
+		for _, name in ipairs({ "FirearmComponent.update_slaves", "BeamweaponComponent.update_slaves", "LaserSightComponent.update_slaves" }) do
+			local during
+			by[name].fn(function() during = rifle.state.range end, {}, { rifle })
+			eq(during, 30, name .. " in the top-down view")
+			env.state.active = true
+			by[name].fn(function() during = rifle.state.range end, {}, { rifle })
+			eq(during, s.MAX_RANGE, name .. " in third person")
+			env.state.active = false
+		end
+		local during
+		by["LauncherComponent.do_fire"].fn(function() during = rifle.state.range end, {}, "launcher", rifle.state)
+		eq(during, 30, "launcher in the top-down view")
 	end },
 
 	{ "a patrol near a Helldiver counts as on screen for the despawn check only", function()
@@ -244,7 +269,7 @@ return {
 		vec_engine()
 		local session = obsidian.module("src/session")
 		OPTIONS = { keep_patrols = false, throw_range = false, max_weapon_range = true, far_detection = false, free_movement = false }
-		local env = { config = { get = function(id) return OPTIONS[id] end }, part = function(id) return { part = id } end, state = {}, VIEW = { part = "view" } }
+		local env = { config = { get = function(id) return OPTIONS[id] end }, part = function(id) return { part = id } end, state = { active = true }, VIEW = { part = "view" } }
 		local queued = {}
 		EntityAux = { queue_command_interface = function(unit, interface, command, data) queued[#queued + 1] = data.power end }
 		Vector3Aux = { unbox = function(t) return t end }

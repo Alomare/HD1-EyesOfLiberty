@@ -2,6 +2,10 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## Next
+
+- Fixed: The top-down view kept the longer throws and weapon range of the third-person view.
+
 ## 1.0.0
 
 - Changed: Eyes of Liberty leaves Early Access.
