@@ -328,6 +328,11 @@ function M.start(env)
 		M.gun.pitch, M.gun.dir, M.gun.origin, M.gun.cross = nil, nil, nil, 0
 	end)
 	M.frame_now = function() return env.frame and env.frame() or 0 end
+	M.ergonomics_on = env.config.get("weapon_ergonomics") ~= false
+	env.config.on_change("weapon_ergonomics", function(v)
+		M.ergonomics_on = v ~= false
+		M.gun.cross = 0
+	end)
 
 	local function live()
 		return state.active and env.view and state.aim_point and camera.input
@@ -430,6 +435,16 @@ function M.start(env)
 		return unpack(r, 1, r.n)
 	end, env.VIEW)
 
+	-- Weapon ergonomics off: the game's turn is measured, so the pitch keeps its pace.
+	obsidian.hook("CharacterComponent", "update_masters", function(original, self, masters, dt, ...)
+		local me = live() and M.ergonomics_on == false and camera.input.unit
+		local ctx = me and type(masters) == "table" and masters[me]
+		if not ctx then return original(self, masters, dt, ...) end
+		local r = scoped.pack(original(self, masters, dt, ...))
+		pcall(M.measure_turn, ctx, me, dt)
+		return unpack(r, 1, r.n)
+	end, env.VIEW)
+
 	-- Launchers fire once per call, and set the height of the shot from z_direction.
 	obsidian.hook("LauncherComponent", "do_fire", function(original, self, unit, st, ...)
 		if not live() or type(st) ~= "table" then return original(self, unit, st, ...) end
@@ -489,7 +504,7 @@ M.pending_throw = nil
 -- Whether shots of `wielder` leave along the weapon's way: this player's Helldiver on foot, with a way
 -- worked out in the last frames.
 function M.gun_live(wielder, view, now)
-	return not view.vehicle and wielder == view.avatar and M.gun.pitch ~= nil and now - (M.gun.frame or -10) <= 2
+	return M.ergonomics_on ~= false and not view.vehicle and wielder == view.avatar and M.gun.pitch ~= nil and now - (M.gun.frame or -10) <= 2
 end
 
 -- Whether a character state holds the weapon up to shoot (ergo.AIM_STATES).
@@ -509,10 +524,36 @@ end
 -- The game's turn keep for this player's Helldiver, while the weapon is up.
 function M.turn(ctx, env)
 	local st = type(ctx) == "table" and ctx.state
+	if M.ergonomics_on == false then return false end
 	if type(st) ~= "table" or st.forced_rotation_speed ~= nil or not M.aim_state(st.current_state) then return false end
 	local now = env.frame and env.frame() or 0
 	st.forced_rotation_speed = ergo.keep(ergo.tau(ergo.ergonomics(M.laser_firing(now))))
 	return true
+end
+
+-- The game's turn of this player's Helldiver over one frame, measured at each CharacterComponent.update_masters:
+-- the heading error to last frame's aim input, last frame and now. The game turns the unit after
+-- update_masters (probe 2026-11-21: no change within the call), so a frame apart. Kept as M.game_rate
+-- (a second), eased so one odd frame doesn't jump it; only while the weapon is up, where the weapon's
+-- turn speeds apply.
+M.game_rate = nil
+M.last_turn = nil -- { f = facing, t = aim input, dt } of the last frame
+function M.measure_turn(ctx, unit, dt)
+	local st = type(ctx) == "table" and ctx.state
+	local U, Q, V3A = g("Unit"), g("Quaternion"), g("Vector3Aux")
+	local f = Q.forward(U.local_rotation(unit, 0))
+	local now = { x = f.x, y = f.y }
+	local last = M.last_turn
+	M.last_turn = nil
+	if last then
+		local rate = ergo.measured_rate(ergo.flat_angle(last.f, last.t), ergo.flat_angle(now, last.t), last.dt)
+		if rate then M.game_rate = M.game_rate and (M.game_rate + (rate - M.game_rate) * 0.5) or rate end
+	end
+	if type(st) ~= "table" or not M.aim_state(st.current_state) then return end
+	local aim = st.input and st.input.aim
+	if aim == nil then return end
+	local a = V3A.unbox(aim)
+	M.last_turn = { f = now, t = { x = a.x, y = a.y }, dt = dt }
 end
 
 -- One frame of the weapon's way on foot, after the crosshair point is found: the pitch swings to the
@@ -533,9 +574,16 @@ function M.gun_frame(env, view, cm, dt)
 	-- Aiming or firing raises the weapon; a held throw doesn't (state.firing counts throws too).
 	local input = env.camera and env.camera.input
 	local raised = (state.aiming or (input and input.fire)) and true or false
-	local tau = ergo.tau(ergo.ergonomics(M.laser_firing(now)))
+	-- Weapon ergonomics off: shots go to the crosshair point and the crosshair stays in the middle, as
+	-- before 1.1.0; only the pitch eases, at the pace of the game's own turn (M.measure_turn).
+	local on = M.ergonomics_on ~= false
+	local tau = on and ergo.tau(ergo.ergonomics(M.laser_firing(now))) or ergo.tau_of_rate(M.game_rate)
 	local want = ergo.pitch_to(origin, state.aim_point) or gun.pitch or 0
 	gun.pitch = ergo.step_pitch(gun.pitch, want, raised, tau, dt)
+	if not on then
+		gun.dir, gun.origin, gun.frame, gun.cross = nil, origin, now, 0
+		return
+	end
 	gun.turn = ergo.converge(root, origin, state.aim_point)
 	gun.dir = ergo.dir({ x = f.x, y = f.y }, gun.pitch, gun.turn)
 	gun.origin, gun.frame = origin, now

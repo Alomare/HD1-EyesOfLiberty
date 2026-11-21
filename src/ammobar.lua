@@ -20,8 +20,8 @@ local M = {}
 local function g(name) return rawget(_G, name) end
 
 M.RADIUS = 0.135      -- of the screen height, from the crosshair to the middle of the band
-M.WIDTH, M.EDGE = 4.2, 1.5 -- design units: the band (Better HUD's 3.5, a fifth thicker), and the dark
-                           -- border around it, past the ends too
+M.WIDTH, M.EDGE = 3.36, 1.2 -- design units: the band (a fifth thinner than the 4.2 of 1.0), and the
+                            -- dark border around it, past the ends too
 M.SIZE = 1.5          -- Better HUD's ring size in the shoulder view
 M.SPAN = math.pi / 3  -- a sixth of a circle: two thirds of a quarter
 M.PIECES = 24         -- pieces a curved bar is drawn in
@@ -31,7 +31,7 @@ M.LINE_WIDTH = 0.5    -- design units
 M.BUTTON_GAP = 4      -- design units between the band and the reload button
 M.TRACK, M.BORDER = { 30, 30, 30, 85 }, { 0, 0, 0, 100 }
 M.SHADOW = 0.2
-M.OPACITY = 0.9       -- the whole bar at most this opaque
+M.OPACITY = 0.81      -- the whole bar at most this opaque (a tenth less than the 0.9 of 1.0)
 M.KINDS = { "firearm", "flameweapon", "launcher", "beamweapon", "arcweapon" }
 local NEAR_END = 0.85 -- a reload that stops past this far counts as finished, not cancelled
 M.FILL = { 212, 212, 212, 255 } -- the reload fill, Better HUD's

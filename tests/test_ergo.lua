@@ -188,4 +188,37 @@ return {
 		local turned = r.look({ yaw = 0, pitch = 0 }, { x = 10, y = 10 }, nil, { speed = 1, confused = true })
 		near(turned.yaw, -plain.yaw, "left and right", 1e-9) near(turned.pitch, -plain.pitch, "up and down", 1e-9)
 	end },
+
+	{ "Weapon ergonomics off: shots to the crosshair point, crosshair in the middle, the game's turn", function()
+		local e = E.install()
+		local aim = obsidian.module("src/aim")
+		local m = ergo()
+		e.units.me = { position = { x = 0, y = 0, z = 0 }, forward = { x = 1, y = 0, z = 0 } }
+		e.units.gun = { position = { x = 0, y = 0, z = 0 }, forward = { x = 0, y = 1, z = 0 }, equipment = { wielder = "me" } }
+		aim.ergonomics_on = false
+		CharacterStateAim = {}
+		local env = env_with(true, false, 20)
+		local ctx = { state = { current_state = CharacterStateAim } }
+		eq(aim.turn(ctx, env), false, "the game's own turn speed")
+		eq(ctx.state.forced_rotation_speed, nil)
+		env.state.aim_point = { x = 0, y = 30, z = 1.5 }
+		env.state.centre = { x = 960, y = 540 }
+		env.state.crosshair = env.state.centre
+		aim.gun.pitch, aim.gun.cross = nil, 0
+		aim.gun_frame(env, on_foot(), CameraManager, 0.016)
+		eq(env.state.crosshair, env.state.centre, "the crosshair stays in the middle")
+		assert(aim.gun.pitch ~= nil, "the pitch still eases, for the aim pose")
+		aim.frame_now = function() return 20 end
+		local list = aim.collect({ gun = { state = { attach_node = 0 } } }, { avatar = "me", target = "me" }, { x = 0, y = 10, z = 11.5 }, Quaternion.forward)
+		assert(list[1].dir.z > 0.6, "straight to the crosshair point")
+		-- The pace: the share of the heading error one frame of the game's turn closed.
+		near(m.measured_rate(0.5, 0.5 * math.exp(-0.16), 0.016), 10, "rate a second", 1e-9)
+		eq(m.measured_rate(0.01, 0.005, 0.016), nil, "too small to tell")
+		near(m.tau_of_rate(10), 0.1, "time constant", 1e-12)
+		eq(m.tau_of_rate(nil), m.GAME_TAU)
+		near(m.flat_angle({ x = 1, y = 0 }, { x = 0, y = 2 }), math.pi / 2, "flat angle", 1e-9)
+		aim.ergonomics_on, aim.frame_now, aim.gun.pitch = true, nil, nil
+		CharacterStateAim = nil
+		E.remove()
+	end },
 }

@@ -9,6 +9,8 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - New: The in-game settings open one page per group, so the list no longer runs off the screen. Needs Obsidian API 1.58.0 or later.
 - Changed: Every shot, laser beam and arc leaves along the way the weapon points. While aiming or firing, the weapon swings onto the crosshair, and the crosshair shows where the weapon points until it gets there.
 - Changed: A laser swings onto the crosshair more slowly while firing.
+- New: Weapon ergonomics option under Aiming, on by default. Off, shots go straight to the crosshair as before, and the weapon tilts up and down no faster than the Helldiver turns.
+- Changed: The ammo bar is 20 percent thinner and 10 percent more transparent.
 - Changed: Camera shake while firing a laser is 75 percent weaker.
 - Fixed: An Illuminate confusion turns the camera controls around too, not only movement and stratagems.
 - Fixed: The Helldiver no longer bends backward while holding a throw or switching weapons with the aim button held.

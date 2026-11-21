@@ -78,6 +78,32 @@ function M.converge(root, origin, point)
 	return d
 end
 
+-- With Weapon ergonomics off, the game's own turn sets the pace: the share of the heading error the
+-- game's turn closed in one frame (e0 before, e1 after, radians) as a rate a second, or nil when the
+-- error was too small to tell. The pitch then eases at that rate, so it is never faster than the turn.
+M.MEASURE_FROM = 0.05 -- radians of heading error below which a frame tells nothing
+M.RATE_MAX = 200      -- a second: a turn faster than this counts as instant
+M.GAME_TAU = 0.1      -- seconds: the pace until the game's turn has been measured
+function M.measured_rate(e0, e1, dt)
+	if not (e0 and e1 and dt) or e0 < M.MEASURE_FROM or dt <= 0 then return nil end
+	local left = math.max(1e-9, math.min(1, e1 / e0))
+	return math.min(M.RATE_MAX, -math.log(left) / dt)
+end
+
+-- The time constant for a measured rate a second (nil: GAME_TAU).
+function M.tau_of_rate(rate)
+	if not rate or rate <= 0 then return M.GAME_TAU end
+	return 1 / rate
+end
+
+-- The flat angle in radians between two directions.
+function M.flat_angle(a, b)
+	local la, lb = math.sqrt(a.x * a.x + a.y * a.y), math.sqrt(b.x * b.x + b.y * b.y)
+	if la < 1e-6 or lb < 1e-6 then return nil end
+	local c = (a.x * b.x + a.y * b.y) / (la * lb)
+	return math.acos(math.max(-1, math.min(1, c)))
+end
+
 -- One frame of the weapon's pitch. raised: the Helldiver aims or fires; the weapon swings to the
 -- crosshair's pitch, else back to level as the animations carry it.
 function M.step_pitch(now, want, raised, tau, dt)
