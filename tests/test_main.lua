@@ -83,8 +83,10 @@ return {
 	end },
 
 	{ "the in-game page binds every row to its option and follows changes", function()
-		local rows = {}
-		local page = setmetatable({}, { __index = function(_, kind)
+		local rows, groups = {}, {}
+		local page
+		page = setmetatable({}, { __index = function(_, kind)
+			if kind == "group" then return function(_, title) groups[#groups + 1] = title.en return page end end
 			return function(_, id, opts) rows[#rows + 1] = { kind = kind, id = id, opts = opts } return opts.default end
 		end })
 		local api = { mod_settings = { BINDS = true, page = function() return page end } }
@@ -92,6 +94,8 @@ return {
 		local config = obsidian.module("src/config")
 		config.start({ api = api })
 		eq(#rows, #config.ROWS)
+		eq(#groups, #config.GROUPS, "a group per part of the page")
+		eq(groups[1], "Camera")
 		local foot = nil
 		for _, r in ipairs(rows) do
 			eq(r.opts.option, true, r.id)

@@ -237,6 +237,8 @@ return {
 		assert(s1 < 0, "left shoulder")
 		near(s1, -r.SHOULDER * r.AIM_SHOULDER, "aiming brings the camera in behind the head")
 		assert(r.AIM_SHOULDER < 1)
+		local _, _, sw = r.lens({ distance = 4, fov = 70, side = -1, aim = 0, shoulder = 1.2 })
+		near(sw, -1.2, "the sideways distance option")
 		local dm, _, sm = r.lens({ distance = 7, fov = 70, side = 1, vehicle = "exosuit" })
 		near(sm, r.MECH_SHOULDER, "a mech camera sits farther to the side")
 		near(dm, 7 - r.MECH_SIDE_CLOSER, "and closer")

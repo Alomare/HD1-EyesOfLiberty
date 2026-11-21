@@ -904,7 +904,8 @@ function M.drive(env, cm, dt)
 	distance, fov, side = rig.lens({
 		distance = distance,
 		fov = kind and (config.get("vehicle_fov") or 70) or (config.get("foot_fov") or 70),
-		side = smooth.side, aim = smooth.aim, dive = smooth.dive, down = smooth.down, vehicle = kind })
+		side = smooth.side, aim = smooth.aim, dive = smooth.dive, down = smooth.down, vehicle = kind,
+		shoulder = config.get("side_distance") })
 	local _, dir, full = rig.place(smooth.pivot, view.yaw, view.pitch, distance, side)
 
 	-- Walls and rocks pull the camera in.

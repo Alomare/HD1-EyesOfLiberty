@@ -179,7 +179,8 @@ function M.follow_pivot(current, target, dt)
 end
 
 -- The camera's distance, field of view and side offset for this frame. opts: distance, fov (degrees),
--- side (1 right, -1 left, anything between while the shoulder swaps), aim (0 to 1, how far into the aim
+-- side (1 right, -1 left, anything between while the shoulder swaps), shoulder (metres to the side on
+-- foot, M.SHOULDER when left out), aim (0 to 1, how far into the aim
 -- zoom), dive (0 to 1, how far into a dive: the dive only lowers the pivot, see height), down (0 to 1,
 -- how far into the downed camera), vehicle (the vehicle kind, nil on foot: in a
 -- vehicle, side is -1 left, 0 middle, 1 right, or between while it moves).
@@ -199,7 +200,7 @@ function M.lens(opts)
 			side = s * M.SHOULDER * 1.5
 		end
 	else
-		side = (opts.side or 1) * M.SHOULDER * (1 + (M.AIM_SHOULDER - 1) * aim)
+		side = (opts.side or 1) * (opts.shoulder or M.SHOULDER) * (1 + (M.AIM_SHOULDER - 1) * aim)
 	end
 	return distance, fov, side
 end

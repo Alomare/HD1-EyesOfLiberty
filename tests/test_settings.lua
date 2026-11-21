@@ -56,6 +56,7 @@ return {
 			local r = rows[i]
 			eq(r.id, o.id, "row " .. i)
 			eq(r.kind, o.type, o.id .. " kind")
+			eq(r.group, o.group, o.id .. " group")
 			eq(r.min, o.min, o.id .. " min") eq(r.max, o.max, o.id .. " max") eq(r.step, o.step, o.id .. " step")
 			if o.choices then
 				eq(#r.choices, #o.choices, o.id .. " choices")
@@ -67,6 +68,13 @@ return {
 				eq(steps <= 100, true, o.id .. ": at most 100 steps")
 			end
 		end
+	end },
+
+	{ "every group of a row is one of the groups of the page", function()
+		local c = obsidian.module("src/config")
+		local known = {}
+		for _, g in ipairs(c.GROUPS) do known[g.id] = true end
+		for _, r in ipairs(c.ROWS) do eq(known[r.group], true, r.id .. " group") end
 	end },
 
 	{ "numbers read plainly", function()
