@@ -51,6 +51,10 @@ function M.seat_armed(view)
 		if not EA.has_component(view.target, "seat") then return true end
 		local seat = EA.state(view.target, "seat")
 		local cs = EA.state(view.avatar, "character")
+		-- A vehicle that is a gun itself (an exosuit's arms, a mannable turret: the weapon interface, as
+		-- Obsidian API vehicles.seats reads it) arms the first seat, which steers and fires it.
+		local first = cs.current_seat_index == nil or cs.current_seat_index == 1
+		if first and EA.has_interface and EA.has_interface(view.target, "weapon") then return true end
 		for i in ipairs(seat.seat_weapon_units or {}) do
 			local index = seat.weapon_index_to_seat and seat.weapon_index_to_seat[i]
 			if index == nil or index == cs.current_seat_index then return true end

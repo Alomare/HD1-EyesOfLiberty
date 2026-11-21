@@ -1,7 +1,7 @@
 {
   "obsidian": 1,
   "id": "alomare.eyesofliberty",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "name": {
     "en": "Eyes of Liberty"
   },
@@ -134,7 +134,7 @@
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "Camera sideways distance (m)" },
       "description": { "en": "Meters between the camera and the shoulder of the Helldiver, to the side. The camera comes a little closer while aiming." } },
-    { "id": "hide_stowed_support", "type": "toggle", "default": true,
+    { "id": "hide_stowed_support", "type": "toggle", "default": false,
       "group": "camera", "part": "view", "scope": "client",
       "label": { "en": "Hide stowed support weapon" },
       "description": { "en": "The support weapon carried on the back is hidden while another weapon is in hand, so a long one such as the Dum-Dum doesn't block the view. Only on this screen." } },

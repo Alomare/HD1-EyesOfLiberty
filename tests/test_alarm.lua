@@ -98,6 +98,9 @@ return {
 		eq(x.seat_armed({ avatar = "driver", target = "apc", vehicle = "apc" }), false, "the APC's driver")
 		eq(x.seat_armed({ avatar = "gunner", target = "apc", vehicle = "apc" }), true, "the APC's gunner")
 		eq(x.seat_armed({ avatar = "me", target = "turret", vehicle = "turret" }), true, "no seat component: armed")
+		EntityAux.has_interface = function(u, name) return u == "exo" and name == "weapon" end
+		eq(x.seat_armed({ avatar = "driver", target = "exo", vehicle = "exo" }), true, "an exosuit's pilot fires the exosuit")
+		eq(x.seat_armed({ avatar = "gunner", target = "exo", vehicle = "exo" }), true, "seat 2 with a seat gun")
 		local env2 = { state = { active = true, crosshair = { x = 1, y = 1 }, vehicle = true, seat_armed = true, firing = false, armed = true } }
 		eq(x.look(env2, true), nil, "gunner between shots: nothing")
 		env2.state.firing = true

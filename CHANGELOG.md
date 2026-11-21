@@ -2,6 +2,12 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 1.1.1
+
+- Changed: Hide stowed support weapon is off by default.
+- Fixed: In an exosuit or a mannable turret, the crosshair shows while firing again. The pilot counted as a driver with no gun.
+- Fixed: An arc weapon fires the way the weapon points only while Weapon ergonomics is on, never along a way left over from an earlier frame.
+
 ## 1.1.0
 
 - New: Weapon ergonomics option under Aiming, on by default. Every shot, laser beam and arc leaves along the way the weapon points, the weapon swings onto the crosshair while aiming or firing, and the crosshair shows where the weapon points until it gets there. Off, shots go straight to the crosshair, and the weapon tilts up and down no faster than the Helldiver turns.

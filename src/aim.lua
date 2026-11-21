@@ -403,7 +403,8 @@ function M.start(env)
 			local wielder = wielder_of(unit)
 			if wielder ~= env.view.avatar or env.view.vehicle then return nil end
 			local p = U.world_position(wielder, 0)
-			local d = M.gun.dir or rig.shot_dir({ x = p.x, y = p.y, z = p.z + 1 }, state.aim_point)
+			local live_gun = M.gun_live(wielder, env.view, M.frame_now and M.frame_now() or 0)
+			local d = (live_gun and M.gun.dir) or rig.shot_dir({ x = p.x, y = p.y, z = p.z + 1 }, state.aim_point)
 			if not d then return nil end
 			local f = Q.forward(U.world_rotation(wielder, 0))
 			return { x = f.x, y = f.y, z = f.z }, d

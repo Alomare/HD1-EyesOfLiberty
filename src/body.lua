@@ -210,8 +210,8 @@ end
 function M.start(env)
 	local state = env.state
 	local config = env.config
-	local hide_stowed = not config or config.get("hide_stowed_support") ~= false
-	if config then config.on_change("hide_stowed_support", function(v) hide_stowed = v ~= false end) end
+	local hide_stowed = config ~= nil and config.get("hide_stowed_support") == true
+	if config then config.on_change("hide_stowed_support", function(v) hide_stowed = v == true end) end
 	table.insert(env.on_pose, function(view)
 		local target = nil
 		if hide_stowed and view.avatar and not view.vehicle and not view.watching then
