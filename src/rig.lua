@@ -123,9 +123,9 @@ end
 -- Turns a view by this frame's look input. mouse: counts moved { x right, y down the screen }.
 -- stick: the right stick { x right, y up }. opts: speed (look speed), invert, zoom (share of the field
 -- of view kept, so aiming turns slower), dt, pitch_min and pitch_max (degrees, the third-person ones
--- when left out).
+-- when left out), confused (the Helldiver is confused: left and right, up and down are the other way).
 function M.look(view, mouse, stick, opts)
-	local speed = (opts.speed or 1) * (opts.zoom or 1)
+	local speed = (opts.speed or 1) * (opts.zoom or 1) * (opts.confused and -1 or 1)
 	local flip = opts.invert and -1 or 1
 	local yaw, pitch = view.yaw, view.pitch
 	if mouse then

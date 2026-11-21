@@ -6,10 +6,15 @@
 -- every unit linked to it (the body pieces skinned to its bones, the weapon at r_hand_attach) get
 -- World.update_unit.
 --
--- How much: the pitch of the weapon now (forward of r_hand_attach, the weapon's +y) and the pitch from
--- that node to the crosshair point; the difference, eased in and out with the aim and within MAX
--- degrees, is shared by the spine nodes, each turned about the Helldiver's right axis in world space.
--- Only this machine's picture: other players see the game's own pose.
+-- How much: the pitch of the weapon now (forward of r_hand_attach, the weapon's +y) and the pitch the
+-- weapon has swung to (src/aim.lua M.gun, eased by src/ergo.lua), or else the pitch from that node to
+-- the crosshair point; the difference, eased in and out with the aim and within MAX degrees, is shared
+-- by the spine nodes, each turned about the Helldiver's right axis in world space. Only this machine's
+-- picture: other players see the game's own pose.
+--
+-- Only in the states that hold the weapon up to shoot (src/ergo.lua AIM_STATES). A throw, a weapon
+-- switch or a reload moves the hand far from the weapon's line, and measuring it there bent the
+-- Helldiver far back; out of those states the last bend eases out as it was.
 local rig = obsidian.module("src/rig")
 
 local M = {}
@@ -33,11 +38,19 @@ function M.bend(now, want)
 	return math.max(-M.MAX, math.min(M.MAX, b))
 end
 
--- Whether the pose is wanted this frame.
-function M.wanted(env)
+-- Whether the pose is wanted this frame. posed: the Helldiver is in a state that holds the weapon up.
+function M.wanted(env, posed)
 	local state, view = env.state, env.view
-	return state.active and not state.vehicle and not state.watching and not state.dropping
+	return state.active and not state.vehicle and not state.watching and not state.dropping and posed ~= false
 		and (state.aiming or state.firing) and view and view.avatar and state.aim_point and true or false
+end
+
+-- Whether the Helldiver's state holds the weapon up (src/aim.lua aim_state), nil when unknown.
+function M.posed(avatar)
+	local EA = g("EntityAux")
+	local ok, cs = pcall(EA.state_master, avatar, "character")
+	if not ok or type(cs) ~= "table" then return nil end
+	return obsidian.module("src/aim").aim_state(cs.current_state)
 end
 
 -- Every unit drawn with the Helldiver: its body pieces and what is linked under it.
@@ -98,7 +111,8 @@ end
 -- aim at: none, or almost straight under the hand, as when looking far down. The last bend is then held
 -- (M.held), so the pose doesn't snap back to the animation's.
 M.UNDER = 0.05 -- metres across from the hand within which a point is straight under it
-function M.target_bend(f, p, point)
+function M.target_bend(f, p, point, pitch)
+	if pitch then return M.bend(M.pitch_of({ x = f.x, y = f.y, z = f.z }), math.deg(pitch)) end
 	if not point then return nil end
 	local to = { x = point.x - p.x, y = point.y - p.y, z = point.z - p.z }
 	if to.x * to.x + to.y * to.y < M.UNDER * M.UNDER then return nil end
@@ -108,7 +122,8 @@ end
 function M.apply(env, dt)
 	local U, Q, W = g("Unit"), g("Quaternion"), g("World")
 	M.restore(U, Q, W)
-	local want = M.wanted(env)
+	local posed = env.view and env.view.avatar and M.posed(env.view.avatar)
+	local want = M.wanted(env, posed)
 	M.weight = rig.ease(M.weight, want and 1 or 0, M.RATE, dt or 0.016)
 	if M.weight < 0.01 then
 		M.held = nil
@@ -124,7 +139,11 @@ function M.apply(env, dt)
 	local hand = U.node(avatar, "r_hand_attach")
 	local f = Q.forward(U.world_rotation(avatar, hand))
 	local p = U.world_position(avatar, hand)
-	local full = M.target_bend(f, p, point)
+	local full = nil
+	if want then
+		local gun = obsidian.module("src/aim").gun
+		full = M.target_bend(f, p, point, gun and gun.pitch)
+	end
 	if full then M.held = full else full = M.held end
 	if not full then return false end
 	local b = full * M.weight

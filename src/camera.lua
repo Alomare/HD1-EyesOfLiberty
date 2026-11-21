@@ -232,8 +232,18 @@ function M.read_input(self, unit, ctx, shared, dt)
 	end
 	M.input = { frame = M.frame, unit = unit, ctx = ctx, kbm = kbm, look = look, fire = fire, throw = throw,
 		aiming = aiming, stick = look and stick or nil, shared = shared, dt = dt, pad_aim = pad_aim, pad_throw = pad_throw,
-		swap = swap }
+		swap = swap, confused = M.confused(st) }
 	return M.input
+end
+
+-- Whether the controls are turned around: an Illuminate confusion (StatusSettings confuse,
+-- invert_move_confuse, switch_move_aim_confuse) queues "change_controls" on the input, which keeps an
+-- input_filter whose invert list flips move and aim, or whose switch swaps them, until "reset_controls".
+-- The game flips its own output only; the camera turns the other way too.
+function M.confused(st)
+	local f = type(st) == "table" and st.input_filter
+	if type(f) ~= "table" then return false end
+	return (type(f.invert) == "table" and next(f.invert) ~= nil) or (type(f.switch) == "table" and next(f.switch) ~= nil) or false
 end
 
 -- While a pad aims with the left trigger (M.read_input), the character input the game queues throws
@@ -828,7 +838,7 @@ function M.drive(env, cm, dt)
 	local locked = M.drop ~= nil and M.drop.avatar == avatar and M.in_pod(avatar)
 	if input.look and not locked and M.frame - input.frame <= 4 then
 		rig.look(view, M.mouse_delta(true), input.stick, { speed = config.get("look_speed") or 1, invert = config.get("invert_y"),
-			zoom = zoom, dt = dt })
+			zoom = zoom, dt = dt, confused = input.confused })
 	else
 		M.mouse_delta(false) -- drop what moved while the view didn't take it
 	end
@@ -1304,7 +1314,11 @@ function M.start(env)
 		local was = M.vanilla
 		local got, want = pcall(M.vanilla_wanted, env, self)
 		M.vanilla = got and want or false
-		M.vanilla = cursor.hold(M.vanilla) and M.vanilla
+		-- The game's cursor goes where the weapon points (state.crosshair, src/aim.lua), off the middle.
+		local cross, mid = state.crosshair, state.centre
+		local dx, dy = 0, 0
+		if cross and mid then dx, dy = cross.x - mid.x, mid.y - cross.y end
+		M.vanilla = cursor.hold(M.vanilla, dx, dy) and M.vanilla
 		if was and not M.vanilla and state.active then
 			-- Back to the mod's crosshair: the game's cursor goes out of the window again.
 			local cursors = g("CursorManager")

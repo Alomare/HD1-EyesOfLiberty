@@ -33,16 +33,26 @@ function M.pace_of(speed)
 	return math.max(0, math.min(M.PACE_MAX, speed / M.SPRINT_SPEED))
 end
 -- While a flamethrower of this player fires (on foot, or the Lumberer's), every shake is cut to FLAME
--- of its strength: the game shakes the camera on each puff of flame. Seconds the cut holds after the
--- last frame of fire, and how fast it eases in and out.
+-- of its strength: the game shakes the camera on each puff of flame. A laser firing cuts it to LASER.
+-- Seconds the cut holds after the last frame of fire, and how fast it eases in and out.
 M.FLAME = 0.2
+M.LASER = 0.25
 M.FLAME_HOLD = 0.2
 M.FLAME_RATE = 12
-M.flame = { left = 0, mix = 0 }
+M.flame = { left = 0, mix = 0, cut = M.FLAME }
+
+-- A weapon of this player that quiets the camera fires this frame: every shake down to `cut` of its
+-- strength (the strongest cut of the frame wins).
+function M.quiet(cut)
+	cut = cut or M.FLAME
+	if M.flame.left > 0 then cut = math.min(M.flame.cut, cut) end
+	M.flame.cut = cut
+	M.flame.left = M.FLAME_HOLD
+end
 
 -- A flamethrower of this player fires this frame.
 function M.flamed()
-	M.flame.left = M.FLAME_HOLD
+	M.quiet(M.FLAME)
 end
 
 function M.factor(level)
@@ -108,7 +118,7 @@ function M.offset(dt, factor)
 	local want = fl.left > 0 and 1 or 0
 	fl.left = math.max(0, fl.left - dt)
 	fl.mix = fl.mix + (want - fl.mix) * (1 - math.exp(-M.FLAME_RATE * dt))
-	local cut = 1 - (1 - M.FLAME) * fl.mix
+	local cut = 1 - (1 - (fl.cut or M.FLAME)) * fl.mix
 	return x * factor * cut, y * factor * cut
 end
 
@@ -117,7 +127,7 @@ function M.clear()
 	M.fire.level, M.fire.phase = 0, 0
 	M.game.x, M.game.y = 0, 0
 	M.sprint.level, M.sprint.phase, M.sprint.pace = 0, 0, 1
-	M.flame.left, M.flame.mix = 0, 0
+	M.flame.left, M.flame.mix, M.flame.cut = 0, 0, M.FLAME
 end
 
 return M

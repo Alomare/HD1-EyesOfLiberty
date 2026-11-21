@@ -17,7 +17,14 @@
 --                                          was fired, not the Helldiver's flat facing
 --   ArcweaponComponent.command_slave "show_hits"
 --                                          an arc that finds no target flies toward the crosshair
+--   CharacterSubstateMachine.update        the Helldiver turns at the handling of src/ergo.lua
+--
+-- On foot, shots leave along the way the weapon faces (src/ergo.lua): its heading, and a pitch that
+-- swings to the crosshair point while aiming or firing. The crosshair is drawn where that way meets
+-- something, so it shows where shots go while the weapon swings in.
 local rig = obsidian.module("src/rig")
+local ergo = obsidian.module("src/ergo")
+local frustum = obsidian.module("src/frustum")
 local scoped = obsidian.module("src/scoped")
 local shake = obsidian.module("src/shake")
 
@@ -26,6 +33,12 @@ local M = {}
 local function g(name) return rawget(_G, name) end
 
 M.RANGE = 300 -- metres the crosshair ray reaches
+M.ORIGIN = { x = 0, y = 0, z = 1.5 } -- where shots start over the root until a weapon reports it
+
+-- The weapon's way on foot (src/ergo.lua), each frame of the view: pitch in radians, dir, origin, the
+-- frame it was worked out, and the frame a laser of this player last fired. cross: 0 to 1, how far the
+-- crosshair has moved from the middle of the view to the weapon's point.
+M.gun = { pitch = nil, dir = nil, origin = nil, frame = -10, laser = -100, cross = 0 }
 
 -- Whether a unit hit by the crosshair ray belongs to this player: the body, the vehicle, or something the
 -- Helldiver carries (a backpack such as the shield generator pack, whose shield surrounds the body).
@@ -46,9 +59,13 @@ end
 -- starts inside a shield bubble when the Helldiver carries one, and a hit at the start (a shape the ray
 -- starts in) doesn't count either.
 function M.find_point(view)
-	local PW, V3, W, Actor = g("PhysicsWorld"), g("Vector3"), g("World"), g("Actor")
 	local f = view.forward
-	local start = rig.add(view.position, f, rig.ray_start(view.position, f, view.pivot))
+	return M.cast(view, rig.add(view.position, f, rig.ray_start(view.position, f, view.pivot)), f)
+end
+
+-- The first thing along a ray from `start` along `f` that isn't this player's own, or the far end.
+function M.cast(view, start, f)
+	local PW, V3, W, Actor = g("PhysicsWorld"), g("Vector3"), g("World"), g("Actor")
 	local pw = W.physics_world(view.world)
 	local hits = PW.immediate_raycast(pw, V3(start.x, start.y, start.z), V3(f.x, f.y, f.z), M.RANGE,
 		"all", "collision_filter", "damage_ray")
@@ -164,6 +181,7 @@ function M.collect(slaves, view, point, quaternion_forward, from_weapon)
 	local list = {}
 	local U, Q, V3A = g("Unit"), g("Quaternion"), g("Vector3Aux")
 	local mine = own_units(view)
+	local now = M.frame_now and M.frame_now() or 0
 	for unit, ctx in pairs(slaves) do
 		local wielder = mine[unit] and unit or wielder_of(unit)
 		if wielder and (mine[wielder] or mine[unit]) and U.alive(wielder) then
@@ -184,10 +202,13 @@ function M.collect(slaves, view, point, quaternion_forward, from_weapon)
 				end
 				-- A vehicle gun turns slower than the view: it fires the way it points, at the height of the
 				-- crosshair point. On foot the shot goes straight to the crosshair point.
+				-- On foot it leaves along the weapon's way (src/ergo.lua): its heading, at the pitch it has
+				-- swung to.
 				local dir
 				if view.vehicle then dir = rig.gun_dir(origin, point, f)
+				elseif M.gun_live(wielder, view, now) then dir = ergo.dir(f, M.gun.pitch)
 				else dir = rig.shot_dir(origin, point, { x = f.x, y = f.y, z = 0 }) end
-				if dir then list[#list + 1] = { f = { x = f.x, y = f.y, z = f.z }, dir = dir, unit = unit } end
+				if dir then list[#list + 1] = { f = { x = f.x, y = f.y, z = f.z }, dir = dir, unit = unit, firing = st.was_firing and true or false } end
 			end
 		end
 	end
@@ -207,7 +228,9 @@ function M.collect_lasers(slaves, view, point, quaternion_forward)
 			local node = type(st.attach_node) == "number" and st.attach_node or 0
 			local f = quaternion_forward(U.world_rotation(unit, node))
 			local p = U.world_position(unit, node)
-			local dir = rig.shot_dir({ x = p.x, y = p.y, z = p.z }, point, { x = f.x, y = f.y, z = 0 })
+			local dir
+			if M.gun_live(wielder, view, M.frame_now and M.frame_now() or 0) then dir = ergo.dir(f, M.gun.pitch)
+			else dir = rig.shot_dir({ x = p.x, y = p.y, z = p.z }, point, { x = f.x, y = f.y, z = 0 }) end
 			if dir then
 				local lift = type(st.range) == "number" and st.range > 0 and 1.5 / st.range or 0
 				list[#list + 1] = { f = { x = f.x, y = f.y, z = f.z }, dir = dir, lift = lift }
@@ -292,11 +315,19 @@ function M.start(env)
 		view.target_position = { x = tp.x, y = tp.y, z = tp.z }
 		local point, hit, unit = M.find_point(view)
 		state.aim_point, state.aim_hit, state.aim_unit = point, hit, unit
-		state.crosshair = M.centre(cm)
+		state.centre = M.centre(cm)
+		state.crosshair = state.centre
+		local ok, err = pcall(M.gun_frame, env, view, cm, rawget(_G, "ENGINE_DT") or 0.016)
+		if not ok and not M.gun_failed then
+			M.gun_failed = true
+			env.log("Eyes of Liberty: weapon handling stopped: " .. tostring(err))
+		end
 	end)
 	table.insert(env.on_release, function()
-		state.aim_point, state.aim_hit, state.aim_unit, state.ping_centre = nil, nil, nil, nil
+		state.aim_point, state.aim_hit, state.aim_unit, state.ping_centre, state.centre = nil, nil, nil, nil, nil
+		M.gun.pitch, M.gun.dir, M.gun.origin, M.gun.cross = nil, nil, nil, 0
 	end)
+	M.frame_now = function() return env.frame and env.frame() or 0 end
 
 	local function live()
 		return state.active and env.view and state.aim_point and camera.input
@@ -320,7 +351,14 @@ function M.start(env)
 			if not ok or #list == 0 then return original(self, slaves, dt, ...) end
 			if class == "BeamweaponComponent" then
 				local now = env.frame and env.frame() or 0
-				for _, o in ipairs(list) do M.beam_dirs[o.unit] = { dir = o.dir, frame = now } end
+				for _, o in ipairs(list) do
+					M.beam_dirs[o.unit] = { dir = o.dir, frame = now }
+					-- A laser firing: slower handling, and a quieter camera (src/shake.lua).
+					if o.firing then
+						M.gun.laser = now
+						shake.quiet(shake.LASER)
+					end
+				end
 			end
 			return M.redirect(list, original, self, slaves, dt, ...)
 		end, env.VIEW)
@@ -360,7 +398,7 @@ function M.start(env)
 			local wielder = wielder_of(unit)
 			if wielder ~= env.view.avatar or env.view.vehicle then return nil end
 			local p = U.world_position(wielder, 0)
-			local d = rig.shot_dir({ x = p.x, y = p.y, z = p.z + 1 }, state.aim_point)
+			local d = M.gun.dir or rig.shot_dir({ x = p.x, y = p.y, z = p.z + 1 }, state.aim_point)
 			if not d then return nil end
 			local f = Q.forward(U.world_rotation(wielder, 0))
 			return { x = f.x, y = f.y, z = f.z }, d
@@ -381,6 +419,14 @@ function M.start(env)
 	obsidian.hook("FlameweaponComponent", "update_masters", function(original, self, masters, ...)
 		local r = scoped.pack(original(self, masters, ...))
 		if live() and type(masters) == "table" then pcall(M.note_flames, masters, env.view) end
+		return unpack(r, 1, r.n)
+	end, env.VIEW)
+
+	-- The Helldiver turns to the aim input at the handling of src/ergo.lua while holding the weapon up:
+	-- the keep goes in after the state machines, where the game reads it, unless one of them set its own.
+	obsidian.hook("CharacterSubstateMachine", "update", function(original, unit, ctx, ...)
+		local r = scoped.pack(original(unit, ctx, ...))
+		if live() and not env.view.vehicle and unit == camera.input.unit then pcall(M.turn, ctx, env) end
 		return unpack(r, 1, r.n)
 	end, env.VIEW)
 
@@ -439,6 +485,71 @@ function M.start(env)
 end
 
 M.pending_throw = nil
+
+-- Whether shots of `wielder` leave along the weapon's way: this player's Helldiver on foot, with a way
+-- worked out in the last frames.
+function M.gun_live(wielder, view, now)
+	return not view.vehicle and wielder == view.avatar and M.gun.pitch ~= nil and now - (M.gun.frame or -10) <= 2
+end
+
+-- Whether a character state holds the weapon up to shoot (ergo.AIM_STATES).
+function M.aim_state(current)
+	if current == nil then return false end
+	for _, name in ipairs(ergo.AIM_STATES) do
+		if g(name) == current then return true end
+	end
+	return false
+end
+
+-- Whether a laser of this player fired within the last few frames.
+function M.laser_firing(now)
+	return now - (M.gun.laser or -100) <= ergo.LASER_HOLD
+end
+
+-- The game's turn keep for this player's Helldiver, while the weapon is up.
+function M.turn(ctx, env)
+	local st = type(ctx) == "table" and ctx.state
+	if type(st) ~= "table" or st.forced_rotation_speed ~= nil or not M.aim_state(st.current_state) then return false end
+	local now = env.frame and env.frame() or 0
+	st.forced_rotation_speed = ergo.keep(ergo.tau(ergo.ergonomics(M.laser_firing(now))))
+	return true
+end
+
+-- One frame of the weapon's way on foot, after the crosshair point is found: the pitch swings to the
+-- crosshair point's while aiming or firing, the heading is the Helldiver's, and the crosshair goes
+-- where that way meets something (state.crosshair; state.centre stays the middle of the view).
+function M.gun_frame(env, view, cm, dt)
+	local state, gun = env.state, M.gun
+	local now = env.frame and env.frame() or 0
+	if view.vehicle or not view.avatar or not state.aim_point or not view.target_position then
+		gun.pitch, gun.dir, gun.origin, gun.cross = nil, nil, nil, 0
+		return
+	end
+	local U, Q = g("Unit"), g("Quaternion")
+	local root = view.target_position
+	local off = M.shot_offset or M.ORIGIN
+	local origin = { x = root.x + off.x, y = root.y + off.y, z = root.z + off.z }
+	local f = Q.forward(U.world_rotation(view.avatar, 0))
+	-- Aiming or firing raises the weapon; a held throw doesn't (state.firing counts throws too).
+	local input = env.camera and env.camera.input
+	local raised = (state.aiming or (input and input.fire)) and true or false
+	local tau = ergo.tau(ergo.ergonomics(M.laser_firing(now)))
+	local want = ergo.pitch_to(origin, state.aim_point) or gun.pitch or 0
+	gun.pitch = ergo.step_pitch(gun.pitch, want, raised, tau, dt)
+	gun.dir = ergo.dir({ x = f.x, y = f.y }, gun.pitch)
+	gun.origin, gun.frame = origin, now
+	gun.cross = ergo.ease(gun.cross, raised and 1 or 0, ergo.CROSS_TAU, dt)
+	if not gun.dir or gun.cross < 0.01 then return end
+	local spot = M.cast(view, origin, gun.dir)
+	local w, h, x0, y0 = cm.viewport:window()
+	local cam = frustum.camera_from(view.position, view.forward, math.rad(view.fov or 70))
+	local sx, depth, sy = frustum.project(cam, spot, w, h)
+	if depth < 0.1 then sx, sy = frustum.behind(cam, spot, w, h) end
+	sx, sy = ergo.inside(sx, sy, w, h)
+	local c = state.centre
+	local px, py = (x0 or 0) + sx, (y0 or 0) + sy
+	state.crosshair = { x = c.x + (px - c.x) * gun.cross, y = c.y + (py - c.y) * gun.cross }
+end
 
 -- An Actor.set_velocity that launches the throwable `unit` with the aimed velocity, or nil when the
 -- throw isn't this player's (more than 3 m from the Helldiver) or the settings lack the distances.

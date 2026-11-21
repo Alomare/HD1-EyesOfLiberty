@@ -465,7 +465,7 @@ function M.start(env)
 		x0, y0 = x0 or 0, y0 or 0
 		local s = min(w / compass.W, h / compass.H)
 		local cam = frustum.camera_from(view.position, view.forward, math.rad(view.fov or 70))
-		local cross = env.state.crosshair or env.state.ping_centre
+		local cross = env.state.centre or env.state.ping_centre
 		local me = api.game.my_unit()
 		local mine = me and plain(g("Unit").world_position(me, 0))
 		sync_map(view, mine)

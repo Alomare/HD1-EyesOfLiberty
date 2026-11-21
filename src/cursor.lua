@@ -42,15 +42,17 @@ function M.available()
 end
 
 -- The box the cursor is held in: 2 x 2 pixels around the middle of a client area w x h whose top left
--- is at (x, y) on the screen.
-function M.box(x, y, w, h)
-	local cx, cy = x + math.floor(w / 2), y + math.floor(h / 2)
+-- is at (x, y) on the screen, moved by (dx, dy) pixels (right and down), within the area.
+function M.box(x, y, w, h, dx, dy)
+	local cx = x + math.floor(w / 2 + math.max(-w / 2, math.min(w / 2 - 1, dx or 0)))
+	local cy = y + math.floor(h / 2 + math.max(-h / 2, math.min(h / 2 - 1, dy or 0)))
 	return cx - 1, cy - 1, cx + 1, cy + 1
 end
 
 -- Holds the cursor at the middle of the window in front (the game's: the caller checks the focus),
--- or lets it go. Answers whether it is held.
-function M.hold(on)
+-- moved by (dx, dy) pixels right and down (where the weapon points, src/aim.lua), or lets it go.
+-- Answers whether it is held.
+function M.hold(on, dx, dy)
 	local a = load()
 	if not a then return false end
 	if not on then
@@ -64,7 +66,7 @@ function M.hold(on)
 		a.user32.GetClientRect(w, a.rect)
 		a.point.x, a.point.y = 0, 0
 		a.user32.ClientToScreen(w, a.point)
-		local l, t, r, b = M.box(a.point.x, a.point.y, a.rect.right - a.rect.left, a.rect.bottom - a.rect.top)
+		local l, t, r, b = M.box(a.point.x, a.point.y, a.rect.right - a.rect.left, a.rect.bottom - a.rect.top, dx, dy)
 		a.box.left, a.box.top, a.box.right, a.box.bottom = l, t, r, b
 		a.user32.ClipCursor(a.box)
 	end)
