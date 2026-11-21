@@ -2,6 +2,22 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 1.1.0
+
+- New: Weapon ergonomics option under Aiming, on by default. Every shot, laser beam and arc leaves along the way the weapon points, the weapon swings onto the crosshair while aiming or firing, and the crosshair shows where the weapon points until it gets there. Off, shots go straight to the crosshair, and the weapon tilts up and down no faster than the Helldiver turns.
+- New: Camera sideways distance option, the meters between the camera and the shoulder.
+- New: Aiming a support weapon over the right shoulder moves the camera farther to the side.
+- New: Hide stowed support weapon option, on by default. A support weapon on the back, such as the Dum-Dum, no longer blocks the view while another weapon is in hand.
+- New: The in-game settings open one page per group, so the list no longer runs off the screen. Needs Obsidian API 1.58.1 or later.
+- Changed: A laser swings onto the crosshair more slowly while firing.
+- Changed: Camera shake while firing a laser is 75 percent weaker.
+- Changed: The ammo bar is 20 percent thinner, 10 percent more transparent, and has no lines between rounds.
+- Changed: In a vehicle, the driver no longer gets the aiming crosshair, and a seat with a gun shows the crosshair only while firing.
+- Removed: The blocked shot mark, the red X where something close would stop the shots, and the option for it.
+- Fixed: An Illuminate confusion turns the camera controls around too, not only movement and stratagems.
+- Fixed: The Helldiver no longer bends backward while holding a throw or switching weapons with the aim button held.
+- Fixed: The crosshair hides while the Helldiver sits in a Hellpod on the Super Destroyer, and comes back on climbing out.
+
 ## 1.1.0-beta.2
 
 - Removed: The blocked shot mark, the red X where something close would stop the shots, and the option for it.

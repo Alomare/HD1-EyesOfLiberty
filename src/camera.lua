@@ -335,6 +335,19 @@ function M.diving(avatar)
 	return ok and type(hs) == "table" and hs.is_dodging == true
 end
 
+-- Whether the Helldiver holds the support weapon (the inventory's support_weapon is the one in hand).
+function M.holding_support(avatar)
+	local EA = g("EntityAux")
+	local inv = nil
+	for _, get in ipairs({ EA.state_master, EA.state }) do
+		if not inv and type(get) == "function" then
+			local ok, s = pcall(get, avatar, "inventory")
+			if ok and type(s) == "table" then inv = s end
+		end
+	end
+	return inv ~= nil and inv.support_weapon ~= nil and inv.support_weapon == inv.current_weapon
+end
+
 -- Whether the Helldiver is down and crawling.
 function M.downed(avatar)
 	local EA = g("EntityAux")
@@ -419,9 +432,10 @@ function M.vanilla_wanted(env, cm)
 	if not (state.active and not M.watching and not M.hanging and not state.claimed_by) then return false end
 	if not (input and input.kbm and input.look and not input.riding and M.frame - input.frame <= 4) then return false end
 	if type(cm) ~= "table" or cm.state ~= "follow" then return false end
-	-- Sitting in a Hellpod of the Super Destroyer: no crosshair at all (src/crosshair.lua drop_pod).
-	local view = env.view
-	if view and view.vehicle and obsidian.module("src/crosshair").drop_pod(view.target) then return false end
+	-- In a vehicle the mod's own crosshair follows the seat (src/crosshair.lua vehicle_look), which the
+	-- game's cursor can't: none for a driver, the aiming one only while firing. Also none in a Hellpod
+	-- of the Super Destroyer.
+	if state.vehicle then return false end
 	return cursor.available()
 end
 
@@ -846,6 +860,7 @@ function M.drive(env, cm, dt)
 		M.mouse_delta(false) -- drop what moved while the view didn't take it
 	end
 	smooth.aim = rig.ease(smooth.aim, (input.aiming and not kind) and 1 or 0, 12, dt)
+	smooth.support = rig.ease(smooth.support or 0, (not kind and M.holding_support(avatar)) and 1 or 0, 12, dt)
 	state.aiming = input.aiming and not kind and true or false
 	-- Fire or a throw held: the game shows the aiming cursor for these too.
 	state.firing = (input.fire or input.throw) and true or false
@@ -918,7 +933,7 @@ function M.drive(env, cm, dt)
 		distance = distance,
 		fov = kind and (config.get("vehicle_fov") or 70) or (config.get("foot_fov") or 70),
 		side = smooth.side, aim = smooth.aim, dive = smooth.dive, down = smooth.down, vehicle = kind,
-		shoulder = config.get("side_distance") })
+		shoulder = config.get("side_distance"), support = smooth.support })
 	local _, dir, full = rig.place(smooth.pivot, view.yaw, view.pitch, distance, side)
 
 	-- Walls and rocks pull the camera in.

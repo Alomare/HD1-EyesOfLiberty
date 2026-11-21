@@ -292,7 +292,7 @@ return {
 		E.remove()
 	end },
 
-	{ "the game's crosshair shows in a vehicle, while aiming or firing, or always by the game option", function()
+	{ "the game's crosshair shows while aiming or firing, in a gun seat while firing, or always by the game option", function()
 		local cross = obsidian.module("src/crosshair")
 		local busy = false
 		local env = { state = { active = true, crosshair = { x = 1, y = 1 } }, camera = { input = { look = true } },
@@ -304,7 +304,9 @@ return {
 		eq(cross.visible(env), true, "firing")
 		eq(cross.look(env, true), "aim", "firing: the aiming cursor")
 		env.state.firing, env.state.vehicle = false, true
-		eq(cross.visible(env), true, "in a vehicle")
+		eq(cross.visible(env), false, "in a gun seat between shots")
+		env.state.firing = true
+		eq(cross.visible(env), true, "in a gun seat, firing")
 		busy = true
 		eq(cross.visible(env), false, "picture")
 		busy = false

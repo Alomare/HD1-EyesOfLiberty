@@ -154,10 +154,7 @@ return {
 		local sx1, sy1 = a.shape("oppose", 1, false, 0, 0, R)(1, R)
 		near(sx0, R) near(sx1, R, "straight: upright at R")
 		near(sy1 - sy0, 2 * R * math.sin(a.SPAN / 2), "as long as the curved bar's chord")
-		eq(#a.dividers(30), 29, "30 rounds: a line between each")
-		eq(#a.dividers(45), 44, "45 rounds: still a line between each")
-		eq(#a.dividers(50), 49, "50 rounds: the most with lines")
-		eq(#a.dividers(51), 0, "over 50: none")
+		eq(a.dividers, nil, "one plain band, no lines between rounds")
 		eq(a.progress({ reload_time = 1, reload_duration = 2 }), 0.5)
 		eq(a.progress({ reload_time = -1, reload_duration = 2 }), nil)
 		local cfg = { ammo_bar = true }

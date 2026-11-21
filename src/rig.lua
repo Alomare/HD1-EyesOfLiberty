@@ -15,6 +15,8 @@ M.VEHICLE_SIDE_DROP = 0.6  -- metres a vehicle camera comes down when it sits to
 M.DIVE_DROP = 0.7          -- metres the pivot comes down during a dive, toward the Helldiver on the ground
 M.AIM_DISTANCE = 0.5       -- share of the distance kept while the aim button is held
 M.AIM_SHOULDER = 0.6       -- share of the shoulder offset kept while aiming: the camera comes in behind the head
+M.SUPPORT_SIDE = 0.45      -- metres farther to the right while aiming a support weapon over the right shoulder:
+                           -- the long weapons (the recoilless rifle, the Dum-Dum) fill the middle of the view
 M.AIM_FOV = 1              -- share of the field of view kept while aiming: aiming doesn't zoom
 M.MOUSE_RATE = 0.12        -- degrees per count of the mouse, at look speed 1
 M.STICK_YAW, M.STICK_PITCH = 160, 110 -- degrees a second at full stick, at look speed 1
@@ -180,7 +182,8 @@ end
 
 -- The camera's distance, field of view and side offset for this frame. opts: distance, fov (degrees),
 -- side (1 right, -1 left, anything between while the shoulder swaps), shoulder (metres to the side on
--- foot, M.SHOULDER when left out), aim (0 to 1, how far into the aim
+-- foot, M.SHOULDER when left out), support (0 to 1, how far a support weapon in hand counts: over
+-- the right shoulder, aiming moves the camera SUPPORT_SIDE farther out), aim (0 to 1, how far into the aim
 -- zoom), dive (0 to 1, how far into a dive: the dive only lowers the pivot, see height), down (0 to 1,
 -- how far into the downed camera), vehicle (the vehicle kind, nil on foot: in a
 -- vehicle, side is -1 left, 0 middle, 1 right, or between while it moves).
@@ -200,7 +203,10 @@ function M.lens(opts)
 			side = s * M.SHOULDER * 1.5
 		end
 	else
-		side = (opts.side or 1) * (opts.shoulder or M.SHOULDER) * (1 + (M.AIM_SHOULDER - 1) * aim)
+		local s = opts.side or 1
+		side = s * (opts.shoulder or M.SHOULDER) * (1 + (M.AIM_SHOULDER - 1) * aim)
+		-- Only over the right shoulder (s > 0), eased with the swap so it never jumps.
+		if s > 0 then side = side + M.SUPPORT_SIDE * aim * clamp(opts.support or 0, 0, 1) * clamp(s, 0, 1) end
 	end
 	return distance, fov, side
 end

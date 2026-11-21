@@ -94,11 +94,18 @@ local export = { version = obsidian.version or "1.0.1" }
 -- the top-down view. fade (since 0.6.0): from 1 down to 0 as the Helldiver sprints; a crosshair drawn
 -- there fades with it. armed (since 0.14.0): false while the Helldiver can't shoot (dead, in the
 -- Hellpod, putting in a stratagem, on the map, the death cam); a crosshair drawn there
--- hides then. nil while the top-down camera is on.
+-- hides then. In a vehicle (since 1.1.0): the driver of a vehicle with no gun at the seat never
+-- reports aiming or firing, and a seat with a gun reports armed only while firing.
+-- nil while the top-down camera is on.
 function export.crosshair()
 	if not state.active or not state.crosshair then return nil end
-	return { x = state.crosshair.x, y = state.crosshair.y, aiming = state.aiming, firing = state.firing,
-		vehicle = state.vehicle, fade = state.sprint_fade or 1, armed = state.armed ~= false }
+	local aiming, firing, armed = state.aiming, state.firing, state.armed ~= false
+	if state.vehicle then
+		if state.seat_armed == false then aiming, firing = false, false
+		else armed = armed and state.firing and true or false end
+	end
+	return { x = state.crosshair.x, y = state.crosshair.y, aiming = aiming, firing = firing,
+		vehicle = state.vehicle, fade = state.sprint_fade or 1, armed = armed }
 end
 
 -- Another mod draws the crosshair from now on (Custom Crosshair does this). Eyes of Liberty

@@ -40,6 +40,35 @@ function M.can_shoot(hud)
 	return not (hud == "dead" or hud == "map" or hud == "stratagems")
 end
 
+-- Whether the Helldiver's seat in a vehicle has a weapon of its own: a weapon of the seat component
+-- (seat_weapon_units) that belongs to the seat the Helldiver sits in (weapon_index_to_seat, nil for
+-- every seat), as src/aim.lua own_units reads it. A vehicle with no seat component (a turret) counts as
+-- armed. The driver of a vehicle whose guns are on another seat has none.
+function M.seat_armed(view)
+	if not (view and view.vehicle and view.target and view.avatar) then return true end
+	local EA = g("EntityAux")
+	local ok, armed = pcall(function()
+		if not EA.has_component(view.target, "seat") then return true end
+		local seat = EA.state(view.target, "seat")
+		local cs = EA.state(view.avatar, "character")
+		for i in ipairs(seat.seat_weapon_units or {}) do
+			local index = seat.weapon_index_to_seat and seat.weapon_index_to_seat[i]
+			if index == nil or index == cs.current_seat_index then return true end
+		end
+		return false
+	end)
+	if not ok then return true end
+	return armed and true or false
+end
+
+-- Which crosshair a vehicle seat shows: the driver of a vehicle with no gun at the seat never gets the
+-- aiming one (only the idle one, when the game keeps the crosshair up); a seat with a gun shows the
+-- aiming crosshair while firing and nothing else. Answers "aim", "idle" or nil.
+function M.vehicle_look(seat_armed, firing, always)
+	if not seat_armed then return always and "idle" or nil end
+	return firing and "aim" or nil
+end
+
 -- Whether a seat is a Hellpod of the Super Destroyer, which the Helldiver climbs into to get ready.
 function M.drop_pod(seat)
 	local EA = g("EntityAux")
@@ -77,7 +106,9 @@ function M.look(env, always)
 	local camera = env.camera
 	local input = camera and camera.input
 	if input and not input.look then return nil end
-	local kind = (state.vehicle or state.aiming or state.firing) and "aim" or (always and "idle") or nil
+	local kind
+	if state.vehicle then kind = M.vehicle_look(state.seat_armed ~= false, state.firing, always)
+	else kind = (state.aiming or state.firing) and "aim" or (always and "idle") or nil end
 	if not kind then return nil end
 	local api = env.api
 	if api then
@@ -122,8 +153,9 @@ function M.start(env)
 	env.state.armed = nil
 	table.insert(env.on_pose, function(view)
 		env.state.armed = M.armed(env, view)
+		env.state.seat_armed = M.seat_armed(view)
 	end)
-	table.insert(env.on_release, function() env.state.armed = nil end)
+	table.insert(env.on_release, function() env.state.armed, env.state.seat_armed = nil, nil end)
 	-- The game draws its cursor images while it reads input; the crosshair goes on the same gui then.
 	obsidian.hook("InputComponent", "update_masters", function(original, self, ...)
 		local r = scoped.pack(original(self, ...))

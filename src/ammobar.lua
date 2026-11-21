@@ -1,7 +1,7 @@
 -- The ammo bar: Better HUD's ammo circle (src/ammo_look.lua) as a sixth of a circle around the
 -- crosshair, in third person on foot. Same colours, warnings, shakes, laser heat, arc charge, empty
--- flash and reload button; shows from a shot, fades out 8 seconds after the last shot. A weapon of 50
--- rounds or fewer has a faint line between rounds. While the weapon reloads, the bar fills in Better
+-- flash and reload button; shows from a shot, fades out 8 seconds after the last shot. One plain band,
+-- with no lines between rounds. While the weapon reloads, the bar fills in Better
 -- HUD's reload grey as the reload goes; a finished reload swells the band by GROW and fades it out over
 -- DONE seconds, as Better HUD's reload ring does, and the bar stays hidden until the next shot.
 --
@@ -25,9 +25,6 @@ M.WIDTH, M.EDGE = 3.36, 1.2 -- design units: the band (a fifth thinner than the 
 M.SIZE = 1.5          -- Better HUD's ring size in the shoulder view
 M.SPAN = math.pi / 3  -- a sixth of a circle: two thirds of a quarter
 M.PIECES = 24         -- pieces a curved bar is drawn in
-M.ROUNDS = 50         -- magazines up to this many rounds show a line between rounds
-M.LINE = { 0, 0, 0, 110 } -- those lines: faded
-M.LINE_WIDTH = 0.5    -- design units
 M.BUTTON_GAP = 4      -- design units between the band and the reload button
 M.TRACK, M.BORDER = { 30, 30, 30, 85 }, { 0, 0, 0, 100 }
 M.SHADOW = 0.2
@@ -75,14 +72,6 @@ function M.shape(position, side, curved, cx, cy, R)
 		end
 	end
 	return function(t, r) return cx + s * r, cy - length / 2 + length * t end
-end
-
--- Where the lines between rounds go along the bar, for a magazine of `size`: none above ROUNDS.
-function M.dividers(size)
-	local out = {}
-	if type(size) ~= "number" or size < 2 or size > M.ROUNDS then return out end
-	for k = 1, size - 1 do out[#out + 1] = k / size end
-	return out
 end
 
 -- The light's shade at the screen angle of (x, y) from the crosshair: Better HUD's shadow, darkest at
@@ -228,12 +217,6 @@ function M.start(env)
 			kit:layer(421)
 			if ccw then band(f, 1 - fill, 1, r1, r2, color, cx, cy, true, curved)
 			else band(f, 0, fill, r1, r2, color, cx, cy, true, curved) end
-		end
-		if rounds and not discharge and not rp then
-			kit:layer(422)
-			local lw = M.LINE_WIDTH * ring / R / M.SPAN -- the line's width as a share of the bar
-			if not curved then lw = M.LINE_WIDTH * ring / (2 * R * math.sin(M.SPAN / 2)) end
-			for _, at in ipairs(M.dividers(size)) do piece(f, at - lw / 2, at + lw / 2, r1, r2, M.LINE, cx, cy, false) end
 		end
 		if empty and (rounds or kind == "beamweapon") and not discharge and not rp then
 			kit:layer(424)

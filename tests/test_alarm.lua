@@ -85,6 +85,23 @@ return {
 			state = function() return {} end }
 		eq(x.drop_pod("pod"), true) eq(x.drop_pod("tank"), false) eq(x.drop_pod(nil), false)
 		eq(x.armed({ state = {} }, { avatar = "me", target = "pod", vehicle = "turret" }), false, "in the ship's Hellpod: no crosshair")
+		-- Vehicle seats: a driver never gets the aiming crosshair, a gunner only while firing.
+		eq(x.vehicle_look(false, true, true), "idle", "driver firing: still idle")
+		eq(x.vehicle_look(false, true, false), nil, "driver, crosshair not kept up: none")
+		eq(x.vehicle_look(true, true, true), "aim", "gunner firing")
+		eq(x.vehicle_look(true, false, true), nil, "gunner not firing: none")
+		EntityAux = { has_component = function(u, name) return name == "seat" and u ~= "turret" end,
+			state = function(u, name)
+				if name == "seat" then return { seat_weapon_units = { "gun" }, weapon_index_to_seat = { 2 } } end
+				return { current_seat_index = u == "gunner" and 2 or 1 }
+			end }
+		eq(x.seat_armed({ avatar = "driver", target = "apc", vehicle = "apc" }), false, "the APC's driver")
+		eq(x.seat_armed({ avatar = "gunner", target = "apc", vehicle = "apc" }), true, "the APC's gunner")
+		eq(x.seat_armed({ avatar = "me", target = "turret", vehicle = "turret" }), true, "no seat component: armed")
+		local env2 = { state = { active = true, crosshair = { x = 1, y = 1 }, vehicle = true, seat_armed = true, firing = false, armed = true } }
+		eq(x.look(env2, true), nil, "gunner between shots: nothing")
+		env2.state.firing = true
+		eq(x.look(env2, true), "aim")
 		EntityAux = had
 	end },
 
