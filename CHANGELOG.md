@@ -2,7 +2,7 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
-## Next
+## 1.0.1
 
 - Fixed: The top-down view kept the longer throws and weapon range of the third-person view.
 - Fixed: A gamepad turns the view while another window is in front, so split-screen tools such as Nucleus Co-op work for every player.
