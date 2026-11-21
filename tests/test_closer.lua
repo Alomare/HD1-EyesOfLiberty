@@ -109,6 +109,45 @@ return {
 		near(body.distance_to_body({ x = 0, y = 0, z = 3 }, { x = 0, y = 0, z = 0 }), 3 - body.BODY[2], "over the head")
 	end },
 
+	{ "the stowed support weapon hides while another weapon is in hand", function()
+		local units, unit = body_world()
+		local avatar = unit("avatar", 0)
+		unit("rifle")
+		unit("tube", 0, { true, false })
+		local inv = { current_weapon = "rifle", support_weapon = "tube" }
+		_G.EntityAux = { state_master = function(u, name) if u == avatar and name == "inventory" then return inv end error("no") end }
+		local api = { game = { all_avatars = function() return {} end, slaves = function() return {} end } }
+		local listeners = {}
+		local option = true
+		local config = { get = function() return option end, on_change = function(_, fn) listeners[#listeners + 1] = fn end }
+		local env = { api = api, config = config, state = {}, on_pose = {}, on_release = {} }
+		local body = m("src/body")
+		body.start(env)
+		local view = { avatar = avatar, position = { x = 0, y = -3, z = 1.5 } }
+		local function pose() for _, fn in ipairs(env.on_pose) do fn(view) end end
+		pose()
+		eq(units.tube.meshes[1], false, "stowed: hidden")
+		inv.current_weapon = "tube"
+		pose()
+		eq(units.tube.meshes[1], true, "in hand: shown") eq(units.tube.meshes[2], false, "a mesh the game had off stays off")
+		inv.current_weapon = "rifle"
+		pose()
+		eq(units.tube.meshes[1], false, "stowed again")
+		view.vehicle = true
+		pose()
+		eq(units.tube.meshes[1], true, "in a vehicle: as the game has it")
+		view.vehicle = nil
+		pose()
+		for _, fn in ipairs(listeners) do fn(false) end
+		pose()
+		eq(units.tube.meshes[1], true, "option off: shown")
+		for _, fn in ipairs(listeners) do fn(true) end
+		pose()
+		for _, fn in ipairs(env.on_release) do fn() end
+		eq(units.tube.meshes[1], true, "third person off: shown")
+		EntityAux = nil
+	end },
+
 	{ "the ammo bar is an arc on the chosen side, filling up or across", function()
 		local a = m("src/ammobar")
 		local R = 100

@@ -13,6 +13,11 @@
 -- Close camera: when the camera presses within NEAR metres of the Helldiver (a wall behind, a tight
 -- corner), the body, gear and weapons are hidden until it is FAR again. The Helldiver's materials have
 -- no opacity to fade, so the parts' meshes are switched off, and switched back to what they were.
+--
+-- Stowed support weapon: with the option on, the support weapon (the inventory's support_weapon) is
+-- hidden while another weapon is in hand. Stowed on the back it sits between the camera and the view
+-- (the Dum-Dum's tube). This player's Helldiver on foot, on this screen only; the meshes go back as
+-- they were when it is wielded, the option goes off or third person ends.
 local M = {}
 
 local function g(name) return rawget(_G, name) end
@@ -148,9 +153,72 @@ local function show()
 	hidden = nil
 end
 
+-- Stowed support weapon ------------------------------------------------------------------------------
+
+local stowed = nil -- { unit, was = { mesh index = was visible } } while hidden
+
+-- The support weapon of an avatar while it is stowed (in the inventory, alive, not the weapon in hand).
+function M.stowed_support(avatar)
+	local EA, U = g("EntityAux"), g("Unit")
+	local inv = nil
+	for _, get in ipairs({ EA.state_master, EA.state }) do
+		if not inv and type(get) == "function" then
+			local ok, s = pcall(get, avatar, "inventory")
+			if ok and type(s) == "table" then inv = s end
+		end
+	end
+	if not inv then return nil end
+	local support = inv.support_weapon
+	if support == nil or support == inv.current_weapon or not U.alive(support) then return nil end
+	return support
+end
+
+local function unstow()
+	if not stowed then return end
+	local U, s = g("Unit"), stowed
+	stowed = nil
+	-- Hidden by the close camera meanwhile: it shows the meshes again when the camera moves off.
+	if hidden and hidden.units[s.unit] then
+		hidden.units[s.unit] = s.was
+		return
+	end
+	pcall(function()
+		if U.alive(s.unit) then
+			for i, on in pairs(s.was) do if on then U.set_mesh_visibility(s.unit, i, true) end end
+		end
+	end)
+end
+
+local function stow(unit)
+	if stowed and stowed.unit == unit then return end
+	unstow()
+	local U = g("Unit")
+	-- Already hidden by the close camera: the stow takes its record over.
+	if hidden and hidden.units[unit] then
+		stowed = { unit = unit, was = hidden.units[unit] }
+		hidden.units[unit] = {}
+		return
+	end
+	local was = {}
+	for i = 0, U.num_meshes(unit) - 1 do
+		was[i] = U.mesh_visibility(unit, i)
+		if was[i] then U.set_mesh_visibility(unit, i, false) end
+	end
+	stowed = { unit = unit, was = was }
+end
+
 function M.start(env)
 	local state = env.state
+	local config = env.config
+	local hide_stowed = not config or config.get("hide_stowed_support") ~= false
+	if config then config.on_change("hide_stowed_support", function(v) hide_stowed = v ~= false end) end
 	table.insert(env.on_pose, function(view)
+		local target = nil
+		if hide_stowed and view.avatar and not view.vehicle and not view.watching then
+			local ok, t = pcall(M.stowed_support, view.avatar)
+			target = ok and t or nil
+		end
+		if target then pcall(stow, target) elseif stowed then unstow() end
 		local api = env.api
 		lift_all(api)
 		local avatar = view.avatar
@@ -166,6 +234,7 @@ function M.start(env)
 		if want then hide(api, avatar) end
 	end)
 	table.insert(env.on_release, function()
+		unstow()
 		show()
 		drop_all()
 	end)
@@ -173,4 +242,5 @@ end
 
 M._lifted = function() return lifted end -- for tests
 M._hidden = function() return hidden end
+M._stowed = function() return stowed end
 return M
