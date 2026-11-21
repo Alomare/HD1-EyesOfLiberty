@@ -79,6 +79,13 @@ return {
 		eq(x.look(env, true), nil, "not armed: no cursor")
 		env.state.armed = true
 		eq(x.look(env, true), "aim")
+		-- In a Hellpod of the Super Destroyer: a seat with the drop_pod component.
+		local had = rawget(_G, "EntityAux")
+		EntityAux = { has_component = function(u, name) return u == "pod" and name == "drop_pod" end,
+			state = function() return {} end }
+		eq(x.drop_pod("pod"), true) eq(x.drop_pod("tank"), false) eq(x.drop_pod(nil), false)
+		eq(x.armed({ state = {} }, { avatar = "me", target = "pod", vehicle = "turret" }), false, "in the ship's Hellpod: no crosshair")
+		EntityAux = had
 	end },
 
 	{ "a finished reload swells the ammo bar and fades it out, as the Better HUD ring", function()

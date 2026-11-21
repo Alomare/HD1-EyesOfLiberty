@@ -2,6 +2,11 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## Next
+
+- Removed: The blocked shot mark, the red X where something close would stop the shots, and the option for it.
+- Fixed: The crosshair hides while the Helldiver sits in a Hellpod on the Super Destroyer, and comes back on climbing out.
+
 ## 1.1.0-beta.1
 
 - New: Camera sideways distance option, the meters between the camera and the shoulder.

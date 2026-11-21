@@ -194,8 +194,8 @@ function M.collect(slaves, view, point, quaternion_forward, from_weapon)
 				local p = U.world_position(from_weapon and unit or wielder, 0)
 				local offset = st.ray_source_offset and V3A.unbox(st.ray_source_offset) or nil
 				local origin = rig.shot_origin({ x = p.x, y = p.y, z = p.z }, offset, function(o) return Q.rotate(rot, o) end)
-				-- Where this player's shots start, from the Helldiver's root, for the blocked shot mark
-				-- (src/blocked.lua).
+				-- Where this player's shots start, from the Helldiver's root, for the weapon's way
+				-- (M.gun_frame).
 				if not view.vehicle and wielder == view.avatar then
 					local w = U.world_position(wielder, 0)
 					M.shot_offset = { x = origin.x - w.x, y = origin.y - w.y, z = origin.z - w.z }

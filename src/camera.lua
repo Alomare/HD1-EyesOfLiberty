@@ -419,6 +419,9 @@ function M.vanilla_wanted(env, cm)
 	if not (state.active and not M.watching and not M.hanging and not state.claimed_by) then return false end
 	if not (input and input.kbm and input.look and not input.riding and M.frame - input.frame <= 4) then return false end
 	if type(cm) ~= "table" or cm.state ~= "follow" then return false end
+	-- Sitting in a Hellpod of the Super Destroyer: no crosshair at all (src/crosshair.lua drop_pod).
+	local view = env.view
+	if view and view.vehicle and obsidian.module("src/crosshair").drop_pod(view.target) then return false end
 	return cursor.available()
 end
 

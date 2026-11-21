@@ -12,7 +12,8 @@
 -- (state.sprint_fade, from src/camera.lua), and the export hands the same fade to the other mod.
 --
 -- A crosshair shows only while the Helldiver can shoot (state.armed, set each pose): alive, not dropping
--- in the Hellpod, not putting in a stratagem, the map shut and the death cam off. Down and carrying,
+-- in the Hellpod, not sitting in a Hellpod on the Super Destroyer (a seat with the drop_pod component,
+-- gameobjects/gameobject_hellpod_menu), not putting in a stratagem, the map shut and the death cam off. Down and carrying,
 -- the Helldiver still shoots, and the crosshair stays. The export hands the same flag to the other mod, so its crosshair hides at the same moments.
 local scoped = obsidian.module("src/scoped")
 local art = obsidian.module("src/art")
@@ -39,9 +40,18 @@ function M.can_shoot(hud)
 	return not (hud == "dead" or hud == "map" or hud == "stratagems")
 end
 
+-- Whether a seat is a Hellpod of the Super Destroyer, which the Helldiver climbs into to get ready.
+function M.drop_pod(seat)
+	local EA = g("EntityAux")
+	if seat == nil or not EA then return false end
+	local ok, yes = pcall(EA.has_component, seat, "drop_pod")
+	return ok and yes and true or false
+end
+
 -- Whether the Helldiver of the view can shoot now (M.can_shoot), out of the death cam and the Hellpod.
 function M.armed(env, view)
 	if not view or view.watching or env.state.dropping or not view.avatar then return false end
+	if view.vehicle and M.drop_pod(view.target) then return false end
 	local unit, EA = view.avatar, g("EntityAux")
 	local hud = nil
 	local cc = g("CharacterComponent")
