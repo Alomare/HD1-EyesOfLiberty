@@ -221,8 +221,10 @@ function M.start(env)
 		local px, py = p.x, p.y
 		local cx, cy
 		local state = env.state
-		if state.active and state.crosshair then
-			cx, cy = state.crosshair.x, state.crosshair.y
+		-- At the middle of the view: the crosshair moves with the weapon (src/ergo.lua), this stays.
+		local mid = state.centre or state.crosshair
+		if state.active and state.crosshair and mid then
+			cx, cy = mid.x, mid.y
 		else
 			cx, cy = x0 + w / 2, y0 + h / 2
 		end

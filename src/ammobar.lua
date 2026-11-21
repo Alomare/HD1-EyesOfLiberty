@@ -186,7 +186,8 @@ function M.start(env)
 		if hud and (hud.hidden or hud.enabled == false) then return end
 		if api.map and api.map.is_open and api.map.is_open() then return end
 		if api.effects and api.effects.is_on and api.effects.is_on("photo_mode") then return end
-		local cross = state.crosshair
+		-- At the middle of the view: the crosshair moves with the weapon (src/ergo.lua), the bar stays.
+		local cross = state.crosshair and (state.centre or state.crosshair)
 		if not cross then return end
 		local w, h = g("Application").resolution()
 		local user = math.max(0.5, math.min(2, tonumber(env.config.get("ammo_bar_scale")) or 1))
