@@ -42,6 +42,12 @@ return {
 		local d = m.dir({ x = 0, y = 2 }, math.rad(30))
 		near(d.z, 0.5, "pitch", 1e-9) near(d.y, math.sqrt(3) / 2, "heading kept", 1e-9)
 		eq(m.dir({ x = 0, y = 0 }, 0), nil, "no heading")
+		local t = m.dir({ x = 1, y = 0 }, 0, math.pi / 2)
+		near(t.x, 0, "turned", 1e-9) near(t.y, 1, "anticlockwise", 1e-9)
+		-- Shots start 0.3 m right of the root; the facing points from the root at a point 30 m ahead.
+		local turn = m.converge({ x = 0, y = 0, z = 0 }, { x = 0.3, y = 0, z = 1.5 }, { x = 0, y = 30, z = 1.5 })
+		local d = m.dir({ x = 0, y = 1 }, 0, turn)
+		near(0.3 + d.x / d.y * 30, 0, "the shot meets the point", 1e-9)
 		near(m.pitch_to({ x = 0, y = 0, z = 1.5 }, { x = 0, y = 10, z = 11.5 }), math.rad(45), "pitch to a point", 1e-9)
 	end },
 

@@ -52,12 +52,30 @@ function M.pitch_to(from, to)
 	return math.atan2(dz, flat)
 end
 
--- The way a weapon faces: its flat heading and a pitch in radians. nil without a heading.
-function M.dir(flat, pitch)
+-- The way a weapon faces: its flat heading, turned by `turn` radians (anticlockwise seen from above),
+-- and a pitch in radians. nil without a heading.
+function M.dir(flat, pitch, turn)
 	local l = math.sqrt(flat.x * flat.x + flat.y * flat.y)
 	if l < 1e-6 then return nil end
+	local x, y = flat.x / l, flat.y / l
+	if turn and turn ~= 0 then
+		local c, s = math.cos(turn), math.sin(turn)
+		x, y = x * c - y * s, x * s + y * c
+	end
 	local c = math.cos(pitch or 0)
-	return { x = flat.x / l * c, y = flat.y / l * c, z = math.sin(pitch or 0) }
+	return { x = x * c, y = y * c, z = math.sin(pitch or 0) }
+end
+
+-- The turn that makes a shot from `origin` along the Helldiver's facing meet `point` once the facing
+-- has settled: the game turns the Helldiver to face the point from its root, and shots start beside
+-- the root (probe 2026-11-21: 12 px right of the middle at rest without it). Radians, within half a turn.
+function M.converge(root, origin, point)
+	local a = math.atan2(point.y - origin.y, point.x - origin.x)
+	local b = math.atan2(point.y - root.y, point.x - root.x)
+	local d = a - b
+	while d > math.pi do d = d - 2 * math.pi end
+	while d < -math.pi do d = d + 2 * math.pi end
+	return d
 end
 
 -- One frame of the weapon's pitch. raised: the Helldiver aims or fires; the weapon swings to the

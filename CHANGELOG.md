@@ -2,6 +2,17 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## 1.1.0-beta.1
+
+- New: Camera sideways distance option, the meters between the camera and the shoulder.
+- New: Hide stowed support weapon option, on by default. A support weapon on the back, such as the Dum-Dum, no longer blocks the view while another weapon is in hand.
+- New: The in-game settings open one page per group, so the list no longer runs off the screen. Needs Obsidian API 1.58.0 or later.
+- Changed: Every shot, laser beam and arc leaves along the way the weapon points. While aiming or firing, the weapon swings onto the crosshair, and the crosshair shows where the weapon points until it gets there.
+- Changed: A laser swings onto the crosshair more slowly while firing.
+- Changed: Camera shake while firing a laser is 75 percent weaker.
+- Fixed: An Illuminate confusion turns the camera controls around too, not only movement and stratagems.
+- Fixed: The Helldiver no longer bends backward while holding a throw or switching weapons with the aim button held.
+
 ## 1.0.1
 
 - Fixed: The top-down view kept the longer throws and weapon range of the third-person view.

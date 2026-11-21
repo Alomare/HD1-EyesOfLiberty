@@ -77,6 +77,22 @@ return {
 		for _, r in ipairs(c.ROWS) do eq(known[r.group], true, r.id .. " group") end
 	end },
 
+	{ "every module in src is listed in obsidian.json", function()
+		local s = read("obsidian.json")
+		local listed = {}
+		for m in s:match('"modules": %[(.-)%]'):gmatch('"(src/[%w_]+%.lua)"') do listed[m] = true end
+		local p = io.popen(package.config:sub(1, 1) == "\\" and "dir /b src" or "ls src")
+		local count = 0
+		for name in p:lines() do
+			if name:match("%.lua$") then
+				count = count + 1
+				eq(listed["src/" .. name], true, "src/" .. name .. " in modules")
+			end
+		end
+		p:close()
+		eq(count > 20, true, "files read")
+	end },
+
 	{ "numbers read plainly", function()
 		local c = obsidian.module("src/config")
 		eq(c.number_text(0.30000000000000004), "0.3")

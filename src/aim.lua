@@ -206,7 +206,7 @@ function M.collect(slaves, view, point, quaternion_forward, from_weapon)
 				-- swung to.
 				local dir
 				if view.vehicle then dir = rig.gun_dir(origin, point, f)
-				elseif M.gun_live(wielder, view, now) then dir = ergo.dir(f, M.gun.pitch)
+				elseif M.gun_live(wielder, view, now) then dir = ergo.dir(f, M.gun.pitch, M.gun.turn)
 				else dir = rig.shot_dir(origin, point, { x = f.x, y = f.y, z = 0 }) end
 				if dir then list[#list + 1] = { f = { x = f.x, y = f.y, z = f.z }, dir = dir, unit = unit, firing = st.was_firing and true or false } end
 			end
@@ -229,7 +229,7 @@ function M.collect_lasers(slaves, view, point, quaternion_forward)
 			local f = quaternion_forward(U.world_rotation(unit, node))
 			local p = U.world_position(unit, node)
 			local dir
-			if M.gun_live(wielder, view, M.frame_now and M.frame_now() or 0) then dir = ergo.dir(f, M.gun.pitch)
+			if M.gun_live(wielder, view, M.frame_now and M.frame_now() or 0) then dir = ergo.dir(f, M.gun.pitch, M.gun.turn)
 			else dir = rig.shot_dir({ x = p.x, y = p.y, z = p.z }, point, { x = f.x, y = f.y, z = 0 }) end
 			if dir then
 				local lift = type(st.range) == "number" and st.range > 0 and 1.5 / st.range or 0
@@ -536,7 +536,8 @@ function M.gun_frame(env, view, cm, dt)
 	local tau = ergo.tau(ergo.ergonomics(M.laser_firing(now)))
 	local want = ergo.pitch_to(origin, state.aim_point) or gun.pitch or 0
 	gun.pitch = ergo.step_pitch(gun.pitch, want, raised, tau, dt)
-	gun.dir = ergo.dir({ x = f.x, y = f.y }, gun.pitch)
+	gun.turn = ergo.converge(root, origin, state.aim_point)
+	gun.dir = ergo.dir({ x = f.x, y = f.y }, gun.pitch, gun.turn)
 	gun.origin, gun.frame = origin, now
 	gun.cross = ergo.ease(gun.cross, raised and 1 or 0, ergo.CROSS_TAU, dt)
 	if not gun.dir or gun.cross < 0.01 then return end
