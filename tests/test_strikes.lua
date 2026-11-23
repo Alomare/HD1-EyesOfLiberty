@@ -1,4 +1,4 @@
--- Stratagems come from the ship (src/strikes.lua): the way down from the ship, and the game's casts turned.
+-- Ship-bound stratagems (src/strikes.lua): the way down from the ship, and the game's casts turned.
 local function strikes() return obsidian.module("src/strikes") end
 
 return {

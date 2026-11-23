@@ -1,4 +1,4 @@
--- Stratagems come from the ship (part ship_strikes, session): Hellpods and orbital shells come down
+-- Ship-bound stratagems (part ship_strikes, session): Hellpods and orbital shells come down
 -- along the way from the Super Destroyer in the sky (src/ship.lua) instead of straight down.
 --
 -- The way: the bearing the ship is seen at, from the planet's sunlight (ship.bearing, the same on
