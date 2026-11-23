@@ -158,6 +158,9 @@ local ROWS = {
 	{ kind = "toggle", id = "edge_markers", group = "indicators",
 		label = { en = "Edge markers" },
 		info = { en = "Stratagem beacons out of view show at the edge of the screen." } },
+	{ kind = "toggle", id = "beacon_icon", group = "indicators",
+		label = { en = "Stratagem beacon icon" },
+		info = { en = "The crosshair on a beacon's beam shows the stratagem's icon there." } },
 	{ kind = "toggle", id = "names_above", group = "indicators",
 		label = { en = "Names above heads" },
 		info = { en = "Name cards of players show above their heads." } },
@@ -180,6 +183,9 @@ local ROWS = {
 	{ kind = "toggle", id = "far_view", group = "picture",
 		label = { en = "Long view distance" },
 		info = { en = "The view and the detail of distant models reach farther." } },
+	{ kind = "toggle", id = "sky_ship", group = "picture",
+		label = { en = "Ship in the sky" },
+		info = { en = "The Super Destroyer hangs in the sky during a mission." } },
 }
 
 M.ROWS = ROWS

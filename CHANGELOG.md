@@ -6,7 +6,12 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 
 - New: While aiming the Rumbler or the Obliterator, the throw arc shows the flight of the shell and a circle as wide as the blast of each shell.
 - New: The charge of the Rumbler shows as a thin white band on the inner side of the ammo bar, full at the longest shot.
+- New: Ship in the sky option, on by default. In third person during a mission, the Super Destroyer hangs high in the sky.
+- New: Stratagem beacon icon option, on by default. With the crosshair on the light beam of a stratagem beacon, the icon of the stratagem shows on the beam at the height of the crosshair.
 - Changed: Obliterator shells fly on an arc that lands on the crosshair point, as far as the weapon reaches.
+- Changed: After a Rumbler shot, the arc and circles of the shot stay in place and fade out while the shells fly.
+- Changed: Explosion kick returns smoothly without bouncing, and blasts farther off kick harder than before, so the kick fades more evenly with distance.
+- Fixed: Firing the Recoilless Rifle no longer kicks the camera as if an explosion had gone off.
 - Fixed: A Rumbler or Obliterator shot aimed high no longer lands on the Helldiver. The Rumbler fires toward the crosshair at the angle of the game, and the charge sets how far, as in the top-down view.
 - Fixed: Eyes of Liberty no longer switches off after a few missions when another mod asks for screen positions at the end of a mission.
 

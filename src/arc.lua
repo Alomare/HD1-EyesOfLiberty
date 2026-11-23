@@ -371,23 +371,34 @@ local function ground_hit(pw)
 end
 
 -- After a throw the last arc stays where it was, its dashes still, and fades out over FREEZE seconds.
+-- A charged launcher's arc (the Rumbler) stays over LOB_FREEZE, about as long as the longest burst
+-- flies: on release the game sets the charge back to nothing, so a live arc would shrink to the
+-- shortest shot while the shells are still on the way.
 M.FREEZE = 1
-M.shown = nil  -- { points, land, scroll, frame } of the arc drawn last
-M.frozen = nil -- { points, land, scroll, t } of a throw, fading
+M.LOB_FREEZE = 2.5
+M.frame = 0    -- frames counted by M.start
+M.shown = nil  -- { points, land, rings, scroll, frame } of the arc drawn last
+M.frozen = nil -- { points, land, rings, scroll, t, span, lob } of a throw or a burst, fading
 
--- How strong a frozen arc shows `t` seconds after the throw, 1 to 0.
-function M.freeze_alpha(t)
-	if t >= M.FREEZE then return 0 end
-	return 1 - math.max(0, t) / M.FREEZE
+-- How strong a frozen arc shows `t` seconds after the throw, 1 to 0, fading over `span` seconds.
+function M.freeze_alpha(t, span)
+	span = span or M.FREEZE
+	if t >= span then return 0 end
+	return 1 - math.max(0, t) / span
 end
 
 -- The throw went: the arc shown last freezes, when it was drawn within the last few frames.
 function M.thrown(frame)
 	local s = M.shown
 	if s and frame - s.frame <= 3 then
-		M.frozen = { points = s.points, land = s.land, scroll = s.scroll, t = 0 }
+		M.frozen = { points = s.points, land = s.land, rings = s.rings, scroll = s.scroll, t = 0, span = s.span, lob = s.lob }
 	end
 	M.shown = nil
+end
+
+-- The first shell of a charged launcher's burst went (src/aim.lua): its arc freezes the same way.
+function M.lob_fired()
+	if M.shown and M.shown.lob then M.thrown(M.frame) end
 end
 
 -- The launcher in this player's hands, when it lobs shells and is held up to fire (aimed, or a charge
@@ -401,6 +412,8 @@ function M.lob_held(env)
 	local st = weapon and api.game.master(weapon, "launcher")
 	if type(st) ~= "table" or st.is_reloading then return nil end
 	if not (env.state.aiming or st.charging_shot) then return nil end
+	-- A burst on the way, or its arc still fading: no live arc over it.
+	if st.burst_timer or (M.frozen and M.frozen.lob) then return nil end
 	if not (st.infinite_ammo or (tonumber(st.rounds) or 0) > 0) then return nil end
 	local settings = M.lob_settings(st)
 	if not settings then return nil end
@@ -416,8 +429,8 @@ function M.draw(hud, env, scale, dt, frame)
 	local frozen = M.frozen
 	if frozen then
 		frozen.t = frozen.t + (dt or 0)
-		local a = M.freeze_alpha(frozen.t)
-		if a <= 0 then M.frozen = nil else M.render(gui, view, cm, frozen.points, frozen.land, frozen.scroll, a) end
+		local a = M.freeze_alpha(frozen.t, frozen.span)
+		if a <= 0 then M.frozen = nil else M.render(gui, view, cm, frozen.points, frozen.land, frozen.scroll, a, frozen.rings) end
 	end
 	local pw = g("World").physics_world(view.world)
 	if not held then
@@ -434,6 +447,8 @@ function M.draw(hud, env, scale, dt, frame)
 			if land then rings[#rings + 1] = { at = land, radius = blast, line = true } end
 		end
 		M.scroll = (M.scroll + (dt or 0) * M.SCROLL) % M.DASH_EVERY
+		M.shown = st.fire_on_release and { points = points, rings = rings, scroll = M.scroll, frame = frame or 0,
+			span = M.LOB_FREEZE, lob = true } or nil
 		M.render(gui, view, cm, points, nil, M.scroll, 1, rings)
 		return
 	end
@@ -535,7 +550,7 @@ function M.start(env)
 	-- The Increased throw range part runs this only while the lobby allows it.
 	local scaled_frame = -10
 	obsidian.on_frame(function() scaled_frame = frame end, env.part("throw_range"))
-	obsidian.on_frame(function() frame = frame + 1 end, env.VIEW)
+	obsidian.on_frame(function() frame = frame + 1 M.frame = frame end, env.VIEW)
 	for _, class in ipairs(M.THROW_STATES) do
 		obsidian.hook(class, "update", function(original, unit, ctx, ...)
 			local r = { original(unit, ctx, ...) }

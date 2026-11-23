@@ -29,9 +29,12 @@ return {
 		eq(frag, 1925, "a frag grenade")
 		eq(k.energy({ center_power = 0, blast_power = 0, blast_radius = 5 }), 0, "smoke: nothing")
 		eq(k.strength(192, 0), 0, "a napalm tick: below LEAST")
-		local near_frag, far_frag = k.strength(frag, 1), k.strength(frag, 8)
+		local near_frag, far_frag = k.strength(frag, 1), k.strength(frag, 10)
 		eq(near_frag > 0 and near_frag < 0.4, true, "a grenade next to you: a small kick")
-		eq(far_frag, 0, "a grenade 8 m off: nothing")
+		eq(far_frag, 0, "a grenade 10 m off: nothing")
+		-- A flat curve: half way out still kicks well over half as hard as at 1 m.
+		eq(k.strength(frag, 4.5) > 0.55 * near_frag, true, "still felt half way out")
+		eq(k.TEMPLATE.recoilless, nil, "firing a Recoilless Rifle is no blast")
 		local bomb = k.TEMPLATE.hellbomb_explosion
 		eq(k.strength(bomb, 0), 1, "a Hellbomb: the full kick")
 		eq(k.strength(bomb, 30) > 0, true, "and still felt 30 m off")
@@ -54,7 +57,13 @@ return {
 		near(most[1], -k.ROLL, "rolls the full amount, left", k.ROLL * 0.06)
 		near(most[2], k.PITCH, "tips up", k.PITCH * 0.075)
 		near(most[3], k.LIFT, "rises", k.LIFT * 0.09)
-		run(k, 2)
+		-- Back without a bounce: past level by under 1 percent of the peak.
+		local least = 0
+		for _ = 1, 120 do
+			local r = k.step(1 / 60, 1)
+			if r > least then least = r end
+		end
+		eq(least < 0.01 * k.ROLL, true, "no swing back past level: " .. least)
 		local r, p, l = k.step(1 / 60, 1)
 		near(r, 0, "back level", 0.05) near(p, 0, nil, 0.05) near(l, 0, nil, 0.005)
 		k.kick(1, 1)

@@ -459,6 +459,8 @@ function M.start(env)
 			local done, z, list = pcall(M.lob_z, unit, st, settings, env.view, state.aim_point)
 			if not done or not z then return original(self, unit, st, ...) end
 			shake.fired(false)
+			-- The first shell of a Rumbler burst: the arc shown at release stays while the shells fly.
+			if st.fire_on_release and not st.burst_round then pcall(M.arc.lob_fired) end
 			return scoped.swap(st, "z_direction", z, M.redirect, list, original, self, unit, st, ...)
 		end
 		local ok, list = pcall(M.collect, { [unit] = { state = st } }, env.view, state.aim_point, g("Quaternion").forward, true)

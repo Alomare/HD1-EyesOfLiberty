@@ -13,7 +13,13 @@
 -- 1900, an airstrike 5800, a satchel 6850), or TEMPLATE's for a shake. Below LEAST nothing happens
 -- (napalm and gas areas tick small explosions all the time). The kick reaches REACH * (E / BASE)^0.6
 -- metres and is KICK * (E / BASE)^0.6 strong at the blast, up to 1, fading with the distance's share of
--- the reach to the power 1.5: a grenade kicks lightly within about 6 m, a Hellbomb hard and out to 35 m.
+-- the reach to the power FALLOFF: a grenade kicks within about 9 m, a Hellbomb hard and out to 50 m.
+-- FALLOFF under 1 keeps much of the kick well away from the blast (1.5 before 1.2.0 left almost nothing
+-- past a few metres; the user asked for a flatter curve).
+--
+-- Weapon fire never kicks: its shakes (assaultrifle, shotgun, railgun, recoilless and the others of
+-- camera_shake_settings.lua) are not in TEMPLATE. Before 1.2.0 "recoilless" was, taken for a blast,
+-- and every Recoilless Rifle shot kicked the view.
 --
 -- Hellpods: a pod landing raises an explosion of its own (through the level's flow), and the Hellpod
 -- camera has its own landing shake, so it kicks nothing. A blast is a pod's when one of its units has
@@ -27,11 +33,12 @@ local M = {}
 local function g(name) return rawget(_G, name) end
 
 M.BASE = 2000         -- energy of a frag grenade, about
-M.REACH = 6           -- metres a BASE blast reaches
-M.KICK = 0.45         -- strength of a BASE blast at its centre (1 is the full kick)
+M.REACH = 9           -- metres a BASE blast reaches
+M.KICK = 0.4          -- strength of a BASE blast at its centre (1 is the full kick)
+M.FALLOFF = 0.7       -- how the kick fades over the reach
 M.LEAST = 500         -- energy below which a blast kicks nothing
-M.TEMPLATE = {        -- energy of a blast heard only through its camera shake
-	grenade = 2000, mine_explosion = 2500, bugnest_explode = 2500, recoilless = 2500,
+M.TEMPLATE = {        -- energy of a blast heard only through its camera shake (explosions only)
+	grenade = 2000, mine_explosion = 2500, bugnest_explode = 2500,
 	artillery = 4500, airstrike = 5800, hellbomb_explosion = 40000,
 }
 M.MERGE_TIME, M.MERGE_DIST = 0.2, 4
@@ -41,8 +48,10 @@ M.POD_NEAR, M.POD_FRESH = 5, 10
 -- times the first tuning (0.14.0: 10, 4, 0.22), which players found too weak at every size.
 M.ROLL, M.PITCH, M.LIFT = 50, 20, 1.1
 -- The spring each part follows: natural frequency (radians a second) and damping ratio. A kick sets
--- the part moving at the speed that peaks at its size, so it snaps out and settles back.
-M.OMEGA, M.DAMPING = 11, 0.5
+-- the part moving at the speed that peaks at its size, so it snaps out and settles back. At 0.85 it
+-- comes back with an overshoot of under 1 percent of the peak; 0.5 (before 1.2.0) swung back past
+-- level by 16 percent and bounced (the user: kick and return gracefully).
+M.OMEGA, M.DAMPING = 10, 0.85
 M.TIRE, M.FATIGUE_RATE = 1.6, 0.8
 
 -- The energy of an explosive_info, or 0.
@@ -59,7 +68,7 @@ function M.strength(e, d)
 	local reach = M.REACH * share ^ 0.6
 	if d >= reach then return 0 end
 	local f = 1 - d / reach
-	return math.min(1, M.KICK * share ^ 0.6) * f ^ 1.5
+	return math.min(1, M.KICK * share ^ 0.6) * f ^ M.FALLOFF
 end
 
 -- The roll's direction for a blast `to` (flat way from the camera to the blast) and the camera's

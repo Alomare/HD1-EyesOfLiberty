@@ -103,6 +103,27 @@ return {
 		end
 	end },
 
+	{ "a Rumbler burst keeps the arc shown at release while the shells fly", function()
+		local m = arc()
+		m.frame = 100
+		m.shown = { points = {}, rings = { { at = { x = 0, y = 30, z = 0 }, radius = 3.5, line = true } }, scroll = 0,
+			frame = 99, span = m.LOB_FREEZE, lob = true }
+		m.lob_fired()
+		eq(m.frozen.rings[1].at.y, 30, "the rings at release") eq(m.frozen.span, m.LOB_FREEZE)
+		near(m.freeze_alpha(m.LOB_FREEZE / 2, m.frozen.span), 0.5, "fades over the flight")
+		eq(m.freeze_alpha(1.2), 0, "a throw's still fades over a second")
+		-- No live arc over it, nor while the burst goes.
+		local env = { view = { avatar = "me" }, state = { aiming = true }, api = { game = { master = function() return { rounds = 3 } end } } }
+		local had = rawget(_G, "EntityAux")
+		EntityAux = { state = function() return { current_weapon = "rumbler" } end }
+		eq(m.lob_held(env), nil, "frozen")
+		m.frozen = nil
+		env.api.game.master = function() return { rounds = 3, burst_timer = 0.1 } end
+		eq(m.lob_held(env), nil, "burst on the way")
+		EntityAux = had
+		m.shown = nil
+	end },
+
 	{ "the doubled throw range doubles both distances", function()
 		local _, d = arc().launch(grenade, 0, { x = 0, y = 1, z = 1 }, 2)
 		eq(d, 4)
