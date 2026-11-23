@@ -173,9 +173,22 @@ end
 -- The bend goes in just before the scene update of the Helldiver's world, after the animations: that is
 -- what the frame draws. Bones turned later, in StateGame.post_update, aren't drawn (checked in game
 -- through the Memory Bridge, 2026-11-20).
+--
+-- And it comes out again just before the next animation update of that world (WorldProxy.update:
+-- World.update_animations_with_callback, then World.update_scene), after the frame was drawn. The cape
+-- is a chain the Helldiver's animation moves after the bones it hangs from (the game sends
+-- "teleport_cape" whenever it moves a Helldiver at once, so the chain doesn't swing from the jump).
+-- Left in until the next bend, the bend was in the world pose the animation started from, and gone
+-- from the pose the animation made: each frame the chain saw its bones jump by the bend and back, and
+-- the cape jittered while the Helldiver was bent.
 function M.start(env)
 	if env.config.get("aim_pose") == false then M.off = true end
 	env.config.on_change("aim_pose", function(v) M.off = v == false end)
+	obsidian.hook("World", "update_animations_with_callback", function(original, world, ...)
+		local last = M.written
+		if last and last.world == world then pcall(M.restore, g("Unit"), g("Quaternion"), g("World")) end
+		return original(world, ...)
+	end, env.VIEW)
 	local failed = false
 	obsidian.hook("World", "update_scene", function(original, world, ...)
 		if not failed and not M.off and env.view and world == env.view.world then

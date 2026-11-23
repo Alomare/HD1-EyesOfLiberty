@@ -41,6 +41,29 @@ return {
 		eq(updated, 1, "a second restore does nothing")
 	end },
 
+	{ "the bend comes out before the next animation update of the Helldiver's world", function()
+		local E2 = E.install()
+		local a = obsidian.module("src/aimpose")
+		local env = E.env()
+		env.config.start(env)
+		a.start(env)
+		local bones = { [3] = { 0, 0, 0.3, 0.95 } }
+		Unit.local_rotation = function(_, i) return bones[i] end
+		Unit.set_local_rotation = function(_, i, q) bones[i] = q end
+		Quaternion.to_elements = function(q) return q[1], q[2], q[3], q[4] end
+		Quaternion.from_elements = function(x, y, z, w) return { x, y, z, w } end
+		E2.units.me = { position = { x = 0, y = 0, z = 0 } }
+		a.written = { avatar = "me", world = "w", nodes = { [3] = { was = { 0, 0, 0, 1 }, now = { 0, 0, 0.3, 0.95 } } } }
+		local animate = E.hook("World", "update_animations_with_callback")
+		local seen
+		animate(function() seen = bones[3][4] end, "other world", 0.016)
+		eq(seen, 0.95, "another world: left alone")
+		animate(function() seen = bones[3][4] end, "w", 0.016)
+		eq(seen, 1, "the animation starts from the pose before the bend")
+		eq(a.written, nil)
+		E.remove()
+	end },
+
 	{ "the pose wants third person on foot, aiming or firing, with a point", function()
 		local a = obsidian.module("src/aimpose")
 		local env = { state = { active = true, aiming = true, aim_point = {} }, view = { avatar = "me" } }

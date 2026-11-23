@@ -12,6 +12,7 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - Changed: After a Rumbler shot, the arc and circles of the shot stay in place and fade out while the shells fly.
 - Changed: Explosion kick returns smoothly without bouncing, and blasts farther off kick harder than before, so the kick fades more evenly with distance.
 - Fixed: Firing the Recoilless Rifle no longer kicks the camera as if an explosion had gone off.
+- Fixed: The cape no longer jitters while the Helldiver bends to aim up or down.
 - Fixed: A Rumbler or Obliterator shot aimed high no longer lands on the Helldiver. The Rumbler fires toward the crosshair at the angle of the game, and the charge sets how far, as in the top-down view.
 - Fixed: Eyes of Liberty no longer switches off after a few missions when another mod asks for screen positions at the end of a mission.
 
