@@ -16,7 +16,12 @@
 --                  is a session part: machines must agree on where each shot lands.
 --   Shell units    the unit each shot spawns where it lands (the falling shell is drawn inside it, along
 --                  its up axis: probe 2026-11-23) spawns turned toward the ship.
--- The orbital laser roams the ground on its own, and Eagles fly their own runs: both are left alone.
+--   Orbital laser  the beam is drawn inside the laser unit (gameobjects/orbital_strike) along its up axis,
+--                  and reaches far up (probe 2026-11-23: the unit turned 40 degrees showed the beam leaning
+--                  off the screen). HomingComponent.update_slaves places and turns the unit each frame
+--                  while it roams; right after, the unit is turned so the beam leans toward the ship. The
+--                  explosions stay at the unit's root, on the ground.
+-- Eagles fly their own runs and are left alone.
 local ship = obsidian.module("src/ship")
 
 local M = {}
@@ -146,6 +151,60 @@ function M.landed(U, unit)
 	return true
 end
 
+M.LASER = "gameobjects/orbital_strike"
+
+-- Which homing units are orbital lasers (weak keys: units come and go).
+M.lasers = setmetatable({}, { __mode = "k" })
+
+-- The turn that takes straight up to the way from `from` to the ship at `at`: axis and angle. The
+-- ship in the sky stands about 33 m from the camera, so a beam parallel to the bearing would pass
+-- beside it; this one meets it.
+function M.aim(from, at)
+	local dx, dy, dz = at.x - from.x, at.y - from.y, at.z - from.z
+	local l = math.sqrt(dx * dx + dy * dy + dz * dz)
+	local flat = math.sqrt(dx * dx + dy * dy)
+	if l < 1e-6 or flat < 1e-6 then return { x = 1, y = 0, z = 0 }, 0 end
+	return { x = -dy / flat, y = dx / flat, z = 0 }, math.acos(math.max(-1, math.min(1, dz / l)))
+end
+
+-- The beam is a particle effect on the laser's root, as long as M.BEAM metres up the root's axis;
+-- a root scaled along that axis draws it that much longer (probe 2026-11-23: scale 0.3 shortened the
+-- beam, the ground glow stayed; a scaled child node changed nothing). With the ship in the sky, the
+-- beam is drawn as long as the way to the ship, so it reaches the ship. Seen in game with 20, the tip
+-- came out of the far side of the hull by about 8 percent of the way; 22 ends it inside.
+M.BEAM = 22
+
+-- How much longer the beam is drawn to reach from `from` to the ship at `at`.
+function M.reach(from, at)
+	local dx, dy, dz = at.x - from.x, at.y - from.y, at.z - from.z
+	return math.sqrt(dx * dx + dy * dy + dz * dz) / M.BEAM
+end
+
+-- Turns each orbital laser among `entities` (unit -> context) toward the ship, on top of the turn
+-- the game just gave it: at the ship in the sky while there is one (`at`), and drawn long enough to
+-- reach it; along the bearing else, as long as the game draws it.
+function M.lean(U, Q, V3, entities, bearing, at)
+	for unit in pairs(entities) do
+		local laser = M.lasers[unit]
+		if laser == nil then
+			laser = U.is_a(unit, M.LASER) and true or false
+			M.lasers[unit] = laser
+		end
+		if laser then
+			local axis, angle, k
+			if at then
+				local from = U.world_position(unit, 0)
+				axis, angle = M.aim(from, at)
+				k = M.reach(from, at)
+			else
+				axis, angle = M.tilt(bearing)
+			end
+			U.teleport_local_rotation(unit, 0, Q.multiply(Q(V3(axis.x, axis.y, axis.z), angle), U.local_rotation(unit, 0)))
+			U.set_local_scale(unit, 0, V3(1, 1, k or 1))
+		end
+	end
+end
+
 function M.start(env)
 	if env.config.get("ship_strikes") == false then return end
 	local opts = env.part("ship_strikes")
@@ -191,6 +250,13 @@ function M.start(env)
 			M.pods[#M.pods + 1] = { unit = unit, was = { x, y, z, w }, t = clock }
 		end)
 		return unpack(r)
+	end, opts)
+	obsidian.hook("HomingComponent", "update_slaves", function(original, self, entities, ...)
+		local r = { original(self, entities, ...) }
+		if type(entities) == "table" and next(entities) ~= nil then
+			pcall(M.lean, g("Unit"), g("Quaternion"), g("Vector3"), entities, M.bearing(env), ship.where())
+		end
+		return unpack(r, 1, table.maxn(r))
 	end, opts)
 	-- Shells: their parts go out just before the scene update of their world, after the animations
 	-- placed them (as src/aimpose.lua bends the spine).

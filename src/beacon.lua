@@ -15,8 +15,9 @@ local function g(name) return rawget(_G, name) end
 
 M.BEAM = 25           -- metres of beam above the beacon
 M.NEAR = 40           -- design pixels (1280 x 720) from the beam that count as on it
-M.CORE = 12           -- design pixels from the beam within which the icon is whole; past it the
-                      -- icon fades out toward NEAR (the user: one fully opaque range was too wide)
+M.CORE = 18           -- design pixels from the beam within which the icon is whole; past it the
+                      -- icon fades out toward NEAR (the user: one fully opaque range was too wide,
+                      -- then 12 a bit too narrow)
 M.SIZE = 0.7          -- of the countdown list's icon size (the user: 30 percent smaller)
 M.FADE = 12           -- how fast the icon follows its opacity
 

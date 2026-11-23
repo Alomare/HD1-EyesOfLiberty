@@ -9,7 +9,7 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - New: Ship in the sky option, on by default. In third person during a mission, the Super Destroyer hangs high in the sky.
 - New: Stratagem beacon icon option, on by default. With the crosshair on the light beam of a stratagem beacon, the icon of the stratagem shows on the beam at the height of the crosshair.
 - Changed: Obliterator shells fly on an arc that lands on the crosshair point, as far as the weapon reaches.
-- New: Stratagems come from the ship option, on by default, a lobby option. Hellpods fall from the Super Destroyer in the sky, and orbital barrages, precision strikes, missile strikes and Railcannon shots come down from it, from high up and fast, meeting what stands in the way.
+- New: Stratagems come from the ship option, on by default, a lobby option. Hellpods fall from the Super Destroyer in the sky, and orbital barrages, precision strikes, missile strikes and Railcannon shots come down from it, from high up and fast, meeting what stands in the way. The orbital laser beam reaches up to the ship too.
 - New: Ammo bar length option, from half to twice the default length.
 - Changed: After a Rumbler shot, the arc and circles of the shot stay in place and fade out while the shells fly, until the next charge starts.
 - Changed: The ammo bar and the Rumbler charge band are a quarter thinner.

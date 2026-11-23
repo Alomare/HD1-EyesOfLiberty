@@ -27,6 +27,38 @@ return {
 		eq(f2.x, 1) eq(d2.x, 1) eq(l2, 7, "any other cast is left alone")
 	end },
 
+	{ "an orbital laser leans toward the ship on top of the game's turn; other homing units stay", function()
+		local s = strikes()
+		local turned = {}
+		local U = {
+			is_a = function(unit, path) return unit == "laser" and path == s.LASER end,
+			world_position = function() return { x = 0, y = 0, z = 0 } end,
+			local_rotation = function(unit) return "game:" .. unit end,
+			teleport_local_rotation = function(unit, i, q) turned[unit] = { i, q } end,
+			set_local_scale = function(unit, i, v) turned["scale " .. unit] = v end,
+		}
+		local Q = setmetatable({ multiply = function(a, b) return { a, b } end },
+			{ __call = function(_, axis, angle) return { axis = axis, angle = angle } end })
+		local V3 = function(x, y, z) return { x = x, y = y, z = z } end
+		s.lean(U, Q, V3, { laser = {}, missile = {} }, 0)
+		eq(turned.missile, nil, "a homing missile stays")
+		eq(turned.laser[1], 0, "the root")
+		local lean, game = turned.laser[2][1], turned.laser[2][2]
+		local axis, angle = s.tilt(0)
+		near(lean.angle, angle) near(lean.axis.y, axis.y)
+		eq(game, "game:laser", "after the game's own turn")
+		eq(s.lasers.missile, false, "known as no laser")
+		-- With the ship in the sky at (10, 0, 10): a 45 degree turn about +y, from up to the ship.
+		s.lean(U, Q, V3, { laser = {} }, 0, { x = 10, y = 0, z = 10 })
+		lean = turned.laser[2][1]
+		near(lean.angle, math.pi / 4, "meets the ship", 1e-12) near(lean.axis.y, 1) near(lean.axis.x, 0)
+		near(turned["scale laser"].z, math.sqrt(200) / s.BEAM, "drawn as long as the way to the ship", 1e-12)
+		eq(turned["scale laser"].x, 1, "no wider")
+		eq(turned["scale missile"], nil, "a homing missile keeps its size")
+		local a2, n2 = s.aim({ x = 0, y = 0, z = 0 }, { x = 0, y = 0, z = 5 })
+		eq(n2, 0, "a ship straight above: no turn")
+	end },
+
 	{ "a falling shell goes STRETCH times as far out, once per placing by the animation", function()
 		local s = strikes()
 		local at = { [1] = { x = 0, y = -1, z = 18 }, [2] = { x = 0, y = 0, z = 0 } }

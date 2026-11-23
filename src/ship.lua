@@ -53,8 +53,11 @@ local function remove(alive_world)
 			if g("Unit").alive(ship.unit) then g("World").destroy_unit(ship.world, ship.unit) end
 		end)
 	end
-	ship.unit, ship.world, ship.state = nil, nil, nil
+	ship.unit, ship.world, ship.state, ship.at = nil, nil, nil, nil
 end
+
+-- Where the ship in the sky stands this frame, or nil while there is none in view.
+function M.where() return ship.unit and ship.at or nil end
 
 local function spawn(env, view, state)
 	local U, V3, W = g("Unit"), g("Vector3"), g("World")
@@ -89,6 +92,7 @@ local function update(env, view)
 	if not ship.unit then return end
 	local U, V3, Q = g("Unit"), g("Vector3"), g("Quaternion")
 	local at = M.place(view.position, ship.bearing)
+	ship.at = at
 	pcall(U.teleport_local_position, ship.unit, 0, V3(at.x, at.y, at.z))
 	pcall(U.teleport_local_rotation, ship.unit, 0, Q(V3(0, 0, 1), M.turn(ship.bearing)))
 	pcall(g("World").update_unit, ship.world, ship.unit)

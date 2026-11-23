@@ -62,7 +62,7 @@
       "scope": "session",
       "option": "ship_strikes",
       "name": { "en": "Stratagems come from the ship" },
-      "description": { "en": "Hellpods and orbital shells come down along the way from the Super Destroyer in the sky. Off in lobbies with players who don't run it." }
+      "description": { "en": "Hellpods, orbital shells and the orbital laser come down along the way from the Super Destroyer in the sky. Off in lobbies with players who don't run it." }
     }
   ],
   "entry": "main.lua",
@@ -331,7 +331,7 @@
     { "id": "ship_strikes", "type": "toggle", "default": true,
       "group": "lobby", "part": "ship_strikes",
       "label": { "en": "Stratagems come from the ship" },
-      "description": { "en": "Hellpods fall from the Super Destroyer in the sky, tilted toward it until they land, and orbital barrages, precision strikes, missile strikes and Railcannon shots come down along the way from the ship, falling from high up and hitting what stands in between. The orbital laser and Eagles stay as they are. Changes the shared game: off in lobbies with players who don't run it." } }
+      "description": { "en": "Hellpods fall from the Super Destroyer in the sky, tilted toward it until they land, and orbital barrages, precision strikes, missile strikes and Railcannon shots come down along the way from the ship, falling from high up and hitting what stands in between. The orbital laser beam reaches up to the ship as well. Eagles stay as they are. Changes the shared game: off in lobbies with players who don't run it." } }
   ],
   "keybinds": [
     { "id": "toggle_view", "default": "f8", "label": { "en": "Switch the camera: top-down or third person" } },
