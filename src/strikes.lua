@@ -156,23 +156,12 @@ M.LASER = "gameobjects/orbital_strike"
 -- Which homing units are orbital lasers (weak keys: units come and go).
 M.lasers = setmetatable({}, { __mode = "k" })
 
--- The turn that takes straight up to the way from `from` to the ship at `at`: axis and angle. The
--- ship in the sky stands about 33 m from the camera, so a beam parallel to the bearing would pass
--- beside it; this one meets it.
-function M.aim(from, at)
-	local dx, dy, dz = at.x - from.x, at.y - from.y, at.z - from.z
-	local l = math.sqrt(dx * dx + dy * dy + dz * dz)
-	local flat = math.sqrt(dx * dx + dy * dy)
-	if l < 1e-6 or flat < 1e-6 then return { x = 1, y = 0, z = 0 }, 0 end
-	return { x = -dy / flat, y = dx / flat, z = 0 }, math.acos(math.max(-1, math.min(1, dz / l)))
-end
-
 -- The beam is a particle effect on the laser's root, as long as M.BEAM metres up the root's axis;
 -- a root scaled along that axis draws it that much longer (probe 2026-11-23: scale 0.3 shortened the
 -- beam, the ground glow stayed; a scaled child node changed nothing). With the ship in the sky, the
 -- beam is drawn as long as the way to the ship, so it reaches the ship. Seen in game with 20, the tip
--- came out of the far side of the hull by about 8 percent of the way; 22 ends it inside.
-M.BEAM = 22
+-- came out of the far side of the hull by about 8 percent of the way, with 22 a little less.
+M.BEAM = 24
 
 -- How much longer the beam is drawn to reach from `from` to the ship at `at`.
 function M.reach(from, at)
@@ -180,9 +169,30 @@ function M.reach(from, at)
 	return math.sqrt(dx * dx + dy * dy + dz * dz) / M.BEAM
 end
 
--- Turns each orbital laser among `entities` (unit -> context) toward the ship, on top of the turn
--- the game just gave it: at the ship in the sky while there is one (`at`), and drawn long enough to
--- reach it; along the bearing else, as long as the game draws it.
+-- The forward axis for a laser whose up axis is `up` (unit, z > 0), with the same flat way as the
+-- game's forward `f` (flat): f lifted along z until it is square to up. The game picks the laser's
+-- next target by the angle from that flat way (HomingComponent nearby_targets_callback reads
+-- Quaternion.forward of the unit with z dropped), so the beam leans without changing the targets.
+function M.forward(f, up)
+	local t = -(f.x * up.x + f.y * up.y) / up.z
+	local l = math.sqrt(f.x * f.x + f.y * f.y + t * t)
+	return { x = f.x / l, y = f.y / l, z = t / l }
+end
+
+-- The way up toward the ship from `from`: at the ship in the sky while there is one (`at`), along
+-- the bearing else. The ship in the sky stands about 33 m from the camera, so a beam parallel to the
+-- bearing would pass beside it; this one meets it.
+local function upward(from, bearing, at)
+	if not at then return M.toward(bearing) end
+	local dx, dy, dz = at.x - from.x, at.y - from.y, at.z - from.z
+	local l = math.sqrt(dx * dx + dy * dy + dz * dz)
+	if l < 1e-6 or dz < 1e-3 then return M.toward(bearing) end
+	return { x = dx / l, y = dy / l, z = dz / l }
+end
+
+-- Turns each orbital laser among `entities` (unit -> context) so the beam points at the ship, keeping
+-- the flat forward the game just gave it: at the ship in the sky while there is one (`at`), and drawn
+-- long enough to reach it; along the bearing else, as long as the game draws it.
 function M.lean(U, Q, V3, entities, bearing, at)
 	for unit in pairs(entities) do
 		local laser = M.lasers[unit]
@@ -191,16 +201,14 @@ function M.lean(U, Q, V3, entities, bearing, at)
 			M.lasers[unit] = laser
 		end
 		if laser then
-			local axis, angle, k
-			if at then
-				local from = U.world_position(unit, 0)
-				axis, angle = M.aim(from, at)
-				k = M.reach(from, at)
-			else
-				axis, angle = M.tilt(bearing)
-			end
-			U.teleport_local_rotation(unit, 0, Q.multiply(Q(V3(axis.x, axis.y, axis.z), angle), U.local_rotation(unit, 0)))
-			U.set_local_scale(unit, 0, V3(1, 1, k or 1))
+			local from = U.world_position(unit, 0)
+			local up = upward(from, bearing, at)
+			local fw = Q.forward(U.local_rotation(unit, 0))
+			local fl = math.sqrt(fw.x * fw.x + fw.y * fw.y)
+			local f = fl > 1e-6 and { x = fw.x / fl, y = fw.y / fl } or { x = 1, y = 0 }
+			local x = M.forward(f, up)
+			U.teleport_local_rotation(unit, 0, Q.look(V3(x.x, x.y, x.z), V3(up.x, up.y, up.z)))
+			U.set_local_scale(unit, 0, V3(1, 1, at and M.reach(from, at) or 1))
 		end
 	end
 end

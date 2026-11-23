@@ -27,36 +27,49 @@ return {
 		eq(f2.x, 1) eq(d2.x, 1) eq(l2, 7, "any other cast is left alone")
 	end },
 
-	{ "an orbital laser leans toward the ship on top of the game's turn; other homing units stay", function()
+	{ "an orbital laser points up at the ship and keeps the game's flat forward; other homing units stay", function()
 		local s = strikes()
 		local turned = {}
 		local U = {
 			is_a = function(unit, path) return unit == "laser" and path == s.LASER end,
 			world_position = function() return { x = 0, y = 0, z = 0 } end,
-			local_rotation = function(unit) return "game:" .. unit end,
+			local_rotation = function() return "game" end,
 			teleport_local_rotation = function(unit, i, q) turned[unit] = { i, q } end,
 			set_local_scale = function(unit, i, v) turned["scale " .. unit] = v end,
 		}
-		local Q = setmetatable({ multiply = function(a, b) return { a, b } end },
-			{ __call = function(_, axis, angle) return { axis = axis, angle = angle } end })
+		-- The game's turn faces the laser along +y, flat.
+		local Q = { forward = function() return { x = 0, y = 1, z = 0 } end,
+			look = function(fw, up) return { fw = fw, up = up } end }
 		local V3 = function(x, y, z) return { x = x, y = y, z = z } end
+		local function dot(a, b) return a.x * b.x + a.y * b.y + a.z * b.z end
 		s.lean(U, Q, V3, { laser = {}, missile = {} }, 0)
 		eq(turned.missile, nil, "a homing missile stays")
-		eq(turned.laser[1], 0, "the root")
-		local lean, game = turned.laser[2][1], turned.laser[2][2]
-		local axis, angle = s.tilt(0)
-		near(lean.angle, angle) near(lean.axis.y, axis.y)
-		eq(game, "game:laser", "after the game's own turn")
 		eq(s.lasers.missile, false, "known as no laser")
-		-- With the ship in the sky at (10, 0, 10): a 45 degree turn about +y, from up to the ship.
+		eq(turned.laser[1], 0, "the root")
+		local q = turned.laser[2]
+		local d = s.toward(0)
+		near(q.up.x, d.x, "up along the bearing", 1e-12) near(q.up.z, d.z, nil, 1e-12)
+		near(dot(q.fw, q.up), 0, "forward square to up", 1e-12)
+		near(q.fw.x, 0, "the same flat way as the game's", 1e-12)
+		eq(q.fw.y > 0, true)
+		eq(turned["scale laser"].z, 1, "no ship: as long as the game draws it")
+		-- With the ship in the sky at (10, 0, 10): up at the ship, drawn as long as the way there.
 		s.lean(U, Q, V3, { laser = {} }, 0, { x = 10, y = 0, z = 10 })
-		lean = turned.laser[2][1]
-		near(lean.angle, math.pi / 4, "meets the ship", 1e-12) near(lean.axis.y, 1) near(lean.axis.x, 0)
+		q = turned.laser[2]
+		near(q.up.x, math.sqrt(0.5), "meets the ship", 1e-12) near(q.up.z, math.sqrt(0.5), nil, 1e-12)
+		near(q.fw.x, 0, "the same flat way", 1e-12) near(dot(q.fw, q.up), 0, nil, 1e-12)
 		near(turned["scale laser"].z, math.sqrt(200) / s.BEAM, "drawn as long as the way to the ship", 1e-12)
 		eq(turned["scale laser"].x, 1, "no wider")
 		eq(turned["scale missile"], nil, "a homing missile keeps its size")
-		local a2, n2 = s.aim({ x = 0, y = 0, z = 0 }, { x = 0, y = 0, z = 5 })
-		eq(n2, 0, "a ship straight above: no turn")
+	end },
+
+	{ "the lifted forward keeps the flat way and is square to up", function()
+		local s = strikes()
+		local up = s.toward(1.0)
+		local f = s.forward({ x = math.cos(0.3), y = math.sin(0.3) }, up)
+		near(f.x * up.x + f.y * up.y + f.z * up.z, 0, "square", 1e-12)
+		near(math.atan2(f.y, f.x), 0.3, "the flat way", 1e-12)
+		near(f.x * f.x + f.y * f.y + f.z * f.z, 1, "a unit", 1e-12)
 	end },
 
 	{ "a falling shell goes STRETCH times as far out, once per placing by the animation", function()
