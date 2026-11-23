@@ -246,8 +246,14 @@ function M.install(env)
 
 	-- Points behind the third-person camera project mirrored in front of it. Callers that draw at
 	-- world_to_screen (names, markers) get them far off screen instead, with the depth kept.
-	-- Both answer the depth in z.
+	-- Both answer the depth in z. Between a mission's end and the next CameraManager:init the manager
+	-- keeps the destroyed viewport (destroy_object empties it and sets `destroyed`): the game's function
+	-- would throw there, and the loader would count it against this mod, so the answer is nil instead (a
+	-- mod asking through Obsidian API at the end of a mission switched Eyes of Liberty off after 10).
 	local function off_screen(original, self, p, ...)
+		if type(self) == "table" and type(rawget(self, "viewport")) == "table" and rawget(self.viewport, "destroyed") then
+			return nil
+		end
 		local v = original(self, p, ...)
 		if state.active and asking == 0 and v and type(v.z) == "number" and v.z <= 0 then
 			local view = env.view

@@ -113,7 +113,7 @@ local ROWS = {
 		info = { en = "Vertical field of view in a vehicle." } },
 	{ kind = "toggle", id = "throw_arc", group = "aim",
 		label = { en = "Throw arc" },
-		info = { en = "A dashed line shows where a held grenade or stratagem ball would fly." } },
+		info = { en = "A dashed line shows where a held grenade or stratagem ball, or an aimed Rumbler or Obliterator shell, would fly." } },
 	{ kind = "toggle", id = "weapon_ergonomics", group = "aim",
 		label = { en = "Weapon ergonomics" },
 		info = { en = "Shots leave along the weapon, which swings onto the crosshair. Off, shots go straight to the crosshair." } },

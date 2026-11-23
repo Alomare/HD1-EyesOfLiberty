@@ -2,6 +2,14 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## Next
+
+- New: While aiming the Rumbler or the Obliterator, the throw arc shows the flight of the shell and a circle as wide as the blast of each shell.
+- New: The charge of the Rumbler shows as a thin white band on the inner side of the ammo bar, full at the longest shot.
+- Changed: Obliterator shells fly on an arc that lands on the crosshair point, as far as the weapon reaches.
+- Fixed: A Rumbler or Obliterator shot aimed high no longer lands on the Helldiver. The Rumbler fires toward the crosshair at the angle of the game, and the charge sets how far, as in the top-down view.
+- Fixed: Eyes of Liberty no longer switches off after a few missions when another mod asks for screen positions at the end of a mission.
+
 ## 1.1.1
 
 - Changed: Hide stowed support weapon is off by default.

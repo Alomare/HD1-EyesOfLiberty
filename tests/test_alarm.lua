@@ -116,4 +116,15 @@ return {
 		near(grow, 1 + b.GROW / 2, "half way", 1e-9) near(alpha, 0.5, nil, 1e-9)
 		eq(b.finish(b.DONE), nil, "gone")
 	end },
+
+	{ "the charge band follows a charged launcher only", function()
+		local b = m("src/ammobar")
+		local rumbler = { fire_on_release = true, max_charge_time = 1, shot_charge_timer = 0.4 }
+		near(b.charge("launcher", rumbler), 0.4)
+		rumbler.shot_charge_timer = 3
+		eq(b.charge("launcher", rumbler), 1, "full at most")
+		eq(b.charge("launcher", { max_charge_time = 1 }), nil, "the Obliterator")
+		eq(b.charge("firearm", rumbler), nil, "not a launcher")
+		near(b.CHARGE_WIDTH * 3, b.WIDTH, "a third as thick", 1e-9)
+	end },
 }

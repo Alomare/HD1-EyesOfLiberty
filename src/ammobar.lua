@@ -35,6 +35,17 @@ M.FILL = { 212, 212, 212, 255 } -- the reload fill, Better HUD's
 M.LASER = { 255, 232, 70, 255 } -- a laser's heat: brighter than the yellow of rounds
 M.DONE = 0.1          -- seconds a finished reload takes to swell and fade out
 M.GROW = 0.45         -- how much thicker the band ends, of its width
+-- A charged launcher (the Rumbler: hold to fire farther): a second band on the inner side, a third as
+-- thick, filling white as the charge reaches the longest shot. CHARGE_GAP: the dark line between.
+M.CHARGE_WIDTH, M.CHARGE_GAP = M.WIDTH / 3, 0.5
+
+-- How far a charged launcher has charged (0 to 1), or nil for any other weapon.
+function M.charge(kind, st)
+	if kind ~= "launcher" or type(st) ~= "table" or not st.fire_on_release then return nil end
+	local most = tonumber(st.max_charge_time) or 0
+	if most <= 0 then return nil end
+	return math.max(0, math.min(1, (tonumber(st.shot_charge_timer) or 0) / most))
+end
 
 -- How thick and how visible the band of a finished reload is `t` seconds after it finished, or nil once
 -- gone.
@@ -168,6 +179,9 @@ function M.start(env)
 		if share then look.track(t, weapon, share, clock, reloading) end
 		look.react(t, kind, share, rounds, empty, ready, clock, dt)
 		local alpha = (share and not reloading) and look.alpha(t.shot, clock) or 0
+		local charge = not reloading and M.charge(kind, st) or nil
+		-- A charge building shows the bar, as a shot does.
+		if charge and st.charging_shot and share then alpha = 1 end
 		local discharge = not reloading and kind == "arcweapon" and look.discharge_alpha(t, clock)
 		if alpha <= 0 and not discharge and not rp then return end
 		local game = api.game.state and api.game.state()
@@ -209,10 +223,23 @@ function M.start(env)
 		end
 		-- The border reaches e past both ends, so the tips aren't bare.
 		local over = e / (curved and R * M.SPAN or 2 * R * math.sin(M.SPAN / 2))
+		-- The charge band sits against the inner side, the border around both.
+		local c1, c2 = nil, nil
+		if charge and not rp then
+			c2 = r1 - M.CHARGE_GAP * ring
+			c1 = c2 - M.CHARGE_WIDTH * ring
+		end
 		kit:layer(419)
-		band(f, -over, 1 + over, r1 - e, r2 + e, M.BORDER, cx, cy, false, curved)
+		band(f, -over, 1 + over, (c1 or r1) - e, r2 + e, M.BORDER, cx, cy, false, curved)
 		kit:layer(420)
 		band(f, 0, 1, r1, r2, track or M.TRACK, cx, cy, false, curved)
+		if c1 then
+			band(f, 0, 1, c1, c2, M.TRACK, cx, cy, false, curved)
+			if charge > 0 then
+				kit:layer(421)
+				band(f, 0, charge, c1, c2, look.WHITE, cx, cy, true, curved)
+			end
+		end
 		if fill > 0 then
 			kit:layer(421)
 			if ccw then band(f, 1 - fill, 1, r1, r2, color, cx, cy, true, curved)

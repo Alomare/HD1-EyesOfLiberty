@@ -446,9 +446,21 @@ function M.start(env)
 		return unpack(r, 1, r.n)
 	end, env.VIEW)
 
-	-- Launchers fire once per call, and set the height of the shot from z_direction.
+	-- Launchers fire once per call, and set the height of the shot from z_direction. A launcher that
+	-- lobs a shell (the Rumbler, the Obliterator) fires along the flat way to the crosshair point at the
+	-- angle src/arc.lua gives (M.lob_z): along the crosshair way, a shot at the sky started inside the
+	-- Helldiver or came straight back down on it.
+	M.arc = obsidian.module("src/arc")
 	obsidian.hook("LauncherComponent", "do_fire", function(original, self, unit, st, ...)
 		if not live() or type(st) ~= "table" then return original(self, unit, st, ...) end
+		local settings = M.arc.lob_settings(st)
+		if settings and not env.view.vehicle then
+			-- The flat way holds even with the crosshair point right in front, where M.collect finds no way.
+			local done, z, list = pcall(M.lob_z, unit, st, settings, env.view, state.aim_point)
+			if not done or not z then return original(self, unit, st, ...) end
+			shake.fired(false)
+			return scoped.swap(st, "z_direction", z, M.redirect, list, original, self, unit, st, ...)
+		end
 		local ok, list = pcall(M.collect, { [unit] = { state = st } }, env.view, state.aim_point, g("Quaternion").forward, true)
 		if not ok or #list == 0 then return original(self, unit, st, ...) end
 		shake.fired(env.view.vehicle)
@@ -501,6 +513,47 @@ function M.start(env)
 end
 
 M.pending_throw = nil
+
+-- A launcher that lobs: the muzzle point the game fires from (do_fire: the weapon's root plus
+-- ray_source_offset turned by the wielder's attach node) and the flat way of the shot, the flat part
+-- of the way M.collect gives it (the weapon's way, or toward the crosshair point). Nil when the
+-- weapon has no living wielder.
+function M.lob_way(weapon, st, view, point)
+	local U, Q, V3A = g("Unit"), g("Quaternion"), g("Vector3Aux")
+	local wielder = wielder_of(weapon)
+	if not (wielder and U.alive(wielder)) then return nil end
+	local node = type(st.attach_node) == "number" and st.attach_node or 0
+	local rot = U.world_rotation(wielder, node)
+	local f = Q.forward(rot)
+	local p = U.world_position(weapon, 0)
+	local offset = st.ray_source_offset and V3A.unbox(st.ray_source_offset) or nil
+	local muzzle = rig.shot_origin({ x = p.x, y = p.y, z = p.z }, offset, function(o) return Q.rotate(rot, o) end)
+	local dir
+	if point and M.gun_live(wielder, view, M.frame_now and M.frame_now() or 0) then dir = ergo.dir(f, M.gun.pitch, M.gun.turn)
+	elseif point then dir = rig.shot_dir(muzzle, point, { x = f.x, y = f.y, z = 0 }) end
+	local h = dir and rig.normalize({ x = dir.x, y = dir.y, z = 0 }) or rig.normalize({ x = f.x, y = f.y, z = 0 })
+	if not h then return nil end
+	return muzzle, h
+end
+
+-- The z_direction a lobbing launcher fires with (the game's for a charged launcher, where the charge
+-- sets how far; for a set power, the one that lands on the crosshair point), and the list M.redirect
+-- takes: each forward the game may ask for (the wielder's attach node and root) answered with the
+-- flat way.
+function M.lob_z(weapon, st, settings, view, point)
+	local muzzle, h = M.lob_way(weapon, st, view, point)
+	if not muzzle then return nil end
+	local U, Q = g("Unit"), g("Quaternion")
+	local wielder = wielder_of(weapon)
+	local list = {}
+	for _, node in ipairs({ type(st.attach_node) == "number" and st.attach_node or 0, 0 }) do
+		local f = Q.forward(U.world_rotation(wielder, node))
+		list[#list + 1] = { f = { x = f.x, y = f.y, z = f.z }, dir = { x = h.x, y = h.y, z = 0 }, unit = weapon }
+	end
+	if st.fire_on_release then return tonumber(st.z_direction) or 1, list end
+	local arc = M.arc or obsidian.module("src/arc")
+	return math.tan(arc.lob_aim(st, settings, muzzle, h, point, arc.scale_now())), list
+end
 
 -- Whether shots of `wielder` leave along the weapon's way: this player's Helldiver on foot, with a way
 -- worked out in the last frames.

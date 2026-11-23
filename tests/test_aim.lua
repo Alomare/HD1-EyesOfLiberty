@@ -258,6 +258,42 @@ return {
 		E.remove()
 	end },
 
+	{ "a lobbing launcher fires along the flat way at the game's angle or the one that reaches the point", function()
+		local e, env = started()
+		local masters = E.player(e, "me")
+		-- Aimed at the sky: the Rumbler used to fire its shell up along the crosshair way.
+		e.aim_hit = nil
+		env.view = env.view or {}
+		frame(e, env, masters)
+		env.state.aim_point = { x = 0, y = 1, z = 200 }
+		e.units.gun = { position = { x = 0, y = 0.3, z = 1.2 }, forward = { x = 0, y = 1, z = 0 }, equipment = { wielder = "me" } }
+		local shells = {
+			mortar = { throwable_info = { throw_distance_min = 2, throw_distance_max = 9 }, explosive_info = { blast_radius = 3.5 } },
+		}
+		LuaSettingsManager = { get_settings_by_unit_path = function(_, path) return shells[path] end }
+		WeaponUtility = { get_random_spread = function(_, f) return f end }
+		local fire = E.hook("LauncherComponent", "do_fire")
+		local seen
+		local game = function(_, unit, st)
+			seen = { f = Quaternion.forward(Unit.world_rotation("me", 0)), z = st.z_direction }
+		end
+		local rumbler = { projectile = "mortar", fire_on_release = true, z_direction = math.rad(50), power = 0.4, attach_node = 0 }
+		fire(game, {}, "gun", rumbler)
+		near(seen.f.z, 0, "flat", 1e-9) near(seen.f.y, 1, "a whole metre out, as the game spawns it", 1e-9)
+		eq(seen.z, math.rad(50), "the game's angle: the charge sets how far")
+		eq(rumbler.z_direction, math.rad(50), "given back")
+		-- The Obliterator: a set power, so the angle lands it on the crosshair point.
+		env.state.aim_point = { x = 0, y = 10, z = 0 }
+		local obliterator = { projectile = "mortar", z_direction = math.rad(50), power = 1, attach_node = 0,
+			ray_source_offset = { x = 0, y = 0, z = 0 } }
+		fire(game, {}, "gun", obliterator)
+		local arc = obsidian.module("src/arc")
+		local start = arc.lob_start({ x = 0, y = 0.3, z = 1.2 }, { x = 0, y = 1, z = 0 })
+		near(seen.z, math.tan(arc.lob_angle(start, env.state.aim_point, arc.lob_speed(shells.mortar.throwable_info, 1))), "reaches the point", 1e-9)
+		LuaSettingsManager, WeaponUtility = nil, nil
+		E.remove()
+	end },
+
 	{ "a laser sight on this player's weapon lands on the crosshair point", function()
 		local e = E.install()
 		local aim = obsidian.module("src/aim")

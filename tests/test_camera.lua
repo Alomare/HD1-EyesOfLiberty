@@ -628,6 +628,19 @@ return {
 		E.remove()
 	end },
 
+	{ "projecting with the destroyed viewport after a mission answers nil", function()
+		local e, env = started()
+		frame(e, env, E.player(e, "me"))
+		local w2s, w2v = E.hook("CameraManager", "world_to_screen"), E.hook("CameraManager", "world_to_viewport")
+		local game = function(self) return self.viewport:world_to_viewport() end
+		local dead = { viewport = { destroyed = true } }
+		eq(w2s(game, dead, E.V3()), nil, "world_to_screen")
+		eq(w2v(game, dead, E.V3()), nil, "world_to_viewport")
+		env.state.active = false
+		eq(w2s(game, dead, E.V3()), nil, "in top-down too")
+		E.remove()
+	end },
+
 	{ "HUD plugins that ask the viewport straight don't mirror points behind the view", function()
 		local e, env = started()
 		frame(e, env, E.player(e, "me"))
