@@ -117,6 +117,11 @@ return {
 		local had = rawget(_G, "EntityAux")
 		EntityAux = { state = function() return { current_weapon = "rumbler" } end }
 		eq(m.lob_held(env), nil, "frozen")
+		LuaSettingsManager = { get_settings_by_unit_path = function() return { throwable_info = { throw_distance_min = 2, throw_distance_max = 9 } } end }
+		env.api.game.master = function() return { rounds = 3, charging_shot = true, projectile = "shell" } end
+		eq(m.lob_held(env) ~= nil, true, "a new charge shows its own arc")
+		eq(m.frozen, nil, "and clears the old one")
+		LuaSettingsManager = nil
 		m.frozen = nil
 		env.api.game.master = function() return { rounds = 3, burst_timer = 0.1 } end
 		eq(m.lob_held(env), nil, "burst on the way")

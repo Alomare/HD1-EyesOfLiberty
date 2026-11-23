@@ -412,8 +412,13 @@ function M.lob_held(env)
 	local st = weapon and api.game.master(weapon, "launcher")
 	if type(st) ~= "table" or st.is_reloading then return nil end
 	if not (env.state.aiming or st.charging_shot) then return nil end
-	-- A burst on the way, or its arc still fading: no live arc over it.
-	if st.burst_timer or (M.frozen and M.frozen.lob) then return nil end
+	-- A burst on the way, or its arc still fading: no live arc over it. A new charge clears the faded
+	-- arc and shows its own (the user: the arc stuck on the last salvo).
+	if st.burst_timer then return nil end
+	if M.frozen and M.frozen.lob then
+		if not st.charging_shot then return nil end
+		M.frozen = nil
+	end
 	if not (st.infinite_ammo or (tonumber(st.rounds) or 0) > 0) then return nil end
 	local settings = M.lob_settings(st)
 	if not settings then return nil end

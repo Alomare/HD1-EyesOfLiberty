@@ -471,6 +471,29 @@ function M.start(env)
 		return scoped.swap(st, "z_direction", z, M.redirect, list, original, self, unit, st, ...)
 	end, env.VIEW)
 
+	-- The Laser sight perk, and the Recoilless Rifle's own laser (the same code, set up for that
+	-- weapon alone: EquipmentComponent with lasersight_attached), aim along the flat forward of the
+	-- Helldiver's root (perk_settings.lua perk_lasersight.update_slave). For this player's Helldiver
+	-- that forward is the way to the crosshair point (M.perk_laser). Both callers look the function up
+	-- in PerkSettings each time, so one hook on it covers them; PerkSettings may come after this mod
+	-- starts, so the hook goes in on the first frame it is there.
+	local perk_hooked = false
+	local function hook_perk_laser()
+		if perk_hooked then return end
+		local ps = g("PerkSettings")
+		local perk = type(ps) == "table" and ps.perk_lasersight
+		if type(perk) ~= "table" or type(perk.update_slave) ~= "function" then return end
+		perk_hooked = true
+		obsidian.hook(perk, "update_slave", function(original, unit, component, ctx, ...)
+			if not live() or env.view.vehicle or unit ~= env.view.avatar then return original(unit, component, ctx, ...) end
+			local ok, list = pcall(M.perk_laser, unit, ctx, env.view, state.aim_point)
+			if not ok or not list then return original(unit, component, ctx, ...) end
+			return M.redirect(list, original, unit, component, ctx, ...)
+		end, env.VIEW)
+	end
+	hook_perk_laser()
+	obsidian.on_frame(hook_perk_laser, env.VIEW)
+
 	-- Grenades and stratagem balls: the game measures the throw from the ground point under the
 	-- cursor, through CameraManager:screen_to_world.
 	local throwing = false
@@ -515,6 +538,30 @@ function M.start(env)
 end
 
 M.pending_throw = nil
+
+-- The Laser sight perk's line for this player's Helldiver `unit` (ctx: the perk's context), as the
+-- list M.redirect takes. The game casts it from the root plus the weapon's ray_source_offset (1.5 m up
+-- with none) along the root's forward times 1.05, lowered by 1.5 / (range * range_multiplier), range
+-- the weapon's or 30: the forward answered is the way to the crosshair point raised by as much, so the
+-- line lands on the point.
+function M.perk_laser(unit, ctx, view, point)
+	local U, Q, V3A, EA, LSM = g("Unit"), g("Quaternion"), g("Vector3Aux"), g("EntityAux"), g("LuaSettingsManager")
+	local rot = U.local_rotation(unit, 0)
+	local f = Q.forward(rot)
+	local inv = EA.state(unit, "inventory")
+	local weapon = inv and inv.current_weapon
+	local settings = weapon and LSM and LSM:get_settings_by_unit(weapon)
+	local info = type(settings) == "table" and settings.weapon_info or {}
+	local p = U.local_position(unit, 0)
+	local offset = info.ray_source_offset and V3A.unbox(info.ray_source_offset) or { x = 0, y = 0, z = 1.5 }
+	local origin = rig.shot_origin({ x = p.x, y = p.y, z = p.z }, offset, function(o) return Q.rotate(rot, o) end)
+	local dir
+	if M.gun_live(unit, view, M.frame_now and M.frame_now() or 0) then dir = ergo.dir(f, M.gun.pitch, M.gun.turn)
+	elseif point then dir = rig.shot_dir(origin, point, { x = f.x, y = f.y, z = 0 }) end
+	if not dir then return nil end
+	local range = (tonumber(info.range) or 30) * (type(ctx) == "table" and tonumber(ctx.range_multiplier) or 1)
+	return { { f = { x = f.x, y = f.y, z = f.z }, dir = dir, lift = 1.5 / (range * 1.05) } }
+end
 
 -- A launcher that lobs: the muzzle point the game fires from (do_fire: the weapon's root plus
 -- ray_source_offset turned by the wielder's attach node) and the flat way of the shot, the flat part

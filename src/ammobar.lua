@@ -7,7 +7,7 @@
 --
 -- Options: ammo_bar (on), ammo_bar_position ("oppose": on the side away from the Helldiver, "same": on
 -- the Helldiver's side, "top", "bottom"), ammo_bar_curved (on; off draws a straight bar of the same
--- length), ammo_bar_scale (0.5 to 2). While it shows, Better HUD's ammo circle steps aside (main.lua
+-- length), ammo_bar_scale (0.5 to 2), ammo_bar_length (0.5 to 2 times the length). While it shows, Better HUD's ammo circle steps aside (main.lua
 -- export ammo_bar, read by Better HUD).
 --
 -- Sizes: the band is Better HUD's ring band at its shoulder view size (3.5 design units wide with a
@@ -20,8 +20,9 @@ local M = {}
 local function g(name) return rawget(_G, name) end
 
 M.RADIUS = 0.135      -- of the screen height, from the crosshair to the middle of the band
-M.WIDTH, M.EDGE = 3.36, 1.2 -- design units: the band (a fifth thinner than the 4.2 of 1.0), and the
-                            -- dark border around it, past the ends too
+-- Design units: the band and the dark border around it, past the ends too. A quarter thinner than in
+-- 1.1.1 (3.36 and 1.2; the user, 2026-11-23), which was a fifth thinner than 1.0's 4.2.
+M.WIDTH, M.EDGE = 2.52, 0.9
 M.SIZE = 1.5          -- Better HUD's ring size in the shoulder view
 M.SPAN = math.pi / 3  -- a sixth of a circle: two thirds of a quarter
 M.PIECES = 24         -- pieces a curved bar is drawn in
@@ -37,7 +38,12 @@ M.DONE = 0.1          -- seconds a finished reload takes to swell and fade out
 M.GROW = 0.45         -- how much thicker the band ends, of its width
 -- A charged launcher (the Rumbler: hold to fire farther): a second band on the inner side, a third as
 -- thick, filling white as the charge reaches the longest shot. CHARGE_GAP: the dark line between.
-M.CHARGE_WIDTH, M.CHARGE_GAP = M.WIDTH / 3, 0.5
+M.CHARGE_WIDTH, M.CHARGE_GAP = M.WIDTH / 3, 0.375
+
+-- The angle the bar covers for the length option (ammo_bar_length, 0.5 to 2 times SPAN).
+function M.span(length)
+	return M.SPAN * math.max(0.5, math.min(2, tonumber(length) or 1))
+end
 
 -- How far a charged launcher has charged (0 to 1), or nil for any other weapon.
 function M.charge(kind, st)
@@ -58,18 +64,20 @@ end
 -- The bar's shape: a function (t, r) giving the screen point t of the way along the bar (0 where the
 -- fill starts) at r pixels from the crosshair (cx, cy). position: "oppose", "same", "top", "bottom";
 -- side: the camera's shoulder, 1 right, -1 left, between the two during a swap; R: pixels from the
--- crosshair to the middle of the band. Side bars fill upward, top and bottom bars left to right.
-function M.shape(position, side, curved, cx, cy, R)
+-- crosshair to the middle of the band; span: the angle the bar covers (SPAN times the length option).
+-- Side bars fill upward, top and bottom bars left to right.
+function M.shape(position, side, curved, cx, cy, R, span)
+	span = span or M.SPAN
 	local s = side or 1
 	if position == "same" then s = -s end
-	local length = 2 * R * math.sin(M.SPAN / 2)
+	local length = 2 * R * math.sin(span / 2)
 	if position == "top" or position == "bottom" then
 		local up = position == "top" and 1 or -1
 		if curved then
-			local from = position == "top" and -M.SPAN / 2 or math.pi + M.SPAN / 2
+			local from = position == "top" and -span / 2 or math.pi + span / 2
 			local dir = position == "top" and 1 or -1
 			return function(t, r)
-				local a = from + dir * M.SPAN * t
+				local a = from + dir * span * t
 				return cx + math.sin(a) * r, cy + math.cos(a) * r
 			end
 		end
@@ -78,7 +86,7 @@ function M.shape(position, side, curved, cx, cy, R)
 	-- The side the Helldiver isn't on: right of the crosshair with the camera over the right shoulder.
 	if curved then
 		return function(t, r)
-			local a = math.pi / 2 + M.SPAN / 2 - M.SPAN * t
+			local a = math.pi / 2 + span / 2 - span * t
 			return cx + s * math.sin(a) * r, cy + math.cos(a) * r
 		end
 	end
@@ -200,7 +208,8 @@ function M.start(env)
 		local cx, cy = cross.x + dx * ring, cross.y + dy * ring
 		local curved = env.config.get("ammo_bar_curved") ~= false
 		local camera = env.camera
-		local f = M.shape(env.config.get("ammo_bar_position") or "oppose", camera and camera.side_now or 1, curved, cx, cy, R)
+		local span = M.span(env.config.get("ammo_bar_length"))
+		local f = M.shape(env.config.get("ammo_bar_position") or "oppose", camera and camera.side_now or 1, curved, cx, cy, R, span)
 		local half, e = M.WIDTH * ring / 2 * grow, M.EDGE * ring
 		local r1, r2 = R - half, R + half
 		local fill, ccw, color, track = 1, false, look.WHITE, nil
@@ -222,7 +231,7 @@ function M.start(env)
 			end
 		end
 		-- The border reaches e past both ends, so the tips aren't bare.
-		local over = e / (curved and R * M.SPAN or 2 * R * math.sin(M.SPAN / 2))
+		local over = e / (curved and R * span or 2 * R * math.sin(span / 2))
 		-- The charge band sits against the inner side, the border around both.
 		local c1, c2 = nil, nil
 		if charge and not rp then

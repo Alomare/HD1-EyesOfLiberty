@@ -9,7 +9,10 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - New: Ship in the sky option, on by default. In third person during a mission, the Super Destroyer hangs high in the sky.
 - New: Stratagem beacon icon option, on by default. With the crosshair on the light beam of a stratagem beacon, the icon of the stratagem shows on the beam at the height of the crosshair.
 - Changed: Obliterator shells fly on an arc that lands on the crosshair point, as far as the weapon reaches.
-- Changed: After a Rumbler shot, the arc and circles of the shot stay in place and fade out while the shells fly.
+- New: Ammo bar length option, from half to twice the default length.
+- Changed: After a Rumbler shot, the arc and circles of the shot stay in place and fade out while the shells fly, until the next charge starts.
+- Changed: The ammo bar and the Rumbler charge band are a quarter thinner.
+- Fixed: The laser of the Recoilless Rifle and of the Laser sight perk points at the crosshair instead of straight ahead of the Helldiver.
 - Changed: Explosion kick returns smoothly without bouncing, and blasts farther off kick harder than before, so the kick fades more evenly with distance.
 - Fixed: Firing the Recoilless Rifle no longer kicks the camera as if an explosion had gone off.
 - Fixed: The cape no longer jitters while the Helldiver bends to aim up or down.

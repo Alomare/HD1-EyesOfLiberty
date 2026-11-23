@@ -294,6 +294,31 @@ return {
 		E.remove()
 	end },
 
+	{ "the Laser sight perk and the Recoilless Rifle's laser go to the crosshair point", function()
+		local e = E.install()
+		local aim = obsidian.module("src/aim")
+		e.units.me = { position = { x = 0, y = 0, z = 0 }, forward = { x = 0, y = 1, z = 0 }, inventory = { current_weapon = "rr" } }
+		e.units.rr = { position = { x = 0, y = 0, z = 1.4 } }
+		Unit.local_rotation = function(u) return { fwd = e.units[u].forward } end
+		Unit.local_position = Unit.world_position
+		LuaSettingsManager = { get_settings_by_unit = function() return { weapon_info = { range = 40 } } end }
+		local point = { x = 0, y = 20, z = 6.5 }
+		local list = aim.perk_laser("me", { range_multiplier = 1 }, { avatar = "me", target = "me" }, point)
+		WeaponUtility = { get_random_spread = function() end }
+		local got
+		aim.redirect(list, function()
+			-- What the perk does with the forward (perk_settings.lua update_slave).
+			local f = Quaternion.forward(Unit.local_rotation("me", 0))
+			f = { x = f.x * 1.05, y = f.y * 1.05, z = f.z * 1.05 }
+			f.z = f.z - 1.5 / 40
+			got = f
+		end)
+		-- From the root plus 1.5 m, the line climbs 5 m over 20 m to the point.
+		near(got.z / got.y, 5 / 20, "lands on the point", 1e-9)
+		LuaSettingsManager, WeaponUtility = nil, nil
+		E.remove()
+	end },
+
 	{ "a laser sight on this player's weapon lands on the crosshair point", function()
 		local e = E.install()
 		local aim = obsidian.module("src/aim")
