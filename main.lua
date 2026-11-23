@@ -13,6 +13,7 @@
 --   enemy_detection  session: enemies notice the squad from farther away
 --   free_movement    session: the Helldiver can leave the shared top-down screen
 --   throw_range      session: grenades and stratagem balls fly twice as far
+--   ship_strikes     session: Hellpods and orbital shells come down from the ship in the sky
 -- Every hook, frame function and key is registered with the options of the part it belongs to ({ part = "..." }),
 -- so a lobby that isn't cleared switches only the session parts off. A loader without parts ignores
 -- the extra argument and gates everything, the safe fallback.
@@ -57,7 +58,7 @@ local env = {
 config.start(env)
 
 local started = {}
-for _, name in ipairs({ "src/art", "src/camera", "src/aim", "src/body", "src/aimpose", "src/crosshair", "src/view", "src/ship", "src/radar", "src/hits", "src/hurt", "src/look", "src/edge", "src/beacon", "src/compass", "src/ping", "src/arc", "src/ammobar", "src/alarm", "src/kick", "src/session" }) do
+for _, name in ipairs({ "src/art", "src/camera", "src/aim", "src/body", "src/aimpose", "src/crosshair", "src/view", "src/ship", "src/radar", "src/hits", "src/hurt", "src/look", "src/edge", "src/beacon", "src/compass", "src/ping", "src/arc", "src/ammobar", "src/alarm", "src/kick", "src/session", "src/strikes" }) do
 	local ok, err = pcall(function()
 		local m = obsidian.module(name)
 		if m and m.start then m.start(env) end

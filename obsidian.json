@@ -56,6 +56,13 @@
       "option": "keep_patrols",
       "name": { "en": "Patrols stay in view" },
       "description": { "en": "Patrols near the squad are no longer removed off the top-down screen, so they don't arrive again when they come close. Off in lobbies with players who don't run it." }
+    },
+    {
+      "id": "ship_strikes",
+      "scope": "session",
+      "option": "ship_strikes",
+      "name": { "en": "Stratagems come from the ship" },
+      "description": { "en": "Hellpods and orbital shells come down along the way from the Super Destroyer in the sky. Off in lobbies with players who don't run it." }
     }
   ],
   "entry": "main.lua",
@@ -79,6 +86,7 @@
     "src/crosshair.lua",
     "src/view.lua",
     "src/ship.lua",
+    "src/strikes.lua",
     "src/radar.lua",
     "src/hits.lua",
     "src/look.lua",
@@ -319,7 +327,11 @@
     { "id": "keep_patrols", "type": "toggle", "default": true,
       "group": "lobby", "part": "keep_patrols",
       "label": { "en": "Patrols stay in view" },
-      "description": { "en": "The game removes a patrol a few seconds after it leaves the top-down screen and brings it back, climbing out of the ground or dropping in, when it comes close again. Patrols within 100 m of a Helldiver now stay, and patrol enemies chasing a Helldiver stay out to 200 m. Enemies of an alarm or an objective wave, which the game removes 40 m from every Helldiver, stay out to 100 m. Kept enemies still count toward the limits of the game. New patrols still arrive only at the edge of the top-down screen, as in the game. Changes the shared game: off in lobbies with players who don't run it." } }
+      "description": { "en": "The game removes a patrol a few seconds after it leaves the top-down screen and brings it back, climbing out of the ground or dropping in, when it comes close again. Patrols within 100 m of a Helldiver now stay, and patrol enemies chasing a Helldiver stay out to 200 m. Enemies of an alarm or an objective wave, which the game removes 40 m from every Helldiver, stay out to 100 m. Kept enemies still count toward the limits of the game. New patrols still arrive only at the edge of the top-down screen, as in the game. Changes the shared game: off in lobbies with players who don't run it." } },
+    { "id": "ship_strikes", "type": "toggle", "default": true,
+      "group": "lobby", "part": "ship_strikes",
+      "label": { "en": "Stratagems come from the ship" },
+      "description": { "en": "Hellpods fall from the Super Destroyer in the sky, tilted toward it until they land, and orbital barrages, precision strikes, missile strikes and Railcannon shots come down along the way from the ship, falling from high up and hitting what stands in between. The orbital laser and Eagles stay as they are. Changes the shared game: off in lobbies with players who don't run it." } }
   ],
   "keybinds": [
     { "id": "toggle_view", "default": "f8", "label": { "en": "Switch the camera: top-down or third person" } },
