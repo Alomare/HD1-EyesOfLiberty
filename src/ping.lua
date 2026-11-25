@@ -47,6 +47,7 @@ M.SAMPLE_REACH = 2.5    -- the same for a research sample
 M.OBJECTIVE_REACH = 5   -- the same, over the ground, for one of the points of an objective
 M.DIAMOND = 8.84        -- design pixels from the middle of the diamond to a corner
 M.LINE_EDGE = 0.5       -- the line's black outline, of the diamond outline's opacity
+M.ABOVE = 2             -- canvas layers the diamond sits over the line (the line's outline is one up)
 M.SAMPLE_ICON = 36      -- design pixels, a research sample's icon, as big as a stratagem icon
 M.SAMPLE_TEXTURE = "icon_research_sample" -- the sample counter's icon (ResearchSampleManager); hud/hud has it (seen in game)
 M.SAMPLE_EDGE = 0.5     -- its black outline: pixels per design pixel, and of the icon's opacity
@@ -431,11 +432,25 @@ function M.start(env)
 		if outline then kit:outline(line, outline, width) end
 	end
 
+	-- The canvas draws each shape at the kit's layer and an outline one layer up, so the line's black
+	-- outline came out over the diamond and its tip showed inside. The diamond (or the icon in its place)
+	-- goes ABOVE layers higher, over the whole line.
+	local function raised(fn, ...)
+		local z = type(kit.z) == "number" and kit.z or nil
+		if z and kit.layer then kit:layer(z + M.ABOVE) end
+		local ok, r = pcall(fn, ...)
+		if z and kit.layer then kit:layer(z) end
+		if not ok then error(r, 0) end
+		return r
+	end
+
 	local function draw_diamond(x, y, r, c, a)
-		diamond[1], diamond[2], diamond[3], diamond[4] = x, y + r, x + r, y
-		diamond[5], diamond[6], diamond[7], diamond[8] = x, y - r, x - r, y
-		kit:poly(diamond, rgba(c, a))
-		kit:outline(diamond, { 0, 0, 0, floor(200 * a) }, max(1, r * 0.18))
+		raised(function()
+			diamond[1], diamond[2], diamond[3], diamond[4] = x, y + r, x + r, y
+			diamond[5], diamond[6], diamond[7], diamond[8] = x, y - r, x - r, y
+			kit:poly(diamond, rgba(c, a))
+			kit:outline(diamond, { 0, 0, 0, floor(200 * a) }, max(1, r * 0.18))
+		end)
 	end
 
 	-- The players' map markers as markers in the level, keyed "map<index>"; a new spot starts afresh.
@@ -514,7 +529,7 @@ function M.start(env)
 						edge_alpha = sample and floor(255 * la * M.SAMPLE_EDGE) or nil }
 				elseif m.icon then
 					local size = M.ICON * s * M.pop(m.age)
-					if not kit:icon(m.icon, cx - size / 2, cy - size / 2, size, size, { 255, 255, 255, floor(255 * la) }) then
+					if not raised(kit.icon, kit, m.icon, cx - size / 2, cy - size / 2, size, size, { 255, 255, 255, floor(255 * la) }) then
 						draw_diamond(cx, cy, r, c, la)
 					end
 				else

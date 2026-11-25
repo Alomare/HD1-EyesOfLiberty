@@ -5,9 +5,11 @@ local function ping() return obsidian.module("src/ping") end
 
 local function recorder()
 	local calls = {}
-	local kit = setmetatable({}, { __index = function(_, name)
-		return function(_, ...)
-			calls[#calls + 1] = { name, ... }
+	-- The canvas layer each call drew at is kept in the call's .z.
+	local kit = setmetatable({ z = 10 }, { __index = function(_, name)
+		if name == "layer" then return function(self, n) rawset(self, "z", n) end end
+		return function(self, ...)
+			calls[#calls + 1] = { name, ..., z = rawget(self, "z") }
 			if name == "icon" then return true end
 		end
 	end })
@@ -207,6 +209,14 @@ return {
 		local polys = 0
 		for _, c in ipairs(calls) do if c[1] == "poly" then polys = polys + 1 end end
 		assert(polys >= 2, "a line and a diamond: " .. polys)
+		-- The diamond covers the line: above the line's outline, which the canvas draws one layer up.
+		local line_outline, diamond = nil, nil
+		for _, c in ipairs(calls) do
+			if c[1] == "outline" and not line_outline then line_outline = c end
+			if c[1] == "poly" then diamond = c end
+		end
+		assert(line_outline and diamond.z >= line_outline.z + 2, "the diamond over the line")
+		eq(kit.z, line_outline.z, "the layer goes back")
 		obsidian.ui = nil
 		E.remove()
 	end },

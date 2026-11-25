@@ -2,7 +2,7 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
-## Next
+## 1.2.1
 
 - Fixed: The crosshair no longer lags behind and snaps back while turning, most of all at low frame rates. It is now drawn with the game images, including the steps between idle and aiming.
 - Fixed: The Helldiver no longer wobbles on screen when turning while moving.
@@ -10,6 +10,7 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - Fixed: The loose tripod leg of the Rumbler no longer flickers in third person. It stays folded, in hand and on the back.
 - Fixed: With free movement in online games and the squad spread out, patrols spawn and ranged enemies such as the Illusionist and the Cyborg Initiate open fire near every Helldiver.
 - Changed: The ammo bar is back to the thickness of 1.1.1 and a quarter shorter.
+- Fixed: The diamond of a ping in the world now covers the line, so the tip of the line no longer shows inside it.
 
 ## 1.2.0
 
