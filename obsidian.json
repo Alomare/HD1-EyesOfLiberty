@@ -234,7 +234,7 @@
     { "id": "ammo_bar_length", "type": "number", "default": 1, "min": 0.5, "max": 2, "step": 0.1,
       "group": "ammo", "part": "view", "scope": "client",
       "label": { "en": "Ammo bar length" },
-      "description": { "en": "How long the ammo bar is, as a multiple of the default length, a sixth of a circle around the crosshair." } },
+      "description": { "en": "How long the ammo bar is, as a multiple of the default length, an eighth of a circle around the crosshair." } },
     { "id": "compass", "type": "toggle", "default": true,
       "group": "navigation", "part": "view", "scope": "client",
       "label": { "en": "Compass" },

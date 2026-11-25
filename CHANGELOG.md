@@ -9,6 +9,7 @@ New, changed, fixed or removed features, one line each, brief and direct. The se
 - Fixed: With a controller, the left stick pans the map along the screen, whichever way the Helldiver faces.
 - Fixed: The loose tripod leg of the Rumbler no longer flickers in third person. It stays folded, in hand and on the back.
 - Fixed: With free movement in online games and the squad spread out, patrols spawn and ranged enemies such as the Illusionist and the Cyborg Initiate open fire near every Helldiver.
+- Changed: The ammo bar is back to the thickness of 1.1.1 and a quarter shorter.
 
 ## 1.2.0
 

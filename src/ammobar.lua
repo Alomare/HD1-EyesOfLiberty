@@ -20,11 +20,12 @@ local M = {}
 local function g(name) return rawget(_G, name) end
 
 M.RADIUS = 0.135      -- of the screen height, from the crosshair to the middle of the band
--- Design units: the band and the dark border around it, past the ends too. A quarter thinner than in
--- 1.1.1 (3.36 and 1.2; the user, 2026-11-23), which was a fifth thinner than 1.0's 4.2.
-M.WIDTH, M.EDGE = 2.52, 0.9
+-- Design units: the band and the dark border around it, past the ends too. A fifth thinner than 1.0's
+-- 4.2 (as in 1.1.1; a quarter thinner for a while after 1.2.0 was a misread of "narrower", which the
+-- user meant as shorter, 2026-11-25).
+M.WIDTH, M.EDGE = 3.36, 1.2
 M.SIZE = 1.5          -- Better HUD's ring size in the shoulder view
-M.SPAN = math.pi / 3  -- a sixth of a circle: two thirds of a quarter
+M.SPAN = math.pi / 4  -- an eighth of a circle: a quarter shorter than the sixth of 1.2.0 (the user, 2026-11-25)
 M.PIECES = 24         -- pieces a curved bar is drawn in
 M.BUTTON_GAP = 4      -- design units between the band and the reload button
 M.TRACK, M.BORDER = { 30, 30, 30, 85 }, { 0, 0, 0, 100 }
@@ -38,7 +39,7 @@ M.DONE = 0.1          -- seconds a finished reload takes to swell and fade out
 M.GROW = 0.45         -- how much thicker the band ends, of its width
 -- A charged launcher (the Rumbler: hold to fire farther): a second band on the inner side, a third as
 -- thick, filling white as the charge reaches the longest shot. CHARGE_GAP: the dark line between.
-M.CHARGE_WIDTH, M.CHARGE_GAP = M.WIDTH / 3, 0.375
+M.CHARGE_WIDTH, M.CHARGE_GAP = M.WIDTH / 3, 0.5
 
 -- The angle the bar covers for the length option (ammo_bar_length, 0.5 to 2 times SPAN).
 function M.span(length)
