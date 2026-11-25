@@ -73,6 +73,9 @@ function M.behind(cam, p, w, h)
 end
 M.PAST = 1.1          -- how far past the screen edge a point behind is put, as a share of the way there
 
+-- Whether the HUD's markers are being drawn now (set by M.install), so a rule of the game is not.
+M.drawing = function() return false end
+
 -- The top-down pose the game's CameraManager keeps, as a camera.
 function M.top_down(cm)
 	local V3A, QA, Q = g("Vector3Aux"), g("QuaternionAux"), g("Quaternion")
@@ -167,6 +170,7 @@ function M.install(env)
 
 	local function draw_on() drawing = true end
 	local function draw_off() drawing = false end
+	M.drawing = function() return drawing end
 	obsidian.hook("Hud", "draw_plugins", function(original, ...)
 		return scoped.around(draw_on, draw_off, original, ...)
 	end, env.VIEW)

@@ -293,6 +293,26 @@ return {
 		eq(s.x, 100, "snap")
 	end },
 
+	{ "the pivot moves with a walking Helldiver across the ground, whatever the frame time", function()
+		local r = rig()
+		local p = r.follow_pivot(nil, { x = 0, y = 0, z = 0 }, 0.033)
+		-- Walking along a bend at uneven frame times: never behind across the ground.
+		local t = { x = 0, y = 0, z = 0 }
+		for i = 1, 30 do
+			local dt = i % 2 == 0 and 0.012 or 0.045
+			local a = i * 0.05
+			t = { x = t.x + math.cos(a) * 7 * dt, y = t.y + math.sin(a) * 7 * dt, z = t.z + 0.02 }
+			p = r.follow_pivot(p, t, dt)
+			near(p.x, t.x, "x", 1e-9) near(p.y, t.y, "y", 1e-9)
+		end
+		assert(p.z < t.z, "height still eases")
+		-- The game putting the body 3 m away in one frame eases in.
+		local q = r.follow_pivot(p, { x = t.x + 3, y = t.y, z = t.z }, 0.016)
+		assert(q.x > t.x and q.x < t.x + 3, "a jump eases")
+		local after = r.follow_pivot(q, { x = t.x + 3.1, y = t.y, z = t.z }, 0.016)
+		assert(after.x > q.x + 0.1 - 1e-9, "the walk after it still carries")
+	end },
+
 	{ "the camera frame sits behind the Helldiver and a wall pulls it in", function()
 		OPTIONS.foot_distance, OPTIONS.foot_fov, OPTIONS.shoulder = 3, 70, "right"
 		local e, env = started()
@@ -344,6 +364,12 @@ return {
 		local later = { x = 0, y = 1, z = 0 }
 		queue(function() end, {}, "me", "mover", "set_movement", later)
 		eq(later.x, 0)
+		-- The map open: it pans by the character input's movement, which stays as the game turned it.
+		env.api = { map = { is_open = function() return true end } }
+		E.hook("InputComponent", "update_masters")(game, {}, masters, 0.016)
+		near(faced.x, -math.sin(spin), "map: the game's turn", 1e-9)
+		near(got.me.x, -math.sin(spin), "map: the game's turn for the mover too", 1e-9)
+		env.api = nil
 		E.remove()
 	end },
 

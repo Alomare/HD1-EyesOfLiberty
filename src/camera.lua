@@ -232,7 +232,7 @@ function M.read_input(self, unit, ctx, shared, dt)
 	end
 	M.input = { frame = M.frame, unit = unit, ctx = ctx, kbm = kbm, look = look, fire = fire, throw = throw,
 		aiming = aiming, stick = look and stick or nil, shared = shared, dt = dt, pad_aim = pad_aim, pad_throw = pad_throw,
-		swap = swap, confused = M.confused(st) }
+		swap = swap, confused = M.confused(st), map = hud == "map" }
 	return M.input
 end
 
@@ -420,22 +420,20 @@ function M.hold_fire(st)
 	out.throw_amount, out.throw = 0, false
 end
 
--- The game's own crosshair (src/cursor.lua): with a mouse, in a mission, on foot or in a vehicle,
--- while no other mod draws the crosshair, the game's aiming cursor stays and is held at the middle of
--- the window, so it keeps the look and the steps the game gives it when aiming starts and stops. The
--- mod's own crosshair (src/crosshair.lua) steps aside then. M.vanilla is decided after each frame's
--- pose and read by the cursor hooks the next frame.
-M.vanilla = false
+-- The hidden Windows cursor is held at the middle of the window (src/cursor.lua) while the mouse turns
+-- the view in a mission, so a click never lands outside a windowed game. The game's aiming cursor
+-- stays hidden: Windows draws it where the mouse is, and the engine lets go of the hold every frame
+-- (probe 2026-11-25: the clip is the whole window again before each camera update, also with the
+-- game's own clip off), so at a low frame rate it slid with the mouse and jumped back each frame. The
+-- crosshair is drawn in the frame instead (src/crosshair.lua), with the game's images and steps.
+-- M.held is decided after each frame's pose.
+M.held = false
 
-function M.vanilla_wanted(env, cm)
+function M.hold_wanted(env, cm)
 	local state, input = env.state, M.input
-	if not (state.active and not M.watching and not M.hanging and not state.claimed_by) then return false end
+	if not (state.active and not M.watching and not M.hanging) then return false end
 	if not (input and input.kbm and input.look and not input.riding and M.frame - input.frame <= 4) then return false end
 	if type(cm) ~= "table" or cm.state ~= "follow" then return false end
-	-- In a vehicle the mod's own crosshair follows the seat (src/crosshair.lua vehicle_look), which the
-	-- game's cursor can't: none for a driver, the aiming one only while firing. Also none in a Hellpod
-	-- of the Super Destroyer.
-	if state.vehicle then return false end
 	return cursor.available()
 end
 
@@ -573,8 +571,8 @@ function M.release(env, cm)
 			env.log("Eyes of Liberty: game cursor given back (" .. was .. ")")
 		end
 	end
-	if M.vanilla then
-		M.vanilla = false
+	if M.held then
+		M.held = false
 		cursor.hold(false)
 	end
 	for _, fn in ipairs(env.on_release) do pcall(fn, cm) end
@@ -1168,7 +1166,7 @@ function M.start(env)
 			-- The software cursor the game eases back to the Helldiver after aiming stays away.
 			if st then st.software_cursor_position, st.software_cursor_start_distance = nil, nil end
 			local cursors = g("CursorManager")
-			if not M.vanilla and cursors and cursors.is_shown and cursors:is_shown() then cursors:set_show_cursor(false) end
+			if cursors and cursors.is_shown and cursors:is_shown() then cursors:set_show_cursor(false) end
 		end
 		local r = scoped.pack(scoped.around(enter, leave, original, self, masters, dt, ...))
 		if state.vehicle and ctx and M.map_open(env) then M.hold_fire(ctx.state) end
@@ -1177,11 +1175,13 @@ function M.start(env)
 
 	-- W moves where the camera looks: the local player's movement, which the game turned by the top-down
 	-- spin, turns on by the difference to the view's yaw (the mover's set_movement, and the movement
-	-- in the character's input, which the Helldiver faces while not aiming).
+	-- in the character's input, which the Helldiver faces while not aiming). Not while the map is open:
+	-- the map pans by that same movement, turned back by the top-down spin only (Hud.handle_map_input),
+	-- so a turned one panned the map the way the view faced instead of up the screen.
 	obsidian.hook("InputComponent", "queue_command_master", function(original, self, unit, component, command, data, ...)
 		local cm = g("CameraManager")
-		if inside and state.active and M.view.yaw and M.input and unit == M.input.unit and type(cm) == "table"
-			and type(cm.follow_spin) == "number" then
+		if inside and state.active and M.view.yaw and M.input and unit == M.input.unit and not M.input.map
+			and type(cm) == "table" and type(cm.follow_spin) == "number" and not M.map_open(env) then
 			local turn = rig.spin_of(M.view.yaw) - cm.follow_spin
 			if component == "mover" and command == "set_movement" then
 				rig.turn_flat(data, turn)
@@ -1206,7 +1206,7 @@ function M.start(env)
 
 	-- While the game reads input under the shoulder camera, the aiming cursor stays hidden and in place.
 	obsidian.hook("CursorManager", "set_show_cursor", function(original, self, on, ...)
-		if inside and on and state.active and not M.vanilla and M.input and M.input.look then return original(self, false, ...) end
+		if inside and on and state.active and M.input and M.input.look then return original(self, false, ...) end
 		return original(self, on, ...)
 	end, env.VIEW)
 	obsidian.hook("CursorManager", "set_cursor_position", function(original, self, ...)
@@ -1218,11 +1218,11 @@ function M.start(env)
 	-- way the hardware cursor came back at the mouse, which the view keeps near the middle. The game
 	-- cursors stay out while the shoulder camera takes the mouse; src/crosshair.lua draws the crosshair.
 	obsidian.hook("CursorManager", "set_cursor", function(original, self, path, ...)
-		if inside and state.active and not M.vanilla and M.input and M.input.look and M.GAME_CURSORS[path] then return end
+		if inside and state.active and M.input and M.input.look and M.GAME_CURSORS[path] then return end
 		return original(self, path, ...)
 	end, env.VIEW)
 	obsidian.hook("CursorManager", "update", function(original, self, ...)
-		if state.active and not M.vanilla and (M.watching or (M.input and M.input.look)) and type(self) == "table" then
+		if state.active and (M.watching or (M.input and M.input.look)) and type(self) == "table" then
 			pcall(M.hide_game_cursor, self)
 		end
 		return original(self, ...)
@@ -1329,19 +1329,8 @@ function M.start(env)
 			pcall(M.release, env, self)
 		end
 		if still and not (ok and drove) then pcall(M.game_pose, self) end
-		local was = M.vanilla
-		local got, want = pcall(M.vanilla_wanted, env, self)
-		M.vanilla = got and want or false
-		-- The game's cursor goes where the weapon points (state.crosshair, src/aim.lua), off the middle.
-		local cross, mid = state.crosshair, state.centre
-		local dx, dy = 0, 0
-		if cross and mid then dx, dy = cross.x - mid.x, mid.y - cross.y end
-		M.vanilla = cursor.hold(M.vanilla, dx, dy) and M.vanilla
-		if was and not M.vanilla and state.active then
-			-- Back to the mod's crosshair: the game's cursor goes out of the window again.
-			local cursors = g("CursorManager")
-			if type(cursors) == "table" then pcall(M.hide_game_cursor, cursors) end
-		end
+		local got, want = pcall(M.hold_wanted, env, self)
+		M.held = cursor.hold(got and want or false) and true or false
 		if M.flush_hud then M.flush_hud() end
 		return unpack(r, 1, r.n)
 	end, env.VIEW)

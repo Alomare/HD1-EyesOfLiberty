@@ -2,6 +2,14 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## Next
+
+- Fixed: The crosshair no longer lags behind and snaps back while turning, most of all at low frame rates. It is now drawn with the game images, including the steps between idle and aiming.
+- Fixed: The Helldiver no longer wobbles on screen when turning while moving.
+- Fixed: With a controller, the left stick pans the map along the screen, whichever way the Helldiver faces.
+- Fixed: The loose tripod leg of the Rumbler no longer flickers in third person. It stays folded, in hand and on the back.
+- Fixed: With free movement in online games and the squad spread out, patrols spawn and ranged enemies such as the Illusionist and the Cyborg Initiate open fire near every Helldiver.
+
 ## 1.2.0
 
 - New: Ship in the sky option, on by default. In third person during a mission, the Super Destroyer hangs high in the sky.

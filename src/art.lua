@@ -2,8 +2,9 @@
 -- world the camera draws, made once per mission. The game's guis can't draw these images, as a gui
 -- draws only the materials it was made with.
 --
--- Sprites: "eol_idle" (the game's idle aim cursor), "eol_ring" (a white ring) and "eol_hurt" (the edges
--- of the screen). Each is drawn whole, tinted by the colour of the draw.
+-- Sprites: "eol_aim", "eol_idle" and "eol_step1" to "eol_step5" (the game's aiming cursors),
+-- "eol_ring" (a white ring) and "eol_hurt" (the edges of the screen). Each is drawn whole, tinted by
+-- the colour of the draw.
 local M = {}
 
 M.MATERIAL = "eyesofliberty/hud"

@@ -170,14 +170,26 @@ function M.follow_length(current, wanted, dt)
 	return M.ease(current, wanted, 4, dt)
 end
 
--- The pivot eased toward the target: quick across the ground, slower up and down so steps and
--- landings don't jolt the view. A jump of more than 15 m (a teleport, a respawn) snaps.
+-- The pivot follows the target: across the ground it moves with the target each frame, so the
+-- Helldiver stays put in the picture while walking and turning; only a step of more than CARRY_MAX
+-- metres in one frame (the game putting the body somewhere else) eases in. An eased pivot trailed a
+-- walking Helldiver by about 14 cm, along a path that bends with the view, so turning on the move made
+-- the body swim sideways with every uneven step of the mouse, most at a low frame rate (probe
+-- 2026-11-25: up to 0.6 degrees). Up and down it eases, so steps and landings don't jolt the view. A
+-- jump of more than 15 m (a teleport, a respawn) snaps. The target of the frame is kept in the pivot
+-- (tx, ty).
+M.CARRY_MAX = 1.5
 function M.follow_pivot(current, target, dt)
-	if not current then return { x = target.x, y = target.y, z = target.z } end
+	if not current then return { x = target.x, y = target.y, z = target.z, tx = target.x, ty = target.y } end
 	local dx, dy, dz = target.x - current.x, target.y - current.y, target.z - current.z
-	if dx * dx + dy * dy + dz * dz > 225 then return { x = target.x, y = target.y, z = target.z } end
+	if dx * dx + dy * dy + dz * dz > 225 then return { x = target.x, y = target.y, z = target.z, tx = target.x, ty = target.y } end
+	local x, y = current.x, current.y
+	if current.tx then
+		local mx, my = target.x - current.tx, target.y - current.ty
+		if mx * mx + my * my <= M.CARRY_MAX * M.CARRY_MAX then x, y = x + mx, y + my end
+	end
 	local s, sz = M.ease_share(22, dt), M.ease_share(12, dt)
-	return { x = current.x + dx * s, y = current.y + dy * s, z = current.z + dz * sz }
+	return { x = x + (target.x - x) * s, y = y + (target.y - y) * s, z = current.z + dz * sz, tx = target.x, ty = target.y }
 end
 
 -- The camera's distance, field of view and side offset for this frame. opts: distance, fov (degrees),

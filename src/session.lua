@@ -25,6 +25,8 @@
 --   toward a player it can see, so before wander runs, a patrol with a player between patrol_range
 --   and SIGHT_RANGE casts the same sight ray the game casts, only longer. The patrol then comes
 --   closer, and the alarm still needs the player inside patrol_range, as in the game.
+local frustum = obsidian.module("src/frustum")
+
 local M = {}
 
 -- Every hook of the session parts passes straight to the game while env.off (the old id of this mod
@@ -332,14 +334,113 @@ function M.unleashed(masters, units, fn, ...)
 	return unpack(results, 2, table.maxn(results))
 end
 
+-- A squad split up: one top-down screen each. The game's rules ask the shared top-down screen
+-- (CameraManager:is_position_inside_frustum): a patrol spawns when its place comes onto it (patrol_manager
+-- 304), an alarm is raised only on it (EnemyUtility.check_alert), and ranged enemies such as the
+-- Illusionist and the Cyborg Initiate aim only from it. That camera frames the middle of all the
+-- Helldivers, so with free movement a Helldiver far from the others had no screen around them on the
+-- machine that runs the enemies: nothing spawned there and those enemies never fired. While a living
+-- Helldiver is off the shared screen, a place also counts as on screen when it is on the screen a top-down
+-- camera of the same zoom would show centred on any living Helldiver. The HUD's markers (src/frustum.lua
+-- drawing) and the squad leash (MoverComponent.update_masters) keep the shared screen alone. Together on
+-- one screen, nothing changes.
+
+-- A top-down camera like `cam` (src/frustum.lua camera_from), moved so that `p` is in the middle of it.
+function M.screen_at(cam, p)
+	local f = cam.forward
+	if math.abs(f.z) < 1e-6 then return nil end
+	local t = (p.z - cam.position.z) / f.z
+	local mid = { x = cam.position.x + f.x * t, y = cam.position.y + f.y * t, z = cam.position.z + f.z * t }
+	return { position = { x = cam.position.x + p.x - mid.x, y = cam.position.y + p.y - mid.y, z = cam.position.z + p.z - mid.z },
+		forward = cam.forward, right = cam.right, up = cam.up, fov = cam.fov }
+end
+
+-- Whether `pos` is on the screen of `cam` (w by h pixels) within the game's margins (shares of the
+-- screen: left, right, top, bottom; positive inside the edge, negative past it), as
+-- CameraManager.is_position_inside_frustum measures them.
+function M.on_screen(cam, pos, w, h, left, right, top, bottom)
+	local x, depth, y = frustum.project(cam, pos, w, h)
+	if depth <= 0 then return false end
+	return x >= (left or 0) * w and x <= w - (right or 0) * w and y >= (bottom or 0) * h and y <= h - (top or 0) * h
+end
+
+-- The places of the living Helldivers, { x, y, z } each.
+function M.helldivers(api)
+	local out = {}
+	local slaves = api and api.game and api.game.slaves and api.game.slaves("character")
+	if type(slaves) ~= "table" then return out end
+	local EA, U = rawget(_G, "EntityAux"), rawget(_G, "Unit")
+	for unit in pairs(slaves) do
+		local ok, health = pcall(EA.state, unit, "health")
+		if U.alive(unit) and not (ok and type(health) == "table" and health.is_dead) then
+			local p = U.world_position(unit, 0)
+			out[#out + 1] = { x = p.x, y = p.y, z = p.z }
+		end
+	end
+	return out
+end
+
+-- The screens of a split squad this frame: { cam, w, h, screens = { cam, ... } }, or false while every
+-- living Helldiver is on the shared screen. inside(pos) is the game's own test with no margins.
+function M.split_screens(cm, players, inside)
+	local res = type(cm) == "table" and cm.screen_resolution
+	if not (res and res.width and res.height and cm.position and cm.rotation) or #players < 2 then return false end
+	local apart = false
+	for _, p in ipairs(players) do
+		if not inside(p) then apart = true break end
+	end
+	if not apart then return false end
+	local cam = frustum.top_down(cm)
+	local screens = {}
+	for _, p in ipairs(players) do screens[#screens + 1] = M.screen_at(cam, p) end
+	return { w = res.width, h = res.height, screens = screens }
+end
+
 local function start_free_movement(env)
+	local opts = env.part("free_movement")
+	local moving = false
 	hook("MoverComponent", "update_masters", function(original, self, masters, ...)
+		moving = true
 		local view = env.view
-		if not (env.state and env.state.active and view and view.avatar) then return original(self, masters, ...) end
-		local units = { [view.avatar] = true }
-		if view.target then units[view.target] = true end
-		return M.unleashed(masters, units, original, self, masters, ...)
-	end, env.part("free_movement"))
+		local results
+		if not (env.state and env.state.active and view and view.avatar) then
+			results = { pcall(original, self, masters, ...) }
+		else
+			local units = { [view.avatar] = true }
+			if view.target then units[view.target] = true end
+			results = { pcall(M.unleashed, masters, units, original, self, masters, ...) }
+		end
+		moving = false
+		if not results[1] then error(results[2], 0) end
+		return unpack(results, 2, table.maxn(results))
+	end, opts)
+
+	local split, split_frame, measuring = false, nil, false
+	local function screens(cm)
+		local frame = env.frame and env.frame() or 0
+		if split_frame == frame then return split end
+		split_frame = frame
+		measuring = true
+		local ok, got = pcall(function()
+			return M.split_screens(cm, M.helldivers(env.api), function(p)
+				return (cm:is_position_inside_frustum(rawget(_G, "Vector3")(p.x, p.y, p.z)))
+			end)
+		end)
+		measuring = false
+		split = ok and got or false
+		return split
+	end
+	hook("CameraManager", "is_position_inside_frustum", function(original, self, position, left, right, top, bottom, ...)
+		local a, b, c, d = original(self, position, left, right, top, bottom, ...)
+		if a or measuring or moving or frustum.drawing() or not position then return a, b, c, d end
+		local s = screens(self)
+		if not s then return a, b, c, d end
+		local p = { x = position.x, y = position.y, z = position.z }
+		for _, cam in ipairs(s.screens) do
+			if M.on_screen(cam, p, s.w, s.h, left, right, top, bottom) then return true, b, c, d end
+		end
+		return a, b, c, d
+	end, opts)
 end
 
 -- Throw range (part throw_range) -------------------------------------------------------------------

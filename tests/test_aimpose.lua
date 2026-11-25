@@ -82,7 +82,7 @@ return {
 		eq(l, 1059) eq(t, 589) eq(r, 1061) eq(b, 591)
 	end },
 
-	{ "the game's crosshair stays only with a mouse, in a mission, and with no other mod's crosshair", function()
+	{ "the hidden cursor is held only with a mouse turning the view in a mission", function()
 		E.install()
 		local cam = obsidian.module("src/camera")
 		local cursor = obsidian.module("src/cursor")
@@ -92,17 +92,19 @@ return {
 		cam.input = { kbm = true, look = true, frame = 10 }
 		local env = { state = { active = true } }
 		local cm = { state = "follow" }
-		eq(cam.vanilla_wanted(env, cm), true)
+		eq(cam.hold_wanted(env, cm), true)
 		env.state.claimed_by = "alomare.customcrosshair"
-		eq(cam.vanilla_wanted(env, cm), false, "Custom Crosshair draws it")
-		env.state.claimed_by = nil
+		eq(cam.hold_wanted(env, cm), true, "another mod's crosshair changes nothing")
+		env.state.vehicle = true
+		eq(cam.hold_wanted(env, cm), true, "in a vehicle too")
+		env.state.claimed_by, env.state.vehicle = nil, nil
 		cam.input.kbm = false
-		eq(cam.vanilla_wanted(env, cm), false, "a pad")
+		eq(cam.hold_wanted(env, cm), false, "a pad")
 		cam.input.kbm = true
 		cam.input.look = false
-		eq(cam.vanilla_wanted(env, cm), false, "a menu or the map")
+		eq(cam.hold_wanted(env, cm), false, "a menu or the map")
 		cam.input.look = true
-		eq(cam.vanilla_wanted(env, { state = "follow_menu" }), false, "the ship")
+		eq(cam.hold_wanted(env, { state = "follow_menu" }), false, "the ship")
 		cursor.available = had
 		E.remove()
 	end },

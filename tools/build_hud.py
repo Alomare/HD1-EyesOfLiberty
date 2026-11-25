@@ -3,8 +3,11 @@ gui material that names them.
 
 Usage: python tools/build_hud.py
 
-  eol_idle  the game's idle aim cursor ("hud/cursors/game_inactive", a hardware cursor the shoulder
-            view can't show), read from the game through Minediver and kept as it is, 32 by 32
+  eol_aim, eol_idle, eol_step1 to eol_step5
+            the game's aiming cursors ("hud/cursors/game", "game_inactive", "game_transition_01" to
+            "_05": Windows cursors, which move with the mouse between two frames, so the shoulder
+            view draws them in the frame instead), read from the game through Minediver and kept as
+            they are, 32 by 32
   eol_ring  the ring where a throw lands, white, 256 by 256
   eol_hurt  the edges of the screen for Hurt feedback, white, stretched over the whole window
 
@@ -77,16 +80,26 @@ def white(alpha):
     return Image.fromarray(np.dstack([rgb, a]), "RGBA")
 
 
-def idle_cursor():
-    """The game's own idle cursor, 32 by 32 BGRA after a 20-byte head."""
+def game_cursor(name):
+    """One of the game's own cursors, 32 by 32 BGRA after a 20-byte head. The names of the five
+    steps between the idle and the aiming cursor are not in the game's name lists, so they are found
+    by the murmur64 of the name."""
+    key = f"{murmur64(name.encode()):016x}"
     with tempfile.TemporaryDirectory() as out:
-        subprocess.run([str(MINEDIVER), "extract", "--text", "hud/cursors/game_inactive", "--raw", "-o", out],
+        subprocess.run([str(MINEDIVER), "extract", "--text", key, "--raw", "-o", out],
                        check=True, capture_output=True)
-        found = list(Path(out).rglob("game_inactive.mouse_cursor"))
+        found = list(Path(out).rglob("*.mouse_cursor"))
+        assert len(found) == 1, (name, found)
         data = found[0].read_bytes()
     w, h = struct.unpack_from("<II", data, 0)
     assert (w, h) == (32, 32), (w, h)
     return Image.frombytes("RGBA", (w, h), data[20:20 + w * h * 4], "raw", "BGRA")
+
+
+# The game's aiming cursors: the aiming one, the idle one, and the five steps the game shows 35 ms
+# each when one turns into the other (CursorManager.update).
+CURSORS = {"eol_aim": "hud/cursors/game", "eol_idle": "hud/cursors/game_inactive"}
+CURSORS.update({f"eol_step{i}": f"hud/cursors/game_transition_0{i}" for i in range(1, 6)})
 
 
 def ring(size=256, thickness=0.075):
@@ -146,18 +159,22 @@ def material(names):
 
 
 def main():
-    images = {"eol_idle": idle_cursor(), "eol_ring": ring(), "eol_hurt": hurt()}
+    images = {sprite: game_cursor(name) for sprite, name in CURSORS.items()}
+    images.update({"eol_ring": ring(), "eol_hurt": hurt()})
     RES.mkdir(exist_ok=True)
     for sprite, image in images.items():
         (RES / f"hud_{sprite[4:]}.texture").write_bytes(dds_rgba(image))
     (RES / "hud.material").write_bytes(material(images))
     # A look at all three over a dark green, the hurt edge tinted as the game draws it.
-    preview = Image.new("RGBA", (512 + 256 + 64 + 32, 288), (30, 44, 30, 255))
+    preview = Image.new("RGBA", (512 + 256 + 64 + 32, 288 + 80), (30, 44, 30, 255))
     tint = Image.new("RGBA", images["eol_hurt"].size, (210, 24, 18, 255))
     tint.putalpha(images["eol_hurt"].getchannel("A"))
     preview.alpha_composite(tint, (0, 0))
     preview.alpha_composite(images["eol_ring"], (512 + 16, 16))
-    preview.alpha_composite(images["eol_idle"].resize((64, 64), Image.Resampling.NEAREST), (512 + 256 + 24, 16))
+    # The cursors, idle, the five steps and aiming, in the order the game shows them.
+    order = ["eol_idle"] + [f"eol_step{i}" for i in range(5, 0, -1)] + ["eol_aim"]
+    for i, sprite in enumerate(order):
+        preview.alpha_composite(images[sprite].resize((64, 64), Image.Resampling.NEAREST), (16 + i * 72, 288 + 8))
     (ROOT / "internal").mkdir(exist_ok=True)
     preview.save(ROOT / "internal" / "hud_preview.png")
     for sprite in images:

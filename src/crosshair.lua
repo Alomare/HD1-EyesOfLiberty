@@ -1,13 +1,14 @@
 -- The game's own crosshair at the middle of the view while third person steers it.
 --
--- In the top-down view the game shows its aiming cursor as a hardware cursor at the mouse
--- (CursorManager, "hud/cursors/game"). Under the shoulder camera the mouse turns the view and is kept
--- near the middle of the window, so that cursor stays hidden (src/camera.lua) and the image the game
--- draws for it, "cursor_game" of the input component's cursor gui, is drawn at the crosshair instead:
--- in a vehicle always, on foot while the aim button, fire or a throw is held. Between shots the game
--- shows the idle cursor ("hud/cursors/game_inactive", a faint dot) when the game option keeps the crosshair
--- up, and nothing otherwise; the shoulder view does the same with that cursor's image, "eol_idle" of
--- the mod's art (src/art.lua). Another mod that draws the crosshair (claim_crosshair in
+-- In the top-down view the game shows its aiming cursor as a Windows cursor at the mouse
+-- (CursorManager, "hud/cursors/game"). Under the shoulder camera the mouse turns the view, so that
+-- cursor stays hidden (src/camera.lua) and its image, "eol_aim" of the mod's art (src/art.lua), is
+-- drawn at the crosshair in the frame, after the pose: on foot while the aim button, fire or a throw
+-- is held, in a vehicle by the seat (vehicle_look). Between shots the game shows the idle cursor
+-- ("hud/cursors/game_inactive", a faint dot, "eol_idle") when the game option keeps the crosshair up,
+-- and nothing otherwise. Between the two the game shows five steps, 35 ms each ("game_transition_01"
+-- to "_05", "eol_step1" to "eol_step5"), and so does the shoulder view (M.advance). Another mod that
+-- draws the crosshair (claim_crosshair in
 -- main.lua, as Custom Crosshair does) turns this one off. While sprinting the crosshair fades out
 -- (state.sprint_fade, from src/camera.lua), and the export hands the same fade to the other mod.
 --
@@ -15,14 +16,17 @@
 -- in the Hellpod, not sitting in a Hellpod on the Super Destroyer (a seat with the drop_pod component,
 -- gameobjects/gameobject_hellpod_menu), not putting in a stratagem, the map shut and the death cam off. Down and carrying,
 -- the Helldiver still shoots, and the crosshair stays. The export hands the same flag to the other mod, so its crosshair hides at the same moments.
-local scoped = obsidian.module("src/scoped")
 local art = obsidian.module("src/art")
 
 local M = {}
 
-M.SPRITE = "cursor_game"
+M.AIM = "eol_aim"
 M.IDLE = "eol_idle"
+M.STEP = "eol_step"
+M.STEPS = 5
+M.STEP_TIME = 0.035
 M.SIZE = 32
+M.LAYER = 100         -- the art gui, over the throw ring (97) and the hurt edges (60)
 
 local function g(name) return rawget(_G, name) end
 
@@ -104,8 +108,6 @@ function M.look(env, always)
 	local state = env.state
 	if not state.active or not state.crosshair or state.claimed_by or state.dropping then return nil end
 	if state.armed == false then return nil end
-	-- The game's own aiming cursor is up, held at the middle (src/camera.lua M.vanilla).
-	if env.camera and env.camera.vanilla then return nil end
 	if (state.sprint_fade or 1) <= 0.01 then return nil end
 	local camera = env.camera
 	local input = camera and camera.input
@@ -139,40 +141,72 @@ function M.rect(x, y)
 	return x - s / 2, y - s / 2, s
 end
 
-function M.draw(gui, env, kind)
-	local G, V2 = g("Gui"), g("Vector2")
+-- The image shown this frame for the wanted look ("aim", "idle" or nil), stepping as the game's
+-- CursorManager does: from one of the two to the other through the five steps, one step a frame at
+-- most and only once STEP_TIME has gone by since the last (the step from aim to idle counts up from 1,
+-- the other way down from 5); turned back halfway, the next frame steps back the other way. From
+-- nothing to either, it shows at once. t keeps current, next, index and timer between frames.
+function M.advance(t, want, dt)
+	if want == nil then
+		t.current, t.next, t.index, t.timer = nil, nil, nil, nil
+		return nil
+	end
+	if t.next then
+		if want ~= t.next then t.next, t.timer = want, 0 end
+	elseif t.current ~= want then
+		if t.current == nil then
+			t.current = want
+		else
+			t.next, t.timer = want, M.STEP_TIME
+			t.index = want == "idle" and 1 or M.STEPS
+			return M.STEP .. t.index
+		end
+	end
+	if t.next then
+		t.timer = t.timer - (dt or 0)
+		if t.timer <= 0 then
+			t.timer = M.STEP_TIME
+			t.index = t.index + (t.next == "aim" and -1 or 1)
+			if t.index < 1 or t.index > M.STEPS then
+				t.current, t.next, t.index, t.timer = t.next, nil, nil, nil
+			end
+		end
+	end
+	if t.next then return M.STEP .. t.index end
+	return t.current == "aim" and M.AIM or M.IDLE
+end
+
+M.steps = {}
+
+function M.draw(gui, env, sprite)
 	local c = env.state.crosshair
 	local x, y, s = M.rect(c.x, c.y)
 	local alpha = math.floor(255 * math.max(0, math.min(1, env.state.sprint_fade or 1)) + 0.5)
-	if kind == "idle" then
-		local own = art.gui()
-		if own then art.draw(own, M.IDLE, x, y, s, s, 0, alpha, 255, 255, 255) end
-		return
-	end
-	G.bitmap_uv(gui, M.SPRITE, V2(0, 0), V2(1, 1), V2(x, y), V2(s, s), g("Color")(alpha, 255, 255, 255))
+	art.draw(gui, sprite, x, y, s, s, M.LAYER, alpha, 255, 255, 255)
 end
 
 function M.start(env)
 	local failed = false
 	env.state.armed = nil
-	table.insert(env.on_pose, function(view)
+	table.insert(env.on_pose, function(view, cm, dt)
 		env.state.armed = M.armed(env, view)
 		env.state.seat_armed = M.seat_armed(view)
-	end)
-	table.insert(env.on_release, function() env.state.armed, env.state.seat_armed = nil, nil end)
-	-- The game draws its cursor images while it reads input; the crosshair goes on the same gui then.
-	obsidian.hook("InputComponent", "update_masters", function(original, self, ...)
-		local r = scoped.pack(original(self, ...))
-		local kind = not failed and type(self) == "table" and self.cursor_gui and M.look(env, M.always_on())
-		if kind then
-			local ok, err = pcall(M.draw, self.cursor_gui, env, kind)
-			if not ok then
-				failed = true
-				env.log("Eyes of Liberty: crosshair stopped: " .. tostring(err))
-			end
+		-- After src/aim.lua placed the crosshair for this pose: drawn in the same frame as the view.
+		if failed then return end
+		local ok, err = pcall(function()
+			local sprite = M.advance(M.steps, M.look(env, M.always_on()), dt)
+			local gui = sprite and art.gui()
+			if gui then M.draw(gui, env, sprite) end
+		end)
+		if not ok then
+			failed = true
+			env.log("Eyes of Liberty: crosshair stopped: " .. tostring(err))
 		end
-		return unpack(r, 1, r.n)
-	end, env.VIEW)
+	end)
+	table.insert(env.on_release, function()
+		env.state.armed, env.state.seat_armed = nil, nil
+		M.advance(M.steps, nil, 0)
+	end)
 end
 
 return M

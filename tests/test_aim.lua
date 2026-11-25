@@ -382,25 +382,55 @@ return {
 		eq(x, 944) eq(y, 524) eq(s, 32)
 	end },
 
-	{ "the game's crosshair image goes on the cursor gui after the input update", function()
-		local e = E.install()
+	{ "the game's crosshair image is drawn on the mod's gui after each pose", function()
+		E.install()
 		local env = E.env()
 		env.state.active, env.state.crosshair, env.state.aiming = true, { x = 960, y = 540 }, true
 		env.camera = { input = { look = true } }
 		local drawn = nil
-		rawset(_G, "Gui", { bitmap_uv = function(gui, material, _, _, pos, size) drawn = { gui, material, pos.x, pos.y, size.x } end })
+		rawset(_G, "Gui", { bitmap_uv = function(gui, material, _, _, pos, size) drawn = { gui, material, pos.x, pos.y, size.x, pos.z } end })
 		rawset(_G, "Vector2", function(x, y) return { x = x, y = y } end)
+		rawset(_G, "Vector3", function(x, y, z) return { x = x, y = y, z = z } end)
 		rawset(_G, "Color", function(...) return { ... } end)
-		obsidian.module("src/crosshair").start(env)
-		local ran = false
-		E.hook("InputComponent", "update_masters")(function() ran = true return "done" end, { cursor_gui = "cg" }, {}, 0.016)
-		eq(ran, true)
-		eq(drawn[1], "cg") eq(drawn[2], "cursor_game") eq(drawn[3], 944) eq(drawn[4], 524) eq(drawn[5], 32)
+		local art = obsidian.module("src/art")
+		local had = art.gui
+		art.gui = function() return "art" end
+		local cross = obsidian.module("src/crosshair")
+		cross.advance(cross.steps, nil, 0)
+		cross.start(env)
+		local pose = env.on_pose[#env.on_pose]
+		local view = { avatar = "me" }
+		pose(view, {}, 0.016)
+		eq(drawn[1], "art") eq(drawn[2], "eol_aim") eq(drawn[3], 944) eq(drawn[4], 524) eq(drawn[5], 32) eq(drawn[6], cross.LAYER)
 		drawn = nil
 		env.state.claimed_by = "alomare.customcrosshair"
-		E.hook("InputComponent", "update_masters")(function() end, { cursor_gui = "cg" }, {}, 0.016)
+		pose(view, {}, 0.016)
 		eq(drawn, nil, "claimed: Custom Crosshair draws it")
+		art.gui = had
 		E.remove()
+	end },
+
+	{ "the crosshair steps between idle and aiming as the game's cursor does", function()
+		local cross = obsidian.module("src/crosshair")
+		local t = {}
+		eq(cross.advance(t, "idle", 0.016), "eol_idle", "from nothing: at once")
+		eq(cross.advance(t, "aim", 0.016), "eol_step5", "idle to aim starts at step 5")
+		eq(cross.advance(t, "aim", 0.016), "eol_step5", "35 ms a step")
+		eq(cross.advance(t, "aim", 0.016), "eol_step5")
+		eq(cross.advance(t, "aim", 0.016), "eol_step4")
+		-- At 30 frames a second: one step a frame at most.
+		eq(cross.advance(t, "aim", 0.1), "eol_step3")
+		eq(cross.advance(t, "aim", 0.1), "eol_step2")
+		eq(cross.advance(t, "idle", 0.016), "eol_step3", "turned back: steps back at once")
+		eq(cross.advance(t, "idle", 0.04), "eol_step4")
+		eq(cross.advance(t, "idle", 0.04), "eol_step5")
+		eq(cross.advance(t, "idle", 0.04), "eol_idle")
+		eq(cross.advance(t, "aim", 0.04), "eol_step5")
+		for _ = 1, 5 do cross.advance(t, "aim", 0.04) end
+		eq(cross.advance(t, "aim", 0.04), "eol_aim")
+		eq(cross.advance(t, "idle", 0.016), "eol_step1", "aim to idle starts at step 1")
+		eq(cross.advance(t, nil, 0.016), nil, "hidden")
+		eq(cross.advance(t, "aim", 0.016), "eol_aim", "from hidden: no steps")
 	end },
 
 	{ "the hardware cursor of the game stays out under the shoulder camera", function()

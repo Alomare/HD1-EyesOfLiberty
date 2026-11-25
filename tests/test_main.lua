@@ -36,8 +36,10 @@ return {
 			local t = h.target
 			if t == "CameraManager" or t == "InputComponent" or t == "ViewportProxy" or t == "CursorManager" or t == "Hud"
 				or t == "CharacterStateThrow" then
-				-- Patrols stay in view asks the frustum too, as a session part.
-				local want = (t == "CameraManager" and h.opts.part == "keep_patrols") and "keep_patrols" or "view"
+				-- Patrols stay in view and free movement (a screen for each Helldiver of a split squad) ask
+				-- the frustum too, as session parts.
+				local session = h.opts.part == "keep_patrols" or h.opts.part == "free_movement"
+				local want = (t == "CameraManager" and session) and h.opts.part or "view"
 				eq(h.opts.part, want, tostring(t) .. "." .. tostring(h.method))
 			end
 		end
