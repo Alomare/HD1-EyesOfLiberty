@@ -2,6 +2,10 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
+## Next
+
+- Fixed: a bright white glare on the ship and the title screen after a mission, from the fog of the last planet staying on.
+
 ## 1.2.1
 
 - Fixed: The crosshair no longer lags behind and snaps back while turning, most of all at low frame rates. It is now drawn with the game images, including the steps between idle and aiming.

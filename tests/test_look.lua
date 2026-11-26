@@ -137,6 +137,28 @@ return {
 		E.remove()
 	end },
 
+	{ "leaving the mission gives the planet's look back, so the ship and menu keep theirs", function()
+		local calls, opts = {}, {}
+		started(calls, opts)
+		frame()
+		local sent = {}
+		for _, c in ipairs(calls) do sent[c[1]] = true end
+		opts.mission = false
+		frame()
+		for name in pairs(sent) do
+			local c = last(calls, name)
+			eq(c[3], nil, name .. " given back") eq(c[2], look().KIND[name], name .. " kind")
+		end
+		eq(next(look().applied), nil, "nothing held")
+		local n = #calls
+		frame()
+		eq(#calls, n, "once")
+		opts.mission = nil
+		frame()
+		near(last(calls, "fog_depth_range")[3][2], 20 + 100 / look().FOG_DEFAULT, "sent again in the next mission")
+		E.remove()
+	end },
+
 	{ "the sun colour is read again as the level settles", function()
 		local calls, opts = {}, { sun = { 80, 80, 80 } }
 		started(calls, opts)

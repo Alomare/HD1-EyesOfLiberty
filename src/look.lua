@@ -136,6 +136,14 @@ function M.step_aside(shading)
 	for _, name in ipairs(M.DOF) do M.applied[name] = nil end
 end
 
+-- Off a mission: every value sent goes back to the game's.
+function M.release(shading)
+	for name in pairs(M.applied) do
+		pcall(shading, name, M.KIND[name])
+	end
+	M.applied = {}
+end
+
 -- Metres from the drawn camera to the chest of this player's Helldiver, or nil.
 function M.focus(env, api)
 	local unit = nil
@@ -174,8 +182,12 @@ function M.frame(env)
 	if not (world and world.shading) then return end
 	local in_mission = api.game and api.game.in_mission and api.game.in_mission()
 	if not in_mission then
-		-- The values hold into the next mission; they are sent again there for its planet.
-		M.applied, planet.read = {}, false
+		-- Obsidian API puts a shading value on again at every change of game state, the ship and
+		-- the title screen included, so a value left set would tint them with the last planet's
+		-- fog and sun blend (a white glare after desert and forest missions). Everything sent is
+		-- given back here, and sent again in the next mission for its planet.
+		M.release(world.shading)
+		planet.read = false
 		return
 	end
 	local cam = world.camera
