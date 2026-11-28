@@ -2,10 +2,6 @@
 
 New, changed, fixed or removed features, one line each, brief and direct. The section for a release becomes the release notes.
 
-## Next
-
-- Fixed: Picking up the Sniffer, and other weapons with moving parts, no longer closes the game in third person. Only the Rumbler leg is held folded, and it goes back to normal when the Rumbler is dropped or the Helldiver dies.
-
 ## 1.2.2
 
 - Fixed: a bright white glare on the ship and the title screen after a mission, from the fog of the last planet staying on.

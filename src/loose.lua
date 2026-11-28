@@ -4,31 +4,15 @@
 -- (probe 2026-11-25), where it is too far to see. Close behind the shoulder it flickered between folded
 -- and out.
 --
--- While the shoulder view is on, the Rumbler of this player's Helldiver gets the node of each such actor
--- (dynamic, not kinematic, on a node other than the root) back to the pose it is made with (the
+-- While the shoulder view is on, each weapon of this player's Helldiver that has such an actor (dynamic,
+-- not kinematic, on a node other than the root) gets its node back to the pose it is made with (the
 -- identity: every node of a freshly spawned Rumbler has it) and the actor turned kinematic, so the
--- part rides with the weapon, folded. The top-down camera, the death cam and a Rumbler leaving the
--- inventory give them back to the physics.
---
--- Only the units in KINDS: other weapons have free actors too (the ME-1 Sniffer), and turning those
--- kinematic ended the game on pickup (report, 1.2.2).
+-- part rides with the weapon, folded. The top-down camera gives them back to the physics.
 local M = {}
 
 local function g(name) return rawget(_G, name) end
 
 M.SLOTS = { "primary_weapon", "sidearm_weapon", "support_weapon" }
-M.KINDS = { "equipment/wep_mortar_01" }
-
--- Whether a weapon unit is one whose loose parts are held.
-function M.wanted(unit)
-	local U = g("Unit")
-	if not (U and U.is_a) then return false end
-	for _, path in ipairs(M.KINDS) do
-		local ok, yes = pcall(U.is_a, unit, path)
-		if ok and yes == true then return true end
-	end
-	return false
-end
 M.held = {}           -- weapon unit -> list of actors made kinematic
 M.logged = {}
 
@@ -64,19 +48,14 @@ function M.hold(unit)
 	return #list
 end
 
--- Gives the held parts of one weapon unit back to the physics.
-local function release(unit)
-	local U, A = g("Unit"), g("Actor")
-	local list = M.held[unit]
-	M.held[unit] = nil
-	if list and U.alive(unit) then
-		for _, p in ipairs(list) do pcall(A.set_kinematic, p.actor, false) end
-	end
-end
-
 -- Gives every held part back to the physics.
 function M.give_back()
-	for unit in pairs(M.held) do release(unit) end
+	local U, A = g("Unit"), g("Actor")
+	for unit, list in pairs(M.held) do
+		if U.alive(unit) then
+			for _, p in ipairs(list) do pcall(A.set_kinematic, p.actor, false) end
+		end
+	end
 	M.held = {}
 end
 
@@ -98,18 +77,9 @@ function M.frame(env, view)
 	for unit in pairs(M.held) do
 		if not U.alive(unit) then M.held[unit] = nil end
 	end
-	if not (view and view.avatar) or view.watching then
-		M.give_back()
-		return
-	end
-	local carried = {}
-	for _, unit in ipairs(M.weapons(view.avatar)) do carried[unit] = true end
-	-- Weapons no longer carried (dropped, swapped for a pickup) go back to the physics.
-	for unit in pairs(M.held) do
-		if not carried[unit] then release(unit) end
-	end
+	if not (view and view.avatar) or view.watching then return end
 	for _, unit in ipairs(M.weapons(view.avatar)) do
-		if U.alive(unit) and not M.held[unit] and M.wanted(unit) then
+		if U.alive(unit) and not M.held[unit] then
 			local n = M.hold(unit)
 			if n > 0 and not M.logged[tostring(unit)] then
 				M.logged[tostring(unit)] = true
